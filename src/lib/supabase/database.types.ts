@@ -77,6 +77,18 @@ export type PipelineNextStep =
   | 'close_workflow'
   | 'complete';
 
+/**
+ * What an email verifier reported. A boolean cannot carry this: `accept_all`
+ * means the domain accepts everything so the check proved nothing, and
+ * `unknown` means the verifier gave up — neither is "true" or "false".
+ */
+export type EmailVerificationStatus =
+  | 'unverified'
+  | 'valid'
+  | 'invalid'
+  | 'accept_all'
+  | 'unknown';
+
 export type ActivityKind =
   | 'research_edited'
   | 'personalization_edited'
@@ -369,11 +381,17 @@ export interface Database {
           closed: string | null;
           closed_reason: string | null;
           auto_followups: boolean;
+          email_verification_status: EmailVerificationStatus;
+          email_verification_source: string | null;
+          email_checked_at: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           lead_id: string;
+          email_verification_status?: EmailVerificationStatus;
+          email_verification_source?: string | null;
+          email_checked_at?: string | null;
           email_found?: boolean;
           email_found_at?: string | null;
           email_verified?: boolean;
@@ -675,6 +693,17 @@ export interface Database {
         Relationships: [];
       };
 
+      public_stats_leads: {
+        Row: {
+          business_name: string;
+          city: string | null;
+          country: string | null;
+          industry: string;
+          stage: PipelineStage;
+        };
+        Relationships: [];
+      };
+
       /* --------------------------------------------------------------------- */
       /* PUBLIC — anon-readable. Aggregates only; see migration 0013 before      */
       /* adding a single column here.                                           */
@@ -783,6 +812,7 @@ export interface Database {
           industry: string;
           leads: number;
           emails_sent: number;
+          followups_sent: number;
           replies_received: number;
           positive_replies: number;
           reply_rate_pct: number | null;
@@ -829,6 +859,7 @@ export interface Database {
       integration_run_status: IntegrationRunStatus;
       email_type: EmailType;
       email_version_status: EmailVersionStatus;
+      email_verification_status: EmailVerificationStatus;
       pipeline_stage: PipelineStage;
       pipeline_next_step: PipelineNextStep;
       activity_kind: ActivityKind;

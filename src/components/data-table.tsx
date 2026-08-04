@@ -11,6 +11,21 @@ import { usePersistedJson } from '@/lib/use-persisted-state';
 /** Stable module-level default so the persisted-state fallback never changes identity. */
 const EMPTY_WIDTHS: Record<string, number> = {};
 
+/**
+ * Resize bounds.
+ *
+ * MIN is roughly eight characters plus the cell padding — narrow enough to
+ * squeeze a column almost out of the way when you are looking at something
+ * else, wide enough that what remains is still a recognisable value rather
+ * than an ellipsis.
+ *
+ * MAX is generous on purpose: a column should always be draggable wide enough
+ * to read the longest value in it, and the longest value here is a business
+ * name or an email address.
+ */
+const MIN_COLUMN_WIDTH = 72;
+const MAX_COLUMN_WIDTH = 900;
+
 export interface Column<T> {
   key: string;
   header: string;
@@ -77,7 +92,8 @@ export function DataTable<T>({
     let latest = current;
 
     function onMove(moveEvent: PointerEvent) {
-      latest = Math.max(64, current + (moveEvent.clientX - startX));
+      const proposed = current + (moveEvent.clientX - startX);
+      latest = Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, proposed));
       setDragging({ key, width: latest });
     }
     function onUp() {
@@ -142,7 +158,10 @@ export function DataTable<T>({
               return (
                 <TH
                   key={column.key}
-                  style={width ? { width, minWidth: width } : undefined}
+                  // Under table-fixed a single `width` is authoritative. Pinning
+                  // minWidth to the same value (as this used to) re-introduced
+                  // the floor that made narrowing impossible.
+                  style={width ? { width } : undefined}
                   // aria-sort communicates the current sort to screen readers.
                   aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : undefined}
                   className={cn('group relative', column.align === 'right' && 'text-right')}

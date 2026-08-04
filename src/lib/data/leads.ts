@@ -54,9 +54,40 @@ function sanitizeSearch(term: string): string {
     .trim();
 }
 
+/**
+ * Named views the dashboard widgets link to.
+ *
+ * Every widget on the dashboard is a count of something; clicking it has to
+ * land on exactly the rows that were counted. Defining those queries once, here,
+ * is what guarantees the number and the list agree — a widget that says 114 and
+ * a page that shows 97 is worse than no widget.
+ */
+export const LEAD_VIEWS = {
+  missing_email: 'Leads missing an email address',
+  awaiting_verification: 'Address on file, not yet verified',
+  invalid_email: 'Address proved undeliverable — needs a new source',
+  approval_queue: 'Drafted, waiting for approval',
+  awaiting_review: 'Active draft still marked as draft',
+  needs_research: 'Verified, no research written',
+  needs_draft: 'Research done, no draft',
+  ready_to_send: 'Approved and waiting to go out',
+  followup1_due: 'Follow-up 1 due today or earlier',
+  followup2_due: 'Follow-up 2 due today or earlier',
+  overdue_followups: 'Follow-ups due before today, still unsent',
+  replied: 'Prospect replied',
+  sent: 'Initial email has gone out',
+} as const;
+
+export type LeadView = keyof typeof LEAD_VIEWS;
+
+export function isLeadView(value: string): value is LeadView {
+  return value in LEAD_VIEWS;
+}
+
 export interface LeadListParams {
   search?: string;
   statuses?: LeadStatus[];
+  view?: LeadView;
   sort?: SortColumn;
   direction?: 'asc' | 'desc';
   page?: number;
@@ -77,10 +108,96 @@ export interface LeadListResult {
   error: string | null;
 }
 
+/**
+ * Resolve a named view to the lead ids in it.
+ *
+ * Done as a pre-query against lead_pipeline rather than a join, because the
+ * hand-written Database types declare `Relationships: []` and PostgREST embeds
+ * therefore do not type-resolve. Returns null when the view needs no pipeline
+ * filter at all.
+ */
+async function idsForView(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  view: LeadView,
+): Promise<string[]> {
+  const now = new Date().toISOString();
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+
+  let query = supabase.from('lead_pipeline').select('lead_id').is('closed', null);
+
+  switch (view) {
+    case 'missing_email':
+      query = query.eq('email_found', false);
+      break;
+    case 'awaiting_verification':
+      query = query
+        .eq('email_found', true)
+        .eq('email_verified', false)
+        .neq('email_verification_status', 'invalid');
+      break;
+    case 'invalid_email':
+      query = query.eq('email_verification_status', 'invalid');
+      break;
+    case 'approval_queue':
+      query = query.eq('draft_ready', true).eq('approved', false);
+      break;
+    case 'needs_research':
+      query = query.eq('email_verified', true).eq('research_complete', false);
+      break;
+    case 'needs_draft':
+      query = query.eq('research_complete', true).eq('draft_ready', false);
+      break;
+    case 'ready_to_send':
+      query = query.eq('approved', true).is('first_email_sent', null);
+      break;
+    case 'followup1_due':
+      query = query
+        .is('followup1_sent', null)
+        .is('replied', null)
+        .not('followup1_due', 'is', null)
+        .lte('followup1_due', endOfToday.toISOString());
+      break;
+    case 'followup2_due':
+      query = query
+        .is('followup2_sent', null)
+        .is('replied', null)
+        .not('followup2_due', 'is', null)
+        .lte('followup2_due', endOfToday.toISOString());
+      break;
+    case 'overdue_followups':
+      query = query
+        .is('replied', null)
+        .or(
+          `and(followup1_sent.is.null,followup1_due.lt.${now}),and(followup2_sent.is.null,followup2_due.lt.${now})`,
+        );
+      break;
+    case 'replied':
+      query = query.not('replied', 'is', null);
+      break;
+    case 'sent':
+      query = query.not('first_email_sent', 'is', null);
+      break;
+    case 'awaiting_review': {
+      // This one lives on email_versions, not the pipeline.
+      const { data } = await supabase
+        .from('email_versions')
+        .select('lead_id')
+        .eq('active', true)
+        .eq('status', 'draft');
+      return [...new Set((data ?? []).map((r) => r.lead_id))];
+    }
+  }
+
+  const { data } = await query.limit(5000);
+  return (data ?? []).map((r) => r.lead_id);
+}
+
 export async function getLeads(params: LeadListParams = {}): Promise<LeadListResult> {
   const {
     search = '',
     statuses = [],
+    view,
     sort = 'created_at',
     direction = 'desc',
     page = 1,
@@ -90,6 +207,14 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
   const supabase = await createClient();
 
   let query = supabase.from('leads').select('*', { count: 'exact' });
+
+  if (view) {
+    const ids = await idsForView(supabase, view);
+    if (ids.length === 0) {
+      return { rows: [], total: 0, page, pageSize, error: null };
+    }
+    query = query.in('id', ids);
+  }
 
   const term = sanitizeSearch(search);
   if (term) {

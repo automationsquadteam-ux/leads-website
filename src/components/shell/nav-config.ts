@@ -29,9 +29,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/templates', label: 'Templates', icon: FileText, roles: ['admin'] },
   { href: '/email-logs', label: 'Email Logs', icon: Mail, roles: ['admin'] },
   { href: '/replies', label: 'Replies', icon: MessageSquare, roles: ['admin'] },
-  // The login-free statistics page. Shown to both roles because it is the one
+  // The public front page. Shown to both roles because it is the one
   // destination a viewer can genuinely use — it needs no session at all.
-  { href: '/stats', label: 'Public Stats', icon: Globe, roles: ['admin', 'viewer'] },
+  { href: '/', label: 'Public Page', icon: Globe, roles: ['admin', 'viewer'] },
   { href: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ];
 

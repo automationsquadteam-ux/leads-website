@@ -23,14 +23,19 @@ import { readSession } from '@/lib/supabase/middleware';
 /**
  * Routes reachable while signed out.
  *
- *   /stats      the public statistics page. Reads only the anon-granted
- *               public_stats_* views from migration 0013 — aggregates, no lead
- *               identity of any kind.
+ *   /           the public front page. Reads only the anon-granted
+ *               public_stats_* views — aggregates, plus an opt-in lead list
+ *               that is empty unless an admin enabled it.
+ *   /stats      legacy alias, redirects to /.
  *   /api/cron   scheduled endpoints. No session exists for a cron caller, so
  *               they authenticate with the CRON_SECRET bearer token themselves.
  *               Listing them here skips the login redirect, NOT the auth check.
+ *
+ * isPublic() matches `pathname === p` or `pathname.startsWith(p + '/')`. For
+ * '/' the second test is `startsWith('//')`, which never fires — so this opens
+ * the front page exactly, not the whole site.
  */
-const PUBLIC_PATHS = ['/login', '/auth/callback', '/stats', '/api/cron'];
+const PUBLIC_PATHS = ['/', '/login', '/auth/callback', '/stats', '/api/cron'];
 
 /**
  * Everything below these prefixes requires role = 'admin'.

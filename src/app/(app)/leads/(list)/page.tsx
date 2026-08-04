@@ -1,6 +1,13 @@
+import Link from 'next/link';
+import { X } from 'lucide-react';
+
 import { PageHeader } from '@/components/shell/app-shell';
+import { Badge } from '@/components/ui/badge';
 import { requireAdmin } from '@/lib/auth/session';
-import { getLeads, getStatusFacets, isSortColumn, type SortColumn } from '@/lib/data/leads';
+import {
+  getLeads, getStatusFacets, isLeadView, isSortColumn,
+  LEAD_VIEWS, type SortColumn,
+} from '@/lib/data/leads';
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/supabase/database.types';
 import { formatNumber } from '@/lib/utils';
 import { LeadsTable } from './leads-table';
@@ -36,6 +43,12 @@ export default async function LeadsPage({
   const search = single('q') ?? '';
   const statuses = parseStatuses(single('status'));
 
+  // ?view=<name> is how every dashboard widget drills through. Unknown values
+  // are ignored rather than erroring — a stale bookmark should show the full
+  // list, not a crash.
+  const viewParam = single('view');
+  const view = viewParam && isLeadView(viewParam) ? viewParam : undefined;
+
   const sortParam = single('sort') ?? 'created_at';
   const sort: SortColumn = isSortColumn(sortParam) ? sortParam : 'created_at';
   const direction = single('dir') === 'asc' ? 'asc' : 'desc';
@@ -47,14 +60,14 @@ export default async function LeadsPage({
   const pageSize = PAGE_SIZES.includes(sizeRaw) ? sizeRaw : 50;
 
   const [result, facets] = await Promise.all([
-    getLeads({ search, statuses, sort, direction, page, pageSize }),
+    getLeads({ search, statuses, view, sort, direction, page, pageSize }),
     getStatusFacets(),
   ]);
 
   return (
     <>
       <PageHeader
-        title="Leads"
+        title={view ? LEAD_VIEWS[view] : 'Leads'}
         description={
           result.total > 0
             ? `${formatNumber(result.total)} lead${result.total === 1 ? '' : 's'} matching the current view`
@@ -64,6 +77,24 @@ export default async function LeadsPage({
       />
 
       <div className="p-4 sm:p-6">
+        {/*
+          A drilled-in view is not obvious from the table alone, so it gets a
+          dismissible chip. Without it, "why am I only seeing 114 leads?" is a
+          support question.
+        */}
+        {view ? (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Badge tone="primary">{LEAD_VIEWS[view]}</Badge>
+            <Link
+              href="/leads"
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+            >
+              <X className="size-3" aria-hidden="true" />
+              Clear view
+            </Link>
+          </div>
+        ) : null}
+
         {result.error ? (
           <p className="mb-3 rounded-md border border-danger/30 bg-danger-subtle px-3 py-2.5 text-sm text-danger">
             Could not load leads: {result.error}

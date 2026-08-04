@@ -36,13 +36,19 @@ export interface PublicStats {
   statuses: Views<'public_stats_statuses'>[];
   activity: Views<'public_stats_activity_daily'>[];
   campaigns: Views<'public_stats_campaigns'>[];
+  /**
+   * Opt-in lead list. Empty unless an admin switched it on AND chose which
+   * stages may appear — the view enforces both, so an empty array here is the
+   * correct and expected default.
+   */
+  leads: Views<'public_stats_leads'>[];
   error: string | null;
 }
 
 export async function getPublicStats(): Promise<PublicStats> {
   const supabase = createAnonClient();
 
-  const [overview, stages, statuses, activity, campaigns] = await Promise.all([
+  const [overview, stages, statuses, activity, campaigns, leads] = await Promise.all([
     supabase.from('public_stats_overview').select('*').maybeSingle(),
     supabase.from('public_stats_stages').select('*'),
     supabase.from('public_stats_statuses').select('*').order('lead_count', { ascending: false }),
@@ -52,6 +58,7 @@ export async function getPublicStats(): Promise<PublicStats> {
       .select('*')
       .order('emails_sent', { ascending: false })
       .limit(20),
+    supabase.from('public_stats_leads').select('*'),
   ]);
 
   return {
@@ -60,6 +67,7 @@ export async function getPublicStats(): Promise<PublicStats> {
     statuses: statuses.data ?? [],
     activity: activity.data ?? [],
     campaigns: campaigns.data ?? [],
+    leads: leads.data ?? [],
     error: overview.error?.message ?? null,
   };
 }

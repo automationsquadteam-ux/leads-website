@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
   AlertTriangle, CalendarClock, CheckSquare, FileClock, Lock, Mail, MailQuestion,
-  RefreshCw, Reply, ShieldQuestion, Sparkles,
+  MailX, PenLine, RefreshCw, Reply, Search, Send, ShieldQuestion, Sparkles,
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/shell/app-shell';
@@ -79,13 +79,25 @@ export default async function DashboardPage() {
       />
 
       <div className="space-y-6 p-4 sm:p-6">
+        {/*
+          Every figure here links to the exact rows it counted. The named views
+          in lib/data/leads.ts are what keep the count and the list in
+          agreement — a card reading 114 that opens a page of 97 is worse than
+          no card at all.
+        */}
         <section aria-label="Today" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard label="Today's Emails" value={formatNumber(widgets.emailsToday)} icon={Mail} />
+          <MetricCard
+            label="Today's Emails"
+            value={formatNumber(widgets.emailsToday)}
+            icon={Mail}
+            href="/email-logs"
+          />
           <MetricCard
             label="Today's Replies"
             value={formatNumber(widgets.repliesToday)}
             icon={Reply}
             tone={widgets.repliesToday > 0 ? 'success' : 'default'}
+            href="/replies"
           />
           <MetricCard
             label="Approval Queue"
@@ -93,12 +105,14 @@ export default async function DashboardPage() {
             hint="Drafted, nobody has signed off"
             icon={CheckSquare}
             tone={widgets.approvalQueue > 0 ? 'warning' : 'default'}
+            href="/leads?view=approval_queue"
           />
           <MetricCard
             label="Emails Waiting Review"
             value={formatNumber(widgets.awaitingReview)}
             hint="Active versions still marked draft"
             icon={FileClock}
+            href="/leads?view=awaiting_review"
           />
         </section>
 
@@ -107,11 +121,13 @@ export default async function DashboardPage() {
             label="Follow-up 1 Due Today"
             value={formatNumber(widgets.followup1DueToday)}
             icon={CalendarClock}
+            href="/leads?view=followup1_due"
           />
           <MetricCard
             label="Follow-up 2 Due Today"
             value={formatNumber(widgets.followup2DueToday)}
             icon={CalendarClock}
+            href="/leads?view=followup2_due"
           />
           <MetricCard
             label="Overdue Follow-ups"
@@ -119,17 +135,53 @@ export default async function DashboardPage() {
             hint="Due before today, still unsent"
             icon={AlertTriangle}
             tone={widgets.overdueFollowups > 0 ? 'danger' : 'default'}
+            href="/leads?view=overdue_followups"
           />
           <MetricCard
             label="Leads Missing Email"
             value={formatNumber(widgets.missingEmail)}
             icon={MailQuestion}
+            href="/leads?view=missing_email"
           />
           <MetricCard
             label="Awaiting Verification"
             value={formatNumber(widgets.awaitingVerification)}
             hint="Address on file, not confirmed"
             icon={ShieldQuestion}
+            href="/leads?view=awaiting_verification"
+          />
+        </section>
+
+        <section aria-label="Pipeline work" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <MetricCard
+            label="Needs Research"
+            value={formatNumber(widgets.needsResearch)}
+            hint="Verified, nothing written yet"
+            icon={Search}
+            href="/leads?view=needs_research"
+          />
+          <MetricCard
+            label="Needs Draft"
+            value={formatNumber(widgets.needsDraft)}
+            hint="Research done, no draft"
+            icon={PenLine}
+            href="/leads?view=needs_draft"
+          />
+          <MetricCard
+            label="Ready to Send"
+            value={formatNumber(widgets.readyToSend)}
+            hint="Approved, not yet sent"
+            icon={Send}
+            tone={widgets.readyToSend > 0 ? 'success' : 'default'}
+            href="/leads?view=ready_to_send"
+          />
+          <MetricCard
+            label="Dead Addresses"
+            value={formatNumber(widgets.invalidEmail)}
+            hint="Verified undeliverable — need a new source"
+            icon={MailX}
+            tone={widgets.invalidEmail > 0 ? 'danger' : 'default'}
+            href="/leads?view=invalid_email"
           />
         </section>
 

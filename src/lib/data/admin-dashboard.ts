@@ -40,6 +40,10 @@ export interface DashboardWidgets {
   missingEmail: number;
   awaitingVerification: number;
   overdueFollowups: number;
+  needsResearch: number;
+  needsDraft: number;
+  readyToSend: number;
+  invalidEmail: number;
   error: string | null;
 }
 
@@ -64,6 +68,10 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     missingEmail,
     awaitingVerification,
     overdueFollowups,
+    needsResearch,
+    needsDraft,
+    readyToSend,
+    invalidEmail,
   ] = await Promise.all([
     countOf(() =>
       supabase
@@ -130,6 +138,9 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
         .select('*', { count: 'exact', head: true })
         .eq('email_found', true)
         .eq('email_verified', false)
+        // A dead address is a different problem with a different fix, and it
+        // has its own card. Counting it here would double-report it.
+        .neq('email_verification_status', 'invalid')
         .is('closed', null),
     ),
     // Due before today and still unsent — the queue the scheduled sender is
@@ -144,6 +155,37 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
           `and(followup1_sent.is.null,followup1_due.lt.${now}),and(followup2_sent.is.null,followup2_due.lt.${now})`,
         ),
     ),
+    countOf(() =>
+      supabase
+        .from('lead_pipeline')
+        .select('*', { count: 'exact', head: true })
+        .eq('email_verified', true)
+        .eq('research_complete', false)
+        .is('closed', null),
+    ),
+    countOf(() =>
+      supabase
+        .from('lead_pipeline')
+        .select('*', { count: 'exact', head: true })
+        .eq('research_complete', true)
+        .eq('draft_ready', false)
+        .is('closed', null),
+    ),
+    countOf(() =>
+      supabase
+        .from('lead_pipeline')
+        .select('*', { count: 'exact', head: true })
+        .eq('approved', true)
+        .is('first_email_sent', null)
+        .is('closed', null),
+    ),
+    countOf(() =>
+      supabase
+        .from('lead_pipeline')
+        .select('*', { count: 'exact', head: true })
+        .eq('email_verification_status', 'invalid')
+        .is('closed', null),
+    ),
   ]);
 
   return {
@@ -156,6 +198,10 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     missingEmail,
     awaitingVerification,
     overdueFollowups,
+    needsResearch,
+    needsDraft,
+    readyToSend,
+    invalidEmail,
     error: null,
   };
 }

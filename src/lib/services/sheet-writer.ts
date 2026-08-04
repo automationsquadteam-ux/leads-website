@@ -80,6 +80,55 @@ const WRITEBACK_COLUMNS: WritebackColumn[] = [
     value: (s) => s.activeDrafts.followup2?.content,
   },
 
+  /*
+   * Status flags the lead-gen sheet already keeps its own columns for.
+   *
+   * "Email Data Done" is the upstream pipeline's marker that a draft exists. If
+   * an admin writes a draft here for a lead the sheet still thinks is
+   * undrafted, the sheet must learn that — otherwise the upstream automation
+   * happily generates a second one over the top. Writing "Yes" the moment an
+   * active initial draft exists is what keeps the two halves in agreement.
+   */
+  {
+    key: 'email_data_done',
+    headers: ['email data done', 'email draft done', 'draft done'],
+    value: (s) => {
+      const draft = s.activeDrafts.initial?.content ?? s.lead.draft_email;
+      // undefined, not null, when there is no draft: never overwrite an upstream
+      // "Yes" with a blank just because this CRM has not caught up yet.
+      return draft && draft.trim() !== '' ? 'Yes' : undefined;
+    },
+  },
+  {
+    key: 'email_draft_status',
+    headers: ['email draft status'],
+    value: (s) => {
+      const draft = s.activeDrafts.initial?.content ?? s.lead.draft_email;
+      if (!draft || draft.trim() === '') return undefined;
+      return s.pipeline?.approved ? 'Approved' : 'Drafted';
+    },
+  },
+  {
+    key: 'email_sent_status',
+    headers: ['email sent status', 'email status'],
+    value: (s) => (s.pipeline?.first_email_sent ? 'Yes' : undefined),
+  },
+  {
+    key: 'date_sent',
+    headers: ['date sent'],
+    value: (s) => (s.pipeline?.first_email_sent ? s.pipeline.first_email_sent.slice(0, 10) : undefined),
+  },
+  {
+    key: 'research_status',
+    headers: ['research status'],
+    value: (s) => (s.pipeline?.research_complete ? 'Done' : undefined),
+  },
+  {
+    key: 'reply',
+    headers: ['reply'],
+    value: (s) => (s.pipeline?.replied ? 'Yes' : undefined),
+  },
+
   { key: 'status', headers: ['status', 'crm status', 'lead status'], value: (s) => s.lead.status },
   {
     key: 'stage',

@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { updateSettings } from '@/lib/actions/misc';
+import { STAGE_META } from '@/lib/pipeline/labels';
+import { PIPELINE_STAGES } from '@/lib/supabase/database.types';
 import type { ActionResult } from '@/lib/actions/leads';
 
 const initialState: ActionResult = { ok: false, message: '' };
@@ -40,6 +42,10 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
     return typeof value === 'boolean' ? value : fallback;
   };
   const provider = str('ai.provider', 'template') === 'ollama' ? 'ollama' : 'template';
+  const showLeads = bool('public.show_leads', false);
+  const publicStages = Array.isArray(values['public.lead_stages'])
+    ? (values['public.lead_stages'] as string[])
+    : [];
   const workingHours = (values['sending.working_hours'] ?? {}) as {
     timezone?: string;
     start?: string;
@@ -335,6 +341,79 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
               <option value="false">Sending enabled</option>
               <option value="true">Paused — send nothing</option>
             </Select>
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Public page</CardTitle>
+            <CardDescription>
+              What anonymous visitors see at <code className="font-mono text-[11px]">/</code>.
+              Aggregate counts are always published; naming individual businesses is not.
+            </CardDescription>
+          </div>
+          <Badge tone={showLeads ? 'warning' : 'neutral'}>
+            {showLeads ? `${publicStages.length} stage(s) shown` : 'Names hidden'}
+          </Badge>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Field
+            label="Publish a list of businesses"
+            htmlFor="public-show-leads"
+            hint="Even when on, only business name, city, country, industry and stage are published — never an address, phone number, research note or draft."
+          >
+            <Select
+              id="public-show-leads"
+              name="bool:public.show_leads"
+              defaultValue={showLeads ? 'true' : 'false'}
+            >
+              <option value="false">No — aggregate counts only</option>
+              <option value="true">Yes — publish the stages I pick below</option>
+            </Select>
+          </Field>
+
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-medium text-muted-foreground">
+              Stages that may be named publicly
+            </legend>
+            {/*
+              A marker field so the action can tell "user submitted this form
+              with everything unticked" from "this form was not on screen".
+              Without it, clearing the last checkbox would be indistinguishable
+              from no change and the stage would stay public.
+            */}
+            <input type="hidden" name="public-stages-present" value="1" />
+            <div className="grid gap-1.5 sm:grid-cols-3">
+              {PIPELINE_STAGES.map((stage) => (
+                <label key={stage} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    name="public-stage"
+                    value={stage}
+                    defaultChecked={publicStages.includes(stage)}
+                    className="size-4 cursor-pointer accent-primary"
+                  />
+                  {STAGE_META[stage].label}
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Nothing is published while this is empty, whatever the switch above says.
+            </p>
+          </fieldset>
+
+          <Field label="Maximum businesses listed" htmlFor="public-lead-limit">
+            <Input
+              id="public-lead-limit"
+              name="number:public.lead_limit"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={500}
+              defaultValue={num('public.lead_limit', 50)}
+            />
           </Field>
         </CardContent>
       </Card>

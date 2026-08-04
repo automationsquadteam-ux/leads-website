@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { assertAdmin } from '@/lib/auth/session';
 import { createClient } from '@/lib/supabase/server';
 import { TEMPLATE_PLACEHOLDERS } from '@/lib/templates/placeholders';
+import { PIPELINE_STAGES } from '@/lib/supabase/database.types';
 import type { ActionResult } from './leads';
 
 /**
@@ -242,6 +243,23 @@ export async function updateSettings(
         return { ok: false, message: `${key} contains invalid JSON.` };
       }
     }
+  }
+
+  /*
+   * Which pipeline stages may appear on the public page.
+   *
+   * Assembled from checkboxes rather than going through the typed-prefix loop
+   * below, because an unticked checkbox is simply absent from FormData — so a
+   * loop over what was submitted can never turn a stage OFF. Reading the
+   * explicit roster and keeping only what was ticked is the only way clearing
+   * the last box actually clears it.
+   */
+  if (formData.has('public-stages-present')) {
+    const allowed = new Set<string>(PIPELINE_STAGES);
+    const chosen = formData
+      .getAll('public-stage')
+      .filter((v): v is string => typeof v === 'string' && allowed.has(v));
+    updates.push({ key: 'public.lead_stages', value: chosen });
   }
 
   if (updates.length === 0) return { ok: false, message: 'Nothing to save.' };

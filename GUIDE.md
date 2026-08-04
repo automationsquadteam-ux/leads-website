@@ -65,18 +65,17 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0009 | `20260803100000_restrict_viewer_dashboards.sql` | ✅ yes |
 | 0010 | `20260803100100_integrations.sql` | ✅ yes |
 | 0011 | `20260803110000_remove_n8n_add_sheet_writeback.sql` | ✅ yes (verified 2026-08-03) |
-| 0012 | `20260803120000_review_pipeline_and_versions.sql` | ❌ **NOT YET** |
-| 0013 | `20260803120100_public_stats_views.sql` | ❌ **NOT YET** |
-| 0014 | `20260803120200_analytics_views.sql` | ❌ **NOT YET** |
+| 0012 | `20260803120000_review_pipeline_and_versions.sql` | ✅ yes |
+| 0013 | `20260803120100_public_stats_views.sql` | ✅ yes |
+| 0014 | `20260803120200_analytics_views.sql` | ✅ yes |
+| 0015 | `20260804120000_verification_versions_and_public_leads.sql` | ❌ **NOT YET** |
 
-**To apply 0012–0014:** paste `supabase/schema-update-4-review-workflow.sql` into the
-Supabase SQL editor and Run. It bundles all three, is idempotent, and includes the
-backfill.
+**To apply 0015:** paste `supabase/schema-update-5-verification-and-public-leads.sql` into
+the Supabase SQL editor and Run. Idempotent, includes both backfills.
 
-Until then: `email_versions`, `lead_pipeline` and `lead_activity` do not exist, so the
-lead page shows "no pipeline row", the drafts tab is empty, `/stats` and `/analytics`
-error, and the dashboard widgets read zero. **Nothing in the app crashes** — every query
-degrades to an empty result — but nothing works either.
+Until then: `email_verification_status` does not exist, so `npm run emails:import` fails,
+the dashboard's "Dead Addresses" card and the `awaiting_verification` view error, and the
+public lead list and industry analytics keep their old behaviour.
 
 There is no CLI on this machine (`supabase` and `psql` are both absent), so applying
 migrations is a paste-into-the-SQL-editor job. That is the established workflow here.
@@ -174,6 +173,32 @@ those views select**, so:
 **Adding a column to any `public_stats_*` view is a disclosure decision.** If you are not
 certain it is aggregate-only, put it in a `dashboard_*` view instead, where `is_admin()`
 applies.
+
+#### The one view that can name businesses: `public_stats_leads`
+
+Migration 0015 added a view that CAN publish individual businesses — name, city, country,
+industry and stage, and nothing else. It is **default-denied twice over**:
+
+1. `public.show_leads` is `false`, and
+2. `public.lead_stages` is `[]`.
+
+Turning the switch on with an empty stage list still discloses nothing. Both are read
+inside the view as inline sub-selects rather than through `setting_bool()`, because that
+helper is SECURITY DEFINER and its EXECUTE grant is deliberately withheld from `anon`.
+
+The control is Settings → Public page. Its stage checkboxes submit alongside a hidden
+`public-stages-present` marker: an unticked checkbox is simply absent from FormData, so
+without the marker, clearing the last box would be indistinguishable from "this form was
+not on screen" and the stage would silently stay public.
+
+#### `/` is the public front page
+
+`src/app/page.tsx` renders `PublicStatsPage` (in `app/stats-page.tsx`) rather than
+redirecting to `/dashboard`, so a visitor with no account sees the pipeline instead of a
+login wall. `/stats` is kept as a redirect for old links. `'/'` is in `PUBLIC_PATHS`; the
+matcher tests `pathname === p` first and `startsWith(p + '/')` second, and for `'/'` that
+second test is `startsWith('//')`, which never fires — so this opens the front page exactly
+and nothing beneath it.
 
 `src/lib/data/public-stats.ts` reads these with a **plain anon client** — not the
 service-role client, not the cookie-bound SSR client. That is the point: the service-role
@@ -291,6 +316,41 @@ Clearing a gate flag must also clear its `_at` stamp — `gateFlagPatch()` in
 without it, un-approving and re-approving would keep the original `approved_at` and
 "average approval time" would measure the wrong interval.
 
+### Email verification (migration 0015)
+
+`lead_pipeline.email_verification_status` is an enum, not a boolean, because that is what a
+verifier actually returns:
+
+| Value | Meaning | Effect |
+| --- | --- | --- |
+| `unverified` | never checked | default |
+| `valid` | deliverable | `email_verified := true` |
+| `invalid` | guaranteed bounce | `email_verified := false` **and the stage falls back to `need_email`** |
+| `accept_all` | catch-all domain — the check proved nothing | recorded, **not** auto-verified |
+| `unknown` | verifier gave up | recorded, not auto-verified |
+
+Collapsing `accept_all` into true or false throws away exactly the distinction that decides
+whether it is safe to send, which is why the column is not a boolean.
+
+An `invalid` lead keeps `leads.email`. Knowing which address was tried and failed is worth
+more than a tidy row, and the stage already says a new one is needed.
+
+The round trip is deliberately API-free — no verifier credentials, no bill, nothing to leak:
+
+```bash
+npm run emails:export                       # unverified-emails.csv
+# upload to NeverBounce / ZeroBounce / Bouncer, download their result
+npm run emails:import -- --file=result.csv --dry-run
+npm run emails:import -- --file=result.csv
+npm run emails:status
+```
+
+`normaliseVerificationStatus()` accepts every spelling the common tools use (`catchall`,
+`catch-all`, `accept_all_unverifiable`, `deliverable`, `undeliverable`, …), so whichever
+service the operator picked, the same import works. Export includes `unknown` and
+`accept_all` alongside `unverified`: a re-run often resolves them, and it de-duplicates by
+address because verifiers bill per address, not per lead.
+
 ### Drafts are never overwritten
 
 `email_versions` is append-only in practice. Editing a draft **inserts** a version;
@@ -308,6 +368,32 @@ the most useful thing in the history.
   a trigger. `email_versions` is the system of record; that copy exists so the sender, the
   Sheets write-back and the `dashboard_*` views (which predate versioning) kept working
   without changes. Follow-ups live only in `email_versions`.
+- The reverse direction exists too: `version_lead_draft()` turns a draft arriving on
+  `leads.draft_email` (from the sheet sync or the workbook importer, neither of which knows
+  about versioning) into a version. **The two triggers face each other, so the loop-breaker
+  is load-bearing**: it compares the incoming text with the active version's content and
+  stops when they match. Identical text is the mirror writing back; different text is a
+  genuine upstream edit and becomes the next version.
+
+  This was added in 0015 after the 0012 one-time backfill left 145 leads holding a draft
+  with no version — the review screen reported "no draft yet" for leads that plainly had
+  one. A trigger cannot drift the way a backfill did.
+
+### What `email_logs` means, and what it does not
+
+`email_logs` is evidence that **this CRM** sent something. It is written only by
+`sendLeadEmail()`. Sends made upstream (n8n, by hand, anything else) never appear there,
+and nothing fabricates rows in it — corrupting the one table that is supposed to be proof
+of our own sending would be worse than a gap.
+
+`lead_pipeline` answers the other question: **was this lead emailed at all**, by anyone.
+The sheet's "Email sent status" column feeds it through `sync_pipeline_from_lead()`.
+
+Get these two backwards and the analytics lie. That is exactly what happened: 58 leads were
+sent upstream, so `analytics_industry_performance` (counting `email_logs`) reported 0 while
+the status counts said 58. It now reads `lead_pipeline`. **When adding an analytics view,
+pick the source by the question being asked** — "what did we send" is `email_logs`, "what
+happened to this lead" is `lead_pipeline`.
 
 ### Lead identity (the single most important rule)
 
@@ -415,6 +501,20 @@ src/
 
 ## 6. Conventions
 
+**Dashboard figures are links, and the link must match the number.** Every widget count and
+its drill-through resolve through the same named view in `LEAD_VIEWS`
+(`lib/data/leads.ts`), reached as `/leads?view=<name>`. A card reading 114 that opens a page
+of 97 is worse than no card, so when adding a widget, add its view there rather than
+hand-rolling a second query.
+
+**Tables are `table-fixed`.** Under the default `auto` layout a browser sizes columns to
+their widest cell and treats an explicit `width` as a suggestion, which is why dragging a
+column narrower than its longest value used to do nothing. `fixed` makes the declared width
+authoritative, so `TD` must be able to clip — it sets `overflow-hidden` and truncates.
+Resize bounds are `MIN_COLUMN_WIDTH` (72px, about eight characters) and `MAX_COLUMN_WIDTH`
+(900px) in `data-table.tsx`. Do **not** re-add `minWidth` alongside `width` on the `TH`:
+that was the original floor that made narrowing impossible.
+
 **Adding an admin route** — do all four:
 1. `requireAdmin()` at the top of the page.
 2. `assertAdmin()` at the top of every Server Action it calls.
@@ -509,6 +609,7 @@ about.
 | Reading `/stats` data with the service-role client | Turns one typo into a data breach on a page anyone can load | Use the plain anon client (`lib/data/public-stats.ts`); Postgres grants then make a leak impossible |
 | Ollama streaming by default | Returns NDJSON, `JSON.parse` chokes halfway through | `stream: false` in the request body |
 | `round(avg(x), 1) filter (where …)` | `42809: FILTER specified, but round is not an aggregate function` — FILTER binds to the aggregate, not to a function wrapping it | `round((avg(x) filter (where …))::numeric, 1)` — see `analytics_funnel_timing` |
+| Adding a column anywhere but the END of an existing `create or replace view` | `42P16: cannot change name of view column "x" to "y"`. Replace can only **append**; inserting a column reads as renaming the one already in that position | `drop view if exists …;` then `create view …`. Add `cascade` only if something depends on it — check first, because cascade silently drops dependents too |
 
 ---
 
@@ -674,6 +775,11 @@ npm run leads:purge                    # DRY RUN — what would be deleted
 npm run leads:purge -- --yes           # delete, writing a backup first
 npm run leads:purge -- --source="google-sheets:Sheet1" --yes
 npm run leads:purge -- --restore=backups/leads-<stamp>.json
+
+npm run emails:export                            # unverified addresses -> CSV
+npm run emails:import -- --file=result.csv --dry-run
+npm run emails:import -- --file=result.csv       # apply a verifier's results
+npm run emails:status                            # verification counts
 ```
 
 `leads:purge` cascades to `email_versions`, `lead_pipeline`, `lead_activity`,
@@ -749,6 +855,8 @@ back (and it sets no `sheet_row_number`, so those leads cannot write back to the
 | 2026-08-03 | This guide created |
 | 2026-08-03 | n8n removed (0011); Sheets write-back added; nested-`<form>` hydration bug fixed in `secret-field.tsx` |
 | 2026-08-03 | 0011 confirmed applied to the live DB (the guide had it as pending) |
+| 2026-08-04 | **0015**: email verification enum + CSV round trip (`emails:export`/`import`); `version_lead_draft()` repairs 145 leads whose drafts had no version; sheet-reported sends land on `lead_pipeline`; industry analytics rebased off `email_logs`; opt-in `public_stats_leads` |
+| 2026-08-04 | `/` is now the public front page with a hero; dashboard figures link to matching `/leads?view=` lists; tables switched to `table-fixed` so columns actually resize (72–900px) |
 | 2026-08-04 | Automation Squad branding: favicon, apple icon, OG + Twitter cards via Next file conventions; `components/brand.tsx` in the sidebar, sign-in and `/stats` |
 | 2026-08-04 | Placeholder guard: a draft containing `[Business Owner]` / `{{unknown}}` is refused by `sendLeadEmail()`, so no send path can mail one. 82% of the imported drafts would have been caught |
 | 2026-08-04 | `sheets.sheet_name` corrected `Sheet1` → `Sheet2` (Sheet1 has no research columns); all 1166 leads purged to a backup so the sheet could be re-pulled cleanly; `scripts/purge-leads.ts` added |
