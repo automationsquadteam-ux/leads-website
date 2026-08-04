@@ -56,7 +56,7 @@ export async function requireUser(redirectTo = '/login'): Promise<SessionContext
  * Require an admin.
  *
  * Middleware already blocks admin routes, but this is the check that actually
- * matters — middleware can be bypassed by any code path that does not run it
+ * matters middleware can be bypassed by any code path that does not run it
  * (Server Actions invoked directly, Route Handlers outside the matcher). Call
  * this at the top of every admin page, action and handler.
  */

@@ -8,7 +8,7 @@ import { Button } from './button';
 
 /**
  * Built on the native <dialog> element, which gives us a focus trap, Escape to
- * close, inert background and top-layer stacking for free — all things a
+ * close, inert background and top-layer stacking for free all things a
  * hand-rolled modal usually gets wrong.
  */
 export function Dialog({

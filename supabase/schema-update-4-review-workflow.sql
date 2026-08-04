@@ -1,5 +1,5 @@
 -- ===========================================================================
--- Schema update 4 — admin review workflow, outreach lifecycle, public stats.
+-- Schema update 4 admin review workflow, outreach lifecycle, public stats.
 --
 -- GENERATED FILE. Do not hand-edit: regenerate from the migrations it bundles.
 --
@@ -20,7 +20,7 @@
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 0012 — Admin review workflow: email versioning, outreach lifecycle, activity.
+-- 0012 Admin review workflow: email versioning, outreach lifecycle, activity.
 --
 -- Three new tables and the machinery that keeps them honest:
 --
@@ -183,7 +183,7 @@ create table if not exists public.email_versions (
 
   status         public.email_version_status not null default 'draft',
   -- The version shown by default and used by the sender. At most one per
-  -- (lead, type) — enforced by a partial unique index below.
+  -- (lead, type) enforced by a partial unique index below.
   active         boolean not null default false,
 
   -- Provenance: 'manual', 'import', 'template', 'ollama:<model>', ...
@@ -240,7 +240,7 @@ create trigger email_versions_set_version_number
 --
 -- BEFORE, not AFTER: email_versions_single_active_idx is a plain unique index,
 -- which Postgres checks the instant the row hits the heap. An AFTER trigger
--- would never run — the insert would already have failed with 23505. Clearing
+-- would never run the insert would already have failed with 23505. Clearing
 -- the sibling first is what makes "activate this version" a single statement
 -- for the caller.
 --
@@ -359,7 +359,7 @@ create trigger lead_pipeline_set_updated_at
   for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
--- Stage and Next Step — the two derivations the whole product hangs on.
+-- Stage and Next Step the two derivations the whole product hangs on.
 --
 -- Both take the row, not a lead id, so they can be applied inside a trigger on
 -- NEW before it is written, and inside a view over many rows, with no extra
@@ -386,7 +386,7 @@ as $$
 $$;
 
 comment on function public.compute_pipeline_stage(public.lead_pipeline) is
-  'Derives current_stage from the row. The ONE definition — do not re-implement in application code.';
+  'Derives current_stage from the row. The ONE definition do not re-implement in application code.';
 
 -- STABLE, not IMMUTABLE: the follow-up arms compare a due date against now().
 create or replace function public.compute_next_step(p public.lead_pipeline)
@@ -446,7 +446,7 @@ create trigger lead_pipeline_derive_stage
 --
 -- Direction of travel: evidence only ever turns a flag ON. A blank research
 -- field does not un-complete research, because an admin may have marked the
--- stage complete deliberately — only an explicit UPDATE from the review UI
+-- stage complete deliberately only an explicit UPDATE from the review UI
 -- clears a flag. Getting this backwards would make the "Mark complete" button
 -- silently undo itself on the next save.
 -- ---------------------------------------------------------------------------
@@ -519,8 +519,8 @@ create trigger email_versions_sync_pipeline
 --   followup1 -> followup1_sent,   followup2_due = sent + outreach.followup2_delay_days (3)
 --   followup2 -> followup2_sent    (sequence exhausted; next step is close)
 --
--- Driven by email_logs so that ANY path which records a send — the Send button,
--- the cron sender, a future webhook reconciliation — advances the pipeline
+-- Driven by email_logs so that ANY path which records a send the Send button,
+-- the cron sender, a future webhook reconciliation advances the pipeline
 -- identically. The email service never has to remember to do it.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_email_log()
@@ -590,7 +590,7 @@ create trigger replies_sync_pipeline
   for each row execute function public.sync_pipeline_from_reply();
 
 -- ---------------------------------------------------------------------------
--- lead_activity — the feed behind "Recent Activity" and the per-lead audit.
+-- lead_activity the feed behind "Recent Activity" and the per-lead audit.
 -- ---------------------------------------------------------------------------
 create table if not exists public.lead_activity (
   id         uuid primary key default gen_random_uuid(),
@@ -616,7 +616,7 @@ create index if not exists lead_activity_kind_idx    on public.lead_activity (ki
 --
 -- Without it a send cannot tell the pipeline which step it satisfied, and
 -- follow-up conversion analytics have nothing to group by. Existing rows are
--- initial sends by definition — nothing else existed when they were written.
+-- initial sends by definition nothing else existed when they were written.
 -- ---------------------------------------------------------------------------
 alter table public.email_logs
   add column if not exists email_type       public.email_type not null default 'initial',
@@ -676,7 +676,7 @@ join public.leads l on l.id = p.lead_id
 where public.is_admin();
 
 comment on view public.pipeline_board is
-  'Admin-only pipeline rows with the derived next_step. Contains contact data — never grant to anon.';
+  'Admin-only pipeline rows with the derived next_step. Contains contact data never grant to anon.';
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security for the new tables. Same shape as migration 0008:
@@ -816,7 +816,7 @@ on conflict (lead_id) do nothing;
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 0013 — Public statistics: the ONLY objects in this schema readable by anon.
+-- 0013 Public statistics: the ONLY objects in this schema readable by anon.
 --
 -- READ THIS BEFORE TOUCHING ANY VIEW BELOW.
 --
@@ -830,7 +830,7 @@ on conflict (lead_id) do nothing;
 --
 --   * Aggregates only. Never a lead id, business name, website, email address,
 --     phone number, city, note, research paragraph, draft, subject line or
---     reply body. Not even indirectly — a count grouped by business_name is a
+--     reply body. Not even indirectly a count grouped by business_name is a
 --     list of business names with extra steps.
 --   * Campaign NAMES are ours, not the prospects'. They are the one identifier
 --     that appears here, and only because "Campaign Performance" is explicitly
@@ -841,7 +841,7 @@ on conflict (lead_id) do nothing;
 --     why every column had to be justified above.
 --
 -- Adding a column to any view in this file is a disclosure decision. If you are
--- not certain it is aggregate-only, it does not belong here — put it in a
+-- not certain it is aggregate-only, it does not belong here put it in a
 -- dashboard_* view instead, where is_admin() applies.
 -- ---------------------------------------------------------------------------
 
@@ -908,10 +908,10 @@ select
   )                                                                                            as avg_response_hours;
 
 comment on view public.public_stats_overview is
-  'PUBLIC (anon-readable). Aggregate counters and rates only — no lead identity of any kind.';
+  'PUBLIC (anon-readable). Aggregate counters and rates only no lead identity of any kind.';
 
 -- ---------------------------------------------------------------------------
--- Stage distribution — the funnel chart.
+-- Stage distribution the funnel chart.
 -- ---------------------------------------------------------------------------
 create or replace view public.public_stats_stages
 with (security_invoker = false) as
@@ -927,7 +927,7 @@ comment on view public.public_stats_stages is
 
 -- ---------------------------------------------------------------------------
 -- Status distribution. Mirrors dashboard_lead_status_counts without the
--- is_admin() gate — a bare enum label and a count.
+-- is_admin() gate a bare enum label and a count.
 -- ---------------------------------------------------------------------------
 create or replace view public.public_stats_statuses
 with (security_invoker = false) as
@@ -982,7 +982,7 @@ comment on view public.public_stats_activity_daily is
 
 -- ---------------------------------------------------------------------------
 -- Campaign performance. Campaign names are our own labels, not prospect data.
--- Deliberately omits daily_limit and the schedule window — operational detail
+-- Deliberately omits daily_limit and the schedule window operational detail
 -- with no reason to be public.
 -- ---------------------------------------------------------------------------
 create or replace view public.public_stats_campaigns
@@ -1047,7 +1047,7 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 0014 — Admin analytics views.
+-- 0014 Admin analytics views.
 --
 -- Same contract as the dashboard_* family from 0007/0009: security_invoker is
 -- off so the view reads past the base tables' admin-only RLS, and
@@ -1098,7 +1098,7 @@ group by 1;
 -- Reply rate over time.
 --
 -- The rate is replies received on a day over emails sent on the same day. That
--- is a rate of *activity*, not a cohort conversion — a reply on Tuesday usually
+-- is a rate of *activity*, not a cohort conversion a reply on Tuesday usually
 -- belongs to Monday's send. Cohort attribution lives in
 -- analytics_followup_conversion, which tracks the actual sequence.
 -- ---------------------------------------------------------------------------
@@ -1136,7 +1136,7 @@ where public.is_admin();
 -- ---------------------------------------------------------------------------
 -- FILTER binds to the AGGREGATE, never to a function wrapping it. Writing
 -- `round(avg(x), 1) filter (...)` fails with 42809 "round is not an aggregate
--- function" — the parentheses below put the filter on avg() and the cast on its
+-- function" the parentheses below put the filter on avg() and the cast on its
 -- result, which is what Postgres expects.
 create or replace view public.analytics_funnel_timing
 with (security_invoker = false) as
@@ -1165,7 +1165,7 @@ where public.is_admin();
 --
 -- A send records template_id only when one was chosen explicitly; otherwise the
 -- campaign's template is the one that produced the copy, so coalesce covers
--- both. Templates that have never been sent still appear, with zeroes — an
+-- both. Templates that have never been sent still appear, with zeroes an
 -- unused template is a finding, not a row to hide.
 -- ---------------------------------------------------------------------------
 create or replace view public.analytics_template_performance
@@ -1294,7 +1294,7 @@ from steps s
 where public.is_admin();
 
 -- ---------------------------------------------------------------------------
--- Draft regeneration activity — "how much are we rewriting, and by what".
+-- Draft regeneration activity "how much are we rewriting, and by what".
 -- ---------------------------------------------------------------------------
 create or replace view public.analytics_generation_daily
 with (security_invoker = false) as

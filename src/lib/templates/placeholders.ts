@@ -2,7 +2,7 @@
  * Placeholder tokens a template body may reference.
  *
  * A plain module, deliberately. This list used to live in
- * `lib/actions/misc.ts`, which carries `'use server'` — and a `'use server'`
+ * `lib/actions/misc.ts`, which carries `'use server'` and a `'use server'`
  * file may export **async functions only**. Exporting an array from one makes
  * Next refuse to evaluate the entire module, which takes down every Server
  * Action defined in it (and therefore every action on every page that imports

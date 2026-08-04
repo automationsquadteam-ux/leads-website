@@ -14,7 +14,7 @@ const EMPTY_WIDTHS: Record<string, number> = {};
 /**
  * Resize bounds.
  *
- * MIN is roughly eight characters plus the cell padding — narrow enough to
+ * MIN is roughly eight characters plus the cell padding narrow enough to
  * squeeze a column almost out of the way when you are looking at something
  * else, wide enough that what remains is still a recognisable value rather
  * than an ellipsis.

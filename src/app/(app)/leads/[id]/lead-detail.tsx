@@ -74,7 +74,7 @@ export function LeadDetail({ lead }: { lead: Lead }) {
                 variant="ghost"
                 loading={busy === 'invalid'}
                 onClick={() => run('invalid', () => markInvalid(lead.id))}
-                title="Unusable record — bad address, closed business"
+                title="Unusable record bad address, closed business"
               >
                 <Ban className="size-3.5" aria-hidden="true" />
                 Mark invalid
@@ -177,7 +177,7 @@ export function LeadDetail({ lead }: { lead: Lead }) {
 
           {/*
             The research fields this form still owns are edited in their own
-            panel, but the update action validates the whole lead shape — so
+            panel, but the update action validates the whole lead shape so
             they ride along as hidden inputs rather than being blanked on save.
           */}
           <input type="hidden" name="research_summary" value={lead.research_summary ?? ''} />

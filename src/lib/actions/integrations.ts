@@ -20,7 +20,7 @@ import type { ActionResult } from './leads';
  * Server actions for the integration control panel.
  *
  * Every one begins with assertAdmin(). The UI never talks to Google or an SMTP
- * server directly — it calls these, which call the services. That keeps
+ * server directly it calls these, which call the services. That keeps
  * credentials on the server and gives one place to record run history.
  */
 
@@ -173,7 +173,7 @@ export async function sendProviderTestEmail(_prev: ActionResult, formData: FormD
 /**
  * Prove the configured generator works before anyone relies on it.
  *
- * For the template generator this always succeeds — it needs nothing external,
+ * For the template generator this always succeeds it needs nothing external,
  * which is exactly why it is the default. For Ollama it checks the server is up
  * and the configured model is actually pulled, which are the two things that go
  * wrong.
@@ -251,7 +251,7 @@ const CONFIG_SCHEMA = z.object({
   'email.gmail_user': z.string().trim().max(320).optional(),
   'email.test_recipient': z.string().trim().max(320).optional(),
   // Mirrored from the "Sending & content" form so the email card is
-  // self-sufficient — a relay cannot send without a from address.
+  // self-sufficient a relay cannot send without a from address.
   'email.default_from_address': z
     .string()
     .trim()
@@ -289,7 +289,7 @@ export async function saveIntegrationConfig(
     return {
       ok: false,
       message:
-        'Write-back requires service-account auth — a Google API key is read-only. Switch auth mode to service account first.',
+        'Write-back requires service-account auth a Google API key is read-only. Switch auth mode to service account first.',
     };
   }
 
@@ -325,7 +325,7 @@ const SECRET_SET = new Set<string>(SECRET_KEYS);
  * Store one credential, encrypted.
  *
  * Secrets are write-only from the UI's perspective: they go in here and are
- * never sent back to the browser — only a "configured" flag and a masked hint.
+ * never sent back to the browser only a "configured" flag and a masked hint.
  *
  * Takes plain arguments rather than FormData because the caller cannot be a
  * <form>: these fields render inside the configuration form on the settings

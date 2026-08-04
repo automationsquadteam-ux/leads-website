@@ -1,9 +1,9 @@
 -- ---------------------------------------------------------------------------
--- 0010 — Integration plumbing: n8n, Google Sheets ingestion, email providers.
+-- 0010 Integration plumbing: n8n, Google Sheets ingestion, email providers.
 --
 -- NOTE: the n8n parts of this migration are removed again by 0011. This file is
 -- left as-is because it has already been applied to the live database, and an
--- applied migration must never be edited — the follow-up migration is the
+-- applied migration must never be edited the follow-up migration is the
 -- record of the change.
 --
 -- Splits configuration into two stores on purpose:
@@ -34,7 +34,7 @@ create table if not exists public.integration_secrets (
 );
 
 comment on table public.integration_secrets is
-  'Encrypted integration credentials. Service-role only — never exposed to any browser token.';
+  'Encrypted integration credentials. Service-role only never exposed to any browser token.';
 
 drop trigger if exists integration_secrets_set_updated_at on public.integration_secrets;
 create trigger integration_secrets_set_updated_at

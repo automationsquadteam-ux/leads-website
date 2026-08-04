@@ -6,7 +6,7 @@ import { createServiceClient } from '@/lib/supabase/service-client';
  * Typed reader for the non-secret half of integration configuration.
  *
  * Values live in public.settings as jsonb. Reading through the service-role
- * client keeps callers independent of the request's RLS context — every caller
+ * client keeps callers independent of the request's RLS context every caller
  * has already done its own assertAdmin().
  */
 
@@ -41,7 +41,7 @@ export interface IntegrationConfig {
   };
   outreach: {
     autoFollowups: boolean;
-    /** Off by default — a first touch should not fire without a human. */
+    /** Off by default a first touch should not fire without a human. */
     autoSendInitial: boolean;
     followup1DelayDays: number;
     followup2DelayDays: number;
@@ -134,7 +134,7 @@ export async function getIntegrationConfig(): Promise<IntegrationConfig> {
 /**
  * `sending.working_hours` is a jsonb object written by the settings form.
  * Anything malformed falls back to a permissive 24/7 window rather than
- * blocking every send — a bad settings row must not look like a broken sender.
+ * blocking every send a bad settings row must not look like a broken sender.
  */
 function asWorkingHours(value: unknown): IntegrationConfig['sending']['workingHours'] {
   const fallback = { timezone: 'UTC', start: '00:00', end: '23:59', days: [1, 2, 3, 4, 5, 6, 7] };

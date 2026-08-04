@@ -13,12 +13,12 @@ import { removeSecret, saveSecret } from '@/lib/actions/integrations';
 /**
  * Write-only credential input.
  *
- * The stored value is never sent to the browser — the server provides only a
+ * The stored value is never sent to the browser the server provides only a
  * `configured` flag and a masked hint. Re-entering a value overwrites it; there
  * is deliberately no way to read one back out through the UI.
  *
  * Deliberately NOT a <form>. These fields are rendered inside the configuration
- * form on the settings page, and HTML forbids nesting one form in another — it
+ * form on the settings page, and HTML forbids nesting one form in another it
  * is a hydration error and the inner form's submit behaviour is undefined. The
  * server action is called directly from a click handler instead, which also
  * keeps the credential out of the outer form's FormData.

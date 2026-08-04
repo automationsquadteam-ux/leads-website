@@ -59,13 +59,13 @@ function sanitizeSearch(term: string): string {
  *
  * Every widget on the dashboard is a count of something; clicking it has to
  * land on exactly the rows that were counted. Defining those queries once, here,
- * is what guarantees the number and the list agree — a widget that says 114 and
+ * is what guarantees the number and the list agree a widget that says 114 and
  * a page that shows 97 is worse than no widget.
  */
 export const LEAD_VIEWS = {
   missing_email: 'Leads missing an email address',
   awaiting_verification: 'Address on file, not yet verified',
-  invalid_email: 'Address proved undeliverable — needs a new source',
+  invalid_email: 'Address proved undeliverable needs a new source',
   approval_queue: 'Drafted, waiting for approval',
   awaiting_review: 'Active draft still marked as draft',
   needs_research: 'Verified, no research written',
@@ -280,7 +280,7 @@ export interface LeadDetail {
  * Everything the review workspace renders, in one round of parallel queries.
  *
  * `pipeline` is read from the pipeline_board view rather than the lead_pipeline
- * table, because next_step only exists there — it is computed by
+ * table, because next_step only exists there it is computed by
  * public.compute_next_step() against the current clock, so it cannot be a
  * stored column and must not be re-derived in TypeScript.
  */

@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0014 — Admin analytics views.
+-- 0014 Admin analytics views.
 --
 -- Same contract as the dashboard_* family from 0007/0009: security_invoker is
 -- off so the view reads past the base tables' admin-only RLS, and
@@ -50,7 +50,7 @@ group by 1;
 -- Reply rate over time.
 --
 -- The rate is replies received on a day over emails sent on the same day. That
--- is a rate of *activity*, not a cohort conversion — a reply on Tuesday usually
+-- is a rate of *activity*, not a cohort conversion a reply on Tuesday usually
 -- belongs to Monday's send. Cohort attribution lives in
 -- analytics_followup_conversion, which tracks the actual sequence.
 -- ---------------------------------------------------------------------------
@@ -88,7 +88,7 @@ where public.is_admin();
 -- ---------------------------------------------------------------------------
 -- FILTER binds to the AGGREGATE, never to a function wrapping it. Writing
 -- `round(avg(x), 1) filter (...)` fails with 42809 "round is not an aggregate
--- function" — the parentheses below put the filter on avg() and the cast on its
+-- function" the parentheses below put the filter on avg() and the cast on its
 -- result, which is what Postgres expects.
 create or replace view public.analytics_funnel_timing
 with (security_invoker = false) as
@@ -117,7 +117,7 @@ where public.is_admin();
 --
 -- A send records template_id only when one was chosen explicitly; otherwise the
 -- campaign's template is the one that produced the copy, so coalesce covers
--- both. Templates that have never been sent still appear, with zeroes — an
+-- both. Templates that have never been sent still appear, with zeroes an
 -- unused template is a finding, not a row to hide.
 -- ---------------------------------------------------------------------------
 create or replace view public.analytics_template_performance
@@ -246,7 +246,7 @@ from steps s
 where public.is_admin();
 
 -- ---------------------------------------------------------------------------
--- Draft regeneration activity — "how much are we rewriting, and by what".
+-- Draft regeneration activity "how much are we rewriting, and by what".
 -- ---------------------------------------------------------------------------
 create or replace view public.analytics_generation_daily
 with (security_invoker = false) as

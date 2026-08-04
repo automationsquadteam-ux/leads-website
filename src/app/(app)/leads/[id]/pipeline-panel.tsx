@@ -22,7 +22,7 @@ import type { PipelineBoardRow } from '@/lib/supabase/database.types';
  *
  * The four gates are the only pipeline state a human can assert. The stage
  * itself is derived from them in Postgres, so this panel deliberately offers no
- * way to "set the stage" — that would be a second source of truth, and the
+ * way to "set the stage" that would be a second source of truth, and the
  * losing one.
  */
 
@@ -131,7 +131,7 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
             <>
               <p className="text-xs text-muted-foreground">
                 Closed {formatRelative(pipeline.closed)}
-                {pipeline.closed_reason ? ` — ${pipeline.closed_reason}` : ''}
+                {pipeline.closed_reason ? ` ${pipeline.closed_reason}` : ''}
               </p>
               <Button
                 type="button"

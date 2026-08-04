@@ -6,7 +6,7 @@ import { formatNumber } from '@/lib/utils';
  * Deliberately dependency-free: a charting library is a large bundle and a
  * React-19 compatibility risk for what these views need (a trend line and a
  * ranked bar list). Every chart ships a visually-hidden <table> so screen
- * readers get the data — a chart alone is not accessible.
+ * readers get the data a chart alone is not accessible.
  */
 
 export interface SeriesPoint {
@@ -228,9 +228,9 @@ export function MultiLineChart({
         <span>{axis.points[axis.points.length - 1]?.label}</span>
       </figcaption>
 
-      {/* One hidden table per series — a chart alone is not accessible. */}
+      {/* One hidden table per series a chart alone is not accessible. */}
       {populated.map((s) => (
-        <DataTableFallback key={s.label} caption={`${caption} — ${s.label}`} points={s.points} />
+        <DataTableFallback key={s.label} caption={`${caption} ${s.label}`} points={s.points} />
       ))}
     </figure>
   );

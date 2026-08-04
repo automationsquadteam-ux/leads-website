@@ -1,5 +1,5 @@
 -- ===========================================================================
---  LEADS CRM — UPDATE 3: REMOVE n8n, ADD SHEET WRITE-BACK
+--  LEADS CRM UPDATE 3: REMOVE n8n, ADD SHEET WRITE-BACK
 --
 --  Run this if you have already applied schema.sql and
 --  schema-update-2-integrations.sql.
@@ -10,15 +10,15 @@
 --    1. Deletes the n8n settings keys, secret and run history.
 --    2. Adds the sheets.write_back setting (off by default).
 --
---  GENERATED FILE — concatenated from supabase/migrations/. Edit those.
+--  GENERATED FILE concatenated from supabase/migrations/. Edit those.
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0011 — Drop the n8n integration; add Google Sheets write-back.
+-- 0011 Drop the n8n integration; add Google Sheets write-back.
 --
 -- n8n is no longer called from the CRM. Migration 0010 created its settings
 -- keys and they have already been applied to the live database, so they are
--- removed here rather than by editing 0010 — an applied migration must stay
+-- removed here rather than by editing 0010 an applied migration must stay
 -- immutable, and this file is the record of the change.
 --
 -- Nothing structural is dropped: integration_runs keeps its generic

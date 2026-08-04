@@ -35,7 +35,7 @@ function siteUrl(): URL {
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: { default: 'Automation Squad · Leads CRM', template: '%s · Automation Squad' },
-  description: 'Cold outreach CRM — research, review, and send.',
+  description: 'Cold outreach CRM research, review, and send.',
   applicationName: 'Automation Squad Leads CRM',
   // The CRM is private. /stats overrides nothing here because it is aggregate
   // only, and staying out of search results is the right default for both.
@@ -44,19 +44,19 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'Automation Squad',
     title: 'Automation Squad · Leads CRM',
-    description: 'Cold outreach CRM — research, review, and send.',
+    description: 'Cold outreach CRM research, review, and send.',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Automation Squad · Leads CRM',
-    description: 'Cold outreach CRM — research, review, and send.',
+    description: 'Cold outreach CRM research, review, and send.',
   },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  // No maximumScale / user-scalable=no — pinch zoom must stay available.
+  // No maximumScale / user-scalable=no pinch zoom must stay available.
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -2,7 +2,7 @@ import type { BadgeTone } from '@/components/ui/badge';
 import type { EmailType, PipelineNextStep, PipelineStage } from '@/lib/supabase/database.types';
 
 /**
- * Presentation for the pipeline enums — and ONLY presentation.
+ * Presentation for the pipeline enums and ONLY presentation.
  *
  * The rules that decide a stage or a next step live in Postgres
  * (public.compute_pipeline_stage / public.compute_next_step). If you find

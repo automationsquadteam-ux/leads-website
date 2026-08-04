@@ -143,7 +143,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
         .neq('email_verification_status', 'invalid')
         .is('closed', null),
     ),
-    // Due before today and still unsent — the queue the scheduled sender is
+    // Due before today and still unsent the queue the scheduled sender is
     // behind on, which is the number worth alarming about.
     countOf(() =>
       supabase
@@ -229,7 +229,7 @@ export interface DashboardFeeds {
 /**
  * Business names are resolved with a second keyed query rather than a PostgREST
  * embedded select. The hand-written Database types declare `Relationships: []`,
- * so an embed cannot type-resolve — the same pattern lib/data/misc.ts uses.
+ * so an embed cannot type-resolve the same pattern lib/data/misc.ts uses.
  */
 async function attachNames<T extends { lead_id: string }>(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -256,7 +256,7 @@ export async function getDashboardFeeds(limit = 8): Promise<DashboardFeeds> {
     supabase
       .from('email_versions')
       .select('*')
-      // 'manual' is an edit, not a regeneration — this widget is about what the
+      // 'manual' is an edit, not a regeneration this widget is about what the
       // generator produced.
       .neq('generated_by', 'manual')
       .neq('generated_by', 'import')

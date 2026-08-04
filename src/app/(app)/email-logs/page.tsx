@@ -46,7 +46,7 @@ export default async function EmailLogsPage({
             <EmptyState
               icon={Mail}
               title="No emails sent yet"
-              description="Email delivery is not connected. Once the sending worker runs, every attempt — delivered, bounced or failed — is logged here with its provider message id."
+              description="Email delivery is not connected. Once the sending worker runs, every attempt delivered, bounced or failed is logged here with its provider message id."
             />
           ) : (
             <TableWrap>

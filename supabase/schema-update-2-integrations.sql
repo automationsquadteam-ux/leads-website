@@ -1,5 +1,5 @@
 -- ===========================================================================
---  LEADS CRM — UPDATE 2: INTEGRATIONS + VIEWER LOCKDOWN
+--  LEADS CRM UPDATE 2: INTEGRATIONS + VIEWER LOCKDOWN
 --
 --  Run this if you have ALREADY applied supabase/schema.sql once.
 --  Paste the whole file into the Supabase SQL editor and press Run.
@@ -15,7 +15,7 @@
 --       Adds leads.sheet_row_number / sheet_synced_at
 --       Adds Google Sheets + email provider settings keys
 --
---  GENERATED FILE — concatenated from supabase/migrations/. Edit those.
+--  GENERATED FILE concatenated from supabase/migrations/. Edit those.
 -- ===========================================================================
 
 -- ===========================================================================
@@ -23,7 +23,7 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0009 — Restrict the dashboard views to admins.
+-- 0009 Restrict the dashboard views to admins.
 --
 -- Previously these views were guarded by public.is_app_user(), so any signed-in
 -- user (including a viewer) could read aggregate lead statistics: totals,
@@ -35,7 +35,7 @@
 --
 -- Nothing else changes: the views keep running with owner privileges (that is
 -- what lets them read past the admin-only RLS on the base tables), and the
--- authenticated grant stays — is_admin() inside the view is the actual gate.
+-- authenticated grant stays is_admin() inside the view is the actual gate.
 -- ---------------------------------------------------------------------------
 
 create or replace view public.dashboard_overview
@@ -212,7 +212,7 @@ comment on view public.dashboard_overview is
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0010 — Integration plumbing: Google Sheets ingestion, email providers.
+-- 0010 Integration plumbing: Google Sheets ingestion, email providers.
 --
 -- Splits configuration into two stores on purpose:
 --   public.settings            non-secret config (host, port, sheet id, URLs)
@@ -242,7 +242,7 @@ create table if not exists public.integration_secrets (
 );
 
 comment on table public.integration_secrets is
-  'Encrypted integration credentials. Service-role only — never exposed to any browser token.';
+  'Encrypted integration credentials. Service-role only never exposed to any browser token.';
 
 drop trigger if exists integration_secrets_set_updated_at on public.integration_secrets;
 create trigger integration_secrets_set_updated_at

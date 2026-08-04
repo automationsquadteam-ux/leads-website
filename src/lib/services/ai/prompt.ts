@@ -15,10 +15,10 @@ const STEP_BRIEF: Record<EmailType, string> = {
   initial:
     'This is the FIRST contact. They have never heard from us. Lead with something ' +
     'specific to their business that proves this is not a mass mail, name one concrete ' +
-    'problem we could solve, and ask for a short reply — not a meeting.',
+    'problem we could solve, and ask for a short reply not a meeting.',
   followup1:
     'This is the FIRST follow-up, about a week after an email they did not answer. ' +
-    'Keep it short — four sentences at most. Do not repeat the original pitch or the ' +
+    'Keep it short four sentences at most. Do not repeat the original pitch or the ' +
     'original opening line. Add one new angle or a concrete example, and make it easy ' +
     'to say no.',
   followup2:
@@ -99,7 +99,7 @@ export function buildUserPrompt(context: GenerationContext): string {
     section('SOCIAL', clamp(socialList, 400)),
     template
       ? section(
-          'TEMPLATE TO FOLLOW (structure and tone, not wording — replace every {{token}})',
+          'TEMPLATE TO FOLLOW (structure and tone, not wording replace every {{token}})',
           `Subject: ${template.subject}\n\n${clamp(template.body, 2500)}`,
         )
       : null,

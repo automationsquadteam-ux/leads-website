@@ -13,7 +13,7 @@ export interface CampaignRow extends Campaign {
  * Campaigns plus the progress figures the cards show.
  *
  * "Remaining" counts leads assigned to the campaign that have not reached a
- * terminal state — that is what a daily-limit burndown actually needs.
+ * terminal state that is what a daily-limit burndown actually needs.
  */
 export async function getCampaigns(): Promise<{ rows: CampaignRow[]; error: string | null }> {
   const supabase = await createClient();

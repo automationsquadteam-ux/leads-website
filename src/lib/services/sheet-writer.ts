@@ -11,7 +11,7 @@ import { getAccessToken, readSheetHeaders, SheetsError, SHEETS_API } from './goo
  * access to public sheets and can never write. The service account must also be
  * shared on the sheet as **Editor**, not Viewer.
  *
- * Targeting is by `leads.sheet_row_number`, captured during sync — that is
+ * Targeting is by `leads.sheet_row_number`, captured during sync that is
  * precisely why it is stored. Leads that did not come from the sheet (workbook
  * imports, manual entries) have no row number and are skipped.
  *
@@ -26,7 +26,7 @@ import { getAccessToken, readSheetHeaders, SheetsError, SHEETS_API } from './goo
  * process outside this codebase, and its headers drift ("Follow-up 1",
  * "Followup 1", "Follow Up 1"). Headers are matched case-insensitively after
  * whitespace normalisation. A value whose headers are all absent from the sheet
- * is skipped rather than guessed at — **columns are never created**.
+ * is skipped rather than guessed at **columns are never created**.
  */
 interface WritebackColumn {
   key: string;
@@ -85,7 +85,7 @@ const WRITEBACK_COLUMNS: WritebackColumn[] = [
    *
    * "Email Data Done" is the upstream pipeline's marker that a draft exists. If
    * an admin writes a draft here for a lead the sheet still thinks is
-   * undrafted, the sheet must learn that — otherwise the upstream automation
+   * undrafted, the sheet must learn that otherwise the upstream automation
    * happily generates a second one over the top. Writing "Yes" the moment an
    * active initial draft exists is what keeps the two halves in agreement.
    */
@@ -158,7 +158,7 @@ function quoteSheetName(name: string): string {
 
 export interface WriteBackResult {
   ok: boolean;
-  /** False when the lead simply has no sheet origin — not an error. */
+  /** False when the lead simply has no sheet origin not an error. */
   attempted: boolean;
   message: string;
   cellsUpdated: number;

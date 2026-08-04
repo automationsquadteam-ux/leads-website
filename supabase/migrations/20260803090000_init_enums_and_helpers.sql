@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0001 — Extensions, enums and shared helper functions.
+-- 0001 Extensions, enums and shared helper functions.
 --
 -- Everything downstream depends on this file, so it must stay first.
 -- ---------------------------------------------------------------------------

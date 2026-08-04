@@ -124,7 +124,7 @@ export async function importLeads(
   summary.totalRows = rows.length;
 
   // ---------------------------------------------------------------------
-  // Pass 1 — validate, normalize and de-duplicate within the file itself.
+  // Pass 1 validate, normalize and de-duplicate within the file itself.
   // ---------------------------------------------------------------------
   const pending = new Map<string, { lead: LeadInsert; rowNumber: number }>();
 
@@ -172,7 +172,7 @@ export async function importLeads(
   }
 
   // ---------------------------------------------------------------------
-  // Pass 2 — write.
+  // Pass 2 write.
   // ---------------------------------------------------------------------
   let processed = 0;
 

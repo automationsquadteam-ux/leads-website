@@ -57,7 +57,7 @@ export function SidebarBrand() {
   );
 }
 
-/** Desktop rail — fixed at the density-scale width of 240px. */
+/** Desktop rail fixed at the density-scale width of 240px. */
 export function DesktopSidebar({ role }: { role: AppRole }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[var(--sidebar-width)] flex-col border-r border-border bg-surface lg:flex">

@@ -47,7 +47,7 @@ export type EmailVersionStatus = 'draft' | 'approved' | 'rejected';
 
 /**
  * Where a lead sits in the outreach lifecycle. Derived in Postgres by
- * public.compute_pipeline_stage() — never assigned by application code.
+ * public.compute_pipeline_stage() never assigned by application code.
  */
 export type PipelineStage =
   | 'need_email'
@@ -80,7 +80,7 @@ export type PipelineNextStep =
 /**
  * What an email verifier reported. A boolean cannot carry this: `accept_all`
  * means the domain accepts everything so the check proved nothing, and
- * `unknown` means the verifier gave up — neither is "true" or "false".
+ * `unknown` means the verifier gave up neither is "true" or "false".
  */
 export type EmailVerificationStatus =
   | 'unverified'
@@ -354,7 +354,7 @@ export interface Database {
       /**
        * Outreach lifecycle projection, one row per lead.
        *
-       * `current_stage` is derived by trigger — writing it has no effect, the
+       * `current_stage` is derived by trigger writing it has no effect, the
        * trigger overwrites whatever you send. It is absent from Insert/Update
        * on purpose so the type system says so too.
        */
@@ -657,7 +657,7 @@ export interface Database {
       };
 
       /* --------------------------------------------------------------------- */
-      /* Pipeline (admin-only — contains contact data)                          */
+      /* Pipeline (admin-only contains contact data)                          */
       /* --------------------------------------------------------------------- */
 
       pipeline_board: {
@@ -705,7 +705,7 @@ export interface Database {
       };
 
       /* --------------------------------------------------------------------- */
-      /* PUBLIC — anon-readable. Aggregates only; see migration 0013 before      */
+      /* PUBLIC anon-readable. Aggregates only; see migration 0013 before      */
       /* adding a single column here.                                           */
       /* --------------------------------------------------------------------- */
 

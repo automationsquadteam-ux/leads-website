@@ -4,7 +4,7 @@ import type { EmailType, Lead, Template } from '@/lib/supabase/database.types';
  * The generation contract.
  *
  * One interface, several implementations, chosen at runtime by the `ai.provider`
- * setting. Adding a provider is a new file plus one line in `index.ts` — the
+ * setting. Adding a provider is a new file plus one line in `index.ts` the
  * regenerate endpoint, the server action and the UI never change.
  */
 
@@ -30,7 +30,7 @@ export interface GeneratedEmail {
   content: string;
   /**
    * Provenance recorded on the version row: 'template', 'ollama:llama3.1:8b'.
-   * Never a bare 'ai' — six months later you will want to know which model
+   * Never a bare 'ai' six months later you will want to know which model
    * wrote the drafts that performed.
    */
   generatedBy: string;

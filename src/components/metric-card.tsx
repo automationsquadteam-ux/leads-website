@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
  * A single figure, optionally a link to the rows behind it.
  *
  * When `href` is set the whole card becomes the hit target rather than a small
- * "view" link in a corner — a number you can see is a number you expect to be
+ * "view" link in a corner a number you can see is a number you expect to be
  * able to click, and a 40px target beats a 12px one on every device.
  */
 export function MetricCard({
@@ -65,7 +65,7 @@ export function MetricCard({
       className={cn(base, 'group block hover:border-primary hover:bg-surface-hover', className)}
     >
       {body}
-      <span className="sr-only">— open the leads behind this figure</span>
+      <span className="sr-only">open the leads behind this figure</span>
     </Link>
   );
 }

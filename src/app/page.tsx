@@ -13,7 +13,7 @@ import { PublicStatsPage } from './stats-page';
  * beneath it.
  */
 export const metadata = {
-  title: 'Automation Squad — Outreach Statistics',
+  title: 'Automation Squad Outreach Statistics',
   description:
     'Live cold-outreach pipeline statistics: leads researched, emails sent, replies received.',
 };

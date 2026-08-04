@@ -10,7 +10,7 @@ export type { EmailMessage, EmailProvider, ProviderId, SendResult, VerifyResult 
 export { EmailConfigError } from './types';
 
 export const PROVIDERS: Array<{ id: ProviderId; label: string; description: string }> = [
-  { id: 'smtp', label: 'SMTP', description: 'Any SMTP relay — Mailgun, Postmark, your own server.' },
+  { id: 'smtp', label: 'SMTP', description: 'Any SMTP relay Mailgun, Postmark, your own server.' },
   { id: 'gmail', label: 'Gmail', description: 'Gmail or Google Workspace, using an App Password.' },
 ];
 
@@ -22,7 +22,7 @@ export const PROVIDERS: Array<{ id: ProviderId; label: string; description: stri
  * a plaintext password.
  *
  * Throws EmailConfigError with an actionable message when configuration is
- * incomplete — callers turn that into a UI message rather than a stack trace.
+ * incomplete callers turn that into a UI message rather than a stack trace.
  */
 export async function getActiveProvider(): Promise<EmailProvider> {
   const config = await getIntegrationConfig();

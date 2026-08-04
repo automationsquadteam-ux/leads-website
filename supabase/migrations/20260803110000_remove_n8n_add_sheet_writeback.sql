@@ -1,9 +1,9 @@
 -- ---------------------------------------------------------------------------
--- 0011 — Drop the n8n integration; add Google Sheets write-back.
+-- 0011 Drop the n8n integration; add Google Sheets write-back.
 --
 -- n8n is no longer called from the CRM. Migration 0010 created its settings
 -- keys and they have already been applied to the live database, so they are
--- removed here rather than by editing 0010 — an applied migration must stay
+-- removed here rather than by editing 0010 an applied migration must stay
 -- immutable, and this file is the record of the change.
 --
 -- Nothing structural is dropped: integration_runs keeps its generic

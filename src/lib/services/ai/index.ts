@@ -10,7 +10,7 @@ import type { EmailGenerator, GenerationContext, GenerationResult } from './type
 export type { EmailGenerator, GenerationContext, GeneratedEmail, GenerationResult } from './types';
 
 /**
- * Draft generation — the one entry point.
+ * Draft generation the one entry point.
  *
  * Callers (the regenerate endpoint, the server action, the outreach scheduler)
  * only ever see `generateEmail(leadId, type)`. Which engine runs, how the prompt
@@ -109,7 +109,7 @@ export async function buildGenerationContext(
 }
 
 /**
- * Generate one draft. Does NOT write anything — persisting the result as a new
+ * Generate one draft. Does NOT write anything persisting the result as a new
  * version is `createEmailVersion`'s job, so a failed generation cannot leave a
  * half-written row behind.
  */

@@ -93,7 +93,7 @@ export async function updateLead(_prev: ActionResult, formData: FormData): Promi
 
   // Push the edit outward through the sync layer (Google Sheet today, whatever
   // is registered tomorrow). Best-effort on purpose: the CRM is the system of
-  // record, so a Sheets outage must not make the save look like it failed — but
+  // record, so a Sheets outage must not make the save look like it failed but
   // the outcome is appended to the message, so it can never fail silently.
   const report = await syncLeadChange(id, ['identity', 'research', 'personalization', 'status']);
   return { ok: true, message: appendSyncMessage('Lead saved.', report) };

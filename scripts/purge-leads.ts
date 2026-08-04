@@ -1,19 +1,19 @@
 /**
  * Delete leads from Supabase, with a restorable backup.
  *
- *   npm run leads:purge                              # DRY RUN — shows what would go
+ *   npm run leads:purge                              # DRY RUN shows what would go
  *   npm run leads:purge -- --yes                     # delete everything
  *   npm run leads:purge -- --source="google-sheets:Sheet1" --yes
  *   npm run leads:purge -- --restore=backups/leads-....json
  *
  * Deleting a lead CASCADES to email_versions, lead_pipeline, lead_activity,
- * email_logs and replies — every one of those tables declares
+ * email_logs and replies every one of those tables declares
  * `on delete cascade` on lead_id. So this is a much bigger operation than the
  * lead count suggests, and the summary spells that out before doing anything.
  *
  * Every real run writes a timestamped JSON backup of the lead rows FIRST, and
  * refuses to proceed if that write fails. A purge you cannot undo is not a
- * maintenance tool, it is an accident waiting for a typo — the whole reason the
+ * maintenance tool, it is an accident waiting for a typo the whole reason the
  * backup exists is that `--source` is easy to get subtly wrong.
  *
  * What the backup does NOT capture: email_versions, activity and pipeline
@@ -39,7 +39,7 @@ Delete leads from Supabase. Cascades to versions, pipeline, activity, logs and r
 
 Usage: npm run leads:purge -- [options]
 
-  (no options)         DRY RUN — report what would be deleted, write nothing
+  (no options)         DRY RUN report what would be deleted, write nothing
   --yes                Actually delete. Writes a backup first.
   --source=<value>     Only leads with this exact leads.source
   --no-backup          Skip the backup file (refused unless --source is given)
@@ -169,7 +169,7 @@ async function main(): Promise<void> {
   const targets = await fetchAllLeads(db, args.source);
 
   console.log(`\n${line}`);
-  console.log(`  Purge leads${args.yes ? '' : '  (DRY RUN — nothing will be deleted)'}`);
+  console.log(`  Purge leads${args.yes ? '' : '  (DRY RUN nothing will be deleted)'}`);
   console.log(line);
   console.log(`  Filter            ${args.source ? `source = ${JSON.stringify(args.source)}` : 'ALL LEADS'}`);
   console.log(`  Leads in database ${String(leadCount ?? '?').padStart(6)}`);

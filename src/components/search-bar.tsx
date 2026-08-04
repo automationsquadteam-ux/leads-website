@@ -33,7 +33,7 @@ export function SearchBar({
 
   // Re-sync when the URL changes underneath us (back button, cleared filters).
   // Adjusting state during render is React's documented pattern for reacting to
-  // a changed prop — an effect here would cause an extra render pass.
+  // a changed prop an effect here would cause an extra render pass.
   if (value !== lastValue) {
     setLastValue(value);
     setDraft(value);

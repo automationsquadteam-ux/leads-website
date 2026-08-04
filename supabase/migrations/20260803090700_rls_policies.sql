@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0008 — Row Level Security.
+-- 0008 Row Level Security.
 --
 -- Model:
 --   admin   full CRUD on every table.
@@ -11,7 +11,7 @@
 -- enabled and no matching policy denies by default, which is the behaviour we
 -- rely on for viewers.
 --
--- Note: the service_role key bypasses RLS entirely — that is what the import
+-- Note: the service_role key bypasses RLS entirely that is what the import
 -- and seed scripts use, and why that key must never reach the browser.
 -- ---------------------------------------------------------------------------
 
@@ -28,7 +28,7 @@ alter table public.settings   enable row level security;
 -- The dashboard_* views in migration 0007 run with their owner's privileges and
 -- depend on that owner bypassing RLS on these base tables. FORCE would subject
 -- the owner to RLS too, and since every policy here requires is_admin(), it
--- would silently return zero rows to viewers — blanking out every dashboard.
+-- would silently return zero rows to viewers blanking out every dashboard.
 -- Table-level grants below plus the policies are the real gate.
 
 -- Anonymous visitors get nothing anywhere; signed-in users get table access
@@ -51,7 +51,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- profiles
 --
--- A user may always read their own profile — the app needs it to resolve the
+-- A user may always read their own profile the app needs it to resolve the
 -- role after sign-in. Admins may read and administer everyone.
 -- ---------------------------------------------------------------------------
 drop policy if exists profiles_select_self  on public.profiles;

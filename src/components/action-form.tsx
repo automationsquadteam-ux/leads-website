@@ -9,8 +9,8 @@ import type { ActionResult } from '@/lib/actions/leads';
 /**
  * Shared plumbing for the review workspace's many small forms.
  *
- * The workspace is deliberately made of independent panels — research,
- * personalization, each draft, notes — that each save on their own. One big
+ * The workspace is deliberately made of independent panels research,
+ * personalization, each draft, notes that each save on their own. One big
  * "Save everything" form would mean an admin who fixes a typo in the notes also
  * re-submits a draft they were still thinking about.
  */
@@ -23,7 +23,7 @@ export const EMPTY_ACTION_RESULT: ActionResult = { ok: false, message: '' };
  *
  * Toasting is an external-system update, which is what an effect is for.
  * Anything that adjusts local React state on success is done during render by
- * the caller instead — a setState inside an effect triggers an extra cascading
+ * the caller instead a setState inside an effect triggers an extra cascading
  * render and trips the React Compiler lint.
  */
 export function useActionFeedback(state: ActionResult, options: { refreshOnSuccess?: boolean } = {}) {

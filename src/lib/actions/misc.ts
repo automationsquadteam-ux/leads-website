@@ -12,14 +12,14 @@ import type { ActionResult } from './leads';
 /**
  * This file carries 'use server', so it may export **async functions only**.
  *
- * Exporting anything else — an array, an object, a plain constant — makes Next
+ * Exporting anything else an array, an object, a plain constant makes Next
  * refuse to evaluate the module, which takes down every action in it and
  * surfaces to the user as a 500 on an unrelated-looking POST. That is exactly
  * what TEMPLATE_PLACEHOLDERS did before it moved to lib/templates/placeholders.
  */
 
 /* -------------------------------------------------------------------------- */
-/* Templates — full CRUD                                                       */
+/* Templates full CRUD                                                       */
 /* -------------------------------------------------------------------------- */
 
 const templateSchema = z.object({
@@ -87,7 +87,7 @@ export async function deleteTemplate(id: string): Promise<ActionResult> {
 
 /**
  * Start / pause / resume flip `campaigns.active`, which is real state the
- * future sending worker will read. Nothing is dispatched here — no worker
+ * future sending worker will read. Nothing is dispatched here no worker
  * exists yet.
  */
 export async function setCampaignActive(id: string, active: boolean): Promise<ActionResult> {
@@ -249,7 +249,7 @@ export async function updateSettings(
    * Which pipeline stages may appear on the public page.
    *
    * Assembled from checkboxes rather than going through the typed-prefix loop
-   * below, because an unticked checkbox is simply absent from FormData — so a
+   * below, because an unticked checkbox is simply absent from FormData so a
    * loop over what was submitted can never turn a stage OFF. Reading the
    * explicit roster and keeping only what was ticked is the only way clearing
    * the last box actually clears it.

@@ -8,7 +8,7 @@ import type { ActivityKind, LeadActivity } from '@/lib/supabase/database.types';
  *
  * Written with the service-role client because every caller has already passed
  * assertAdmin(), and because an audit line must survive a session expiring
- * mid-request — losing the record of a change is worse than the change itself.
+ * mid-request losing the record of a change is worse than the change itself.
  *
  * Recording is always best-effort: a failure here never fails the action that
  * prompted it. An admin whose approval is rejected because the audit table was

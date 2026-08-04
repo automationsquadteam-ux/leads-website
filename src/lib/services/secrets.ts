@@ -117,7 +117,7 @@ export async function getSecret(key: SecretKey): Promise<string | null> {
     return decryptSecret(data.ciphertext);
   } catch {
     // Wrong key, or the row was tampered with. Treat as unset rather than
-    // crashing the caller — the UI reports the credential as not configured.
+    // crashing the caller the UI reports the credential as not configured.
     return null;
   }
 }
@@ -149,7 +149,7 @@ export async function listSecretStatus(): Promise<SecretStatus[]> {
   });
 }
 
-/** True when APP_ENCRYPTION_KEY is present and valid — surfaced in the UI. */
+/** True when APP_ENCRYPTION_KEY is present and valid surfaced in the UI. */
 export function encryptionAvailable(): boolean {
   try {
     getKey();

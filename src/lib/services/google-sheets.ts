@@ -20,7 +20,7 @@ import { getSecret } from './secrets';
 
 export const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-// Read/write scope, not `.readonly` — the same token is used to push CRM edits
+// Read/write scope, not `.readonly` the same token is used to push CRM edits
 // back to the sheet (see sheet-writer.ts).
 const SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
 
@@ -127,7 +127,7 @@ export function normalizeHeader(header: string): string {
 /**
  * Access token for the configured service account.
  *
- * Service-account mode only — an API key cannot authorise a write, which is why
+ * Service-account mode only an API key cannot authorise a write, which is why
  * write-back requires this path.
  */
 export async function getAccessToken(): Promise<string> {
@@ -138,7 +138,7 @@ export async function getAccessToken(): Promise<string> {
   return getServiceAccountToken(credential);
 }
 
-/** Just the header row, normalized — used to map CRM fields onto columns. */
+/** Just the header row, normalized used to map CRM fields onto columns. */
 export async function readSheetHeaders(): Promise<string[]> {
   const config = await getIntegrationConfig();
   const { spreadsheetId, sheetName, headerRow, authMode } = config.sheets;
@@ -252,7 +252,7 @@ export async function readSheet(): Promise<SheetData> {
 
   if (normalizedHeaders.every((h) => h === '')) {
     throw new SheetsError(
-      `Row ${headerRow} of "${sheetName}" is empty — expected column headers there.`,
+      `Row ${headerRow} of "${sheetName}" is empty expected column headers there.`,
     );
   }
 

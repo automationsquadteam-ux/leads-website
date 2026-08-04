@@ -11,7 +11,7 @@ import { runGoogleSheetSync } from '@/lib/actions/integrations';
 /**
  * Sync trigger on the leads toolbar.
  *
- * Calls the same server action the settings panel uses — a shortcut to where
+ * Calls the same server action the settings panel uses a shortcut to where
  * the result is visible, not a second implementation. Full run history and
  * configuration live under Settings → Integrations.
  */

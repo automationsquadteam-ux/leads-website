@@ -5,7 +5,7 @@
  * `server-only` package's default export throws on load. It depends solely on
  * `service-client.ts`, which is marker-free for exactly this reason (see the
  * note at the top of that file). Nothing here reaches for a request context, so
- * there is no client bundle to protect — and the service-role key it uses is
+ * there is no client bundle to protect and the service-role key it uses is
  * guarded by `getServiceRoleKey()`, which throws if it is ever read in a
  * browser.
  */
@@ -30,7 +30,7 @@ import type { EmailVerificationStatus } from '@/lib/supabase/database.types';
  *   valid       email_verified = true. Eligible for the scheduled sender.
  *   invalid     email_verified = false AND the stage falls back to need_email,
  *               so it appears in "Leads Missing Email" and someone sources a
- *               new address. leads.email is kept — knowing what was tried and
+ *               new address. leads.email is kept knowing what was tried and
  *               failed is worth more than the row being tidy.
  *   accept_all  recorded, NOT auto-verified. A catch-all domain accepts
  *               everything, so the check proved nothing; a human decides.
@@ -88,7 +88,7 @@ export function normaliseVerificationStatus(raw: string): EmailVerificationStatu
 }
 
 /* -------------------------------------------------------------------------- */
-/* CSV — parsed and generated here rather than pulling in a dependency          */
+/* CSV parsed and generated here rather than pulling in a dependency          */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -323,7 +323,7 @@ export async function importVerificationCsv(
   const checkedAt = new Date().toISOString();
   const emails = [...verdicts.keys()];
 
-  // Resolve addresses to leads in chunks — a single .in() with hundreds of
+  // Resolve addresses to leads in chunks a single .in() with hundreds of
   // values builds a URL PostgREST rejects.
   const leadsByEmail = new Map<string, string[]>();
   for (let i = 0; i < emails.length; i += 200) {

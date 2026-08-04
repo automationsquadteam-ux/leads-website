@@ -30,7 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/email-logs', label: 'Email Logs', icon: Mail, roles: ['admin'] },
   { href: '/replies', label: 'Replies', icon: MessageSquare, roles: ['admin'] },
   // The public front page. Shown to both roles because it is the one
-  // destination a viewer can genuinely use — it needs no session at all.
+  // destination a viewer can genuinely use it needs no session at all.
   { href: '/', label: 'Public Page', icon: Globe, roles: ['admin', 'viewer'] },
   { href: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ];

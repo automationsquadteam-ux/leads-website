@@ -10,7 +10,7 @@ import type { EmailGenerator, GenerationContext, GenerationResult } from './type
  * draft from the template plus whatever research and personalization the lead
  * actually has, so:
  *
- *   * the whole pipeline — regenerate, version, review, approve, send — can be
+ *   * the whole pipeline regenerate, version, review, approve, send can be
  *     exercised end to end before any model is configured;
  *   * a machine with no Ollama running still produces something an admin can
  *     edit into shape, instead of an error;
@@ -23,7 +23,7 @@ import type { EmailGenerator, GenerationContext, GenerationResult } from './type
 /** Follow-up skeletons, used when the campaign template covers only the first email. */
 const FOLLOWUP_SHAPES: Record<Exclude<EmailType, 'initial'>, (name: string) => string[]> = {
   followup1: (name) => [
-    `I wrote last week about ${name} and never heard back — no problem, inboxes are inboxes.`,
+    `I wrote last week about ${name} and never heard back no problem, inboxes are inboxes.`,
     '',
     '{{angle}}',
     '',
@@ -68,7 +68,7 @@ function defaultInitialBody(context: GenerationContext): string {
   const where = [lead.city, lead.country].filter(Boolean).join(', ');
 
   return [
-    `Hi — I came across ${lead.business_name}${where ? ` in ${where}` : ''}.`,
+    `Hi I came across ${lead.business_name}${where ? ` in ${where}` : ''}.`,
     '',
     lead.research_summary?.trim() ||
       `I work with ${lead.niche?.trim() || 'businesses like yours'} on automating the repetitive parts of their day.`,
@@ -108,8 +108,8 @@ export class TemplateGenerator implements EmailGenerator {
       // so follow-ups get their own shape with one specific line from research.
       subjectSource =
         type === 'followup1'
-          ? `Following up — ${lead.business_name}`
-          : `Closing the loop — ${lead.business_name}`;
+          ? `Following up ${lead.business_name}`
+          : `Closing the loop ${lead.business_name}`;
       bodySource = FOLLOWUP_SHAPES[type](lead.business_name)
         .join('\n')
         .replace('{{angle}}', bestAngle(context))

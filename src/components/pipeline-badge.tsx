@@ -12,7 +12,7 @@ import type { PipelineNextStep, PipelineStage } from '@/lib/supabase/database.ty
 /**
  * Stage and Next Step, shown the same way everywhere.
  *
- * Colour is never the only signal — every badge pairs a tone with an icon and a
+ * Colour is never the only signal every badge pairs a tone with an icon and a
  * text label, matching the rest of the app's status components.
  */
 
@@ -70,7 +70,7 @@ export function NextStepBadge({ step }: { step: PipelineNextStep }) {
 /**
  * The prominent stage + next step display for a lead page.
  *
- * Reads as a sentence — "Draft Ready → Approve Draft" — because the pair only
+ * Reads as a sentence "Draft Ready → Approve Draft" because the pair only
  * means something together: the stage says where the lead is, the next step
  * says what to do about it.
  */

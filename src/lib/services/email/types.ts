@@ -1,8 +1,8 @@
 /**
  * Email provider contract.
  *
- * Everything above this boundary — server actions, the lead page, email
- * logging — depends only on these types. Adding Resend or SendGrid later means
+ * Everything above this boundary server actions, the lead page, email
+ * logging depends only on these types. Adding Resend or SendGrid later means
  * writing one more implementation and one more line in the factory; no caller
  * changes.
  */
@@ -23,7 +23,7 @@ export interface SendResult {
   /** Provider-side id, used to reconcile webhooks back to the log row. */
   messageId: string | null;
   message: string;
-  /** Raw provider response, truncated — useful when diagnosing a rejection. */
+  /** Raw provider response, truncated useful when diagnosing a rejection. */
   detail?: string | null;
 }
 

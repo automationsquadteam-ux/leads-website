@@ -37,7 +37,7 @@ function readRaw(key: string): string | null {
   }
 }
 
-/** Raw string flavour — for values another script also reads (e.g. the theme). */
+/** Raw string flavour for values another script also reads (e.g. the theme). */
 export function usePersistedString(key: string, fallback: string): [string, (next: string) => void] {
   const value = React.useSyncExternalStore(
     subscribe,
@@ -64,7 +64,7 @@ export function usePersistedString(key: string, fallback: string): [string, (nex
  * JSON flavour, for structured values such as persisted column widths.
  *
  * `fallback` must be referentially stable (a module-level constant, not an
- * inline literal) — it participates in the memo dependencies, so a fresh object
+ * inline literal) it participates in the memo dependencies, so a fresh object
  * each render would return a fresh value each render.
  */
 export function usePersistedJson<T>(key: string, fallback: T): [T, (next: T) => void] {

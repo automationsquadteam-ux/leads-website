@@ -32,7 +32,7 @@ export interface SendLeadEmailResult {
  * point of versioning: whichever draft the admin selected is the one that goes
  * out, with no separate "publish" step to forget. For `initial` there is a
  * fallback to leads.subject_line / draft_email, because leads imported before
- * versioning existed have their draft there — the mirror trigger keeps the two
+ * versioning existed have their draft there the mirror trigger keeps the two
  * in step from here on.
  *
  * Advancing lead_pipeline is NOT done here. The email_logs trigger does it, so
@@ -110,7 +110,7 @@ export async function sendLeadEmail(
    * Refuse to send a draft that still contains a placeholder.
    *
    * Checked here rather than in the UI because this is the ONE function every
-   * send path goes through — the Send button, the API and the cron sender. A
+   * send path goes through the Send button, the API and the cron sender. A
    * check in the review screen would protect the click and miss the automation,
    * which is precisely the case where nobody is watching.
    *
@@ -134,7 +134,7 @@ export async function sendLeadEmail(
     };
   }
 
-  // Record the attempt first — see the note at the top of this file.
+  // Record the attempt first see the note at the top of this file.
   const { data: log } = await admin
     .from('email_logs')
     .insert({
@@ -172,7 +172,7 @@ export async function sendLeadEmail(
         status: result.ok ? 'sent' : 'failed',
         message_id: result.messageId,
         sent_at: result.ok ? now : null,
-        error: result.ok ? null : `${result.message}${result.detail ? ` — ${result.detail}` : ''}`.slice(0, 2000),
+        error: result.ok ? null : `${result.message}${result.detail ? ` ${result.detail}` : ''}`.slice(0, 2000),
       })
       .eq('id', logId);
   }
@@ -183,7 +183,7 @@ export async function sendLeadEmail(
       result.ok
         ? { status: 'sent', last_contacted_at: now }
         // Roll back on failure so the lead stays actionable instead of being
-        // stranded in 'sending'. A failed follow-up returns to 'sent' — the
+        // stranded in 'sending'. A failed follow-up returns to 'sent' the
         // earlier email did go out, and 'approved' would misreport that.
         : { status: emailType === 'initial' ? 'approved' : 'sent' },
     )
@@ -214,7 +214,7 @@ export async function sendTestEmail(recipient: string): Promise<{ ok: boolean; m
 
   const result = await provider.send({
     to: recipient,
-    subject: 'Leads CRM — test email',
+    subject: 'Leads CRM test email',
     text:
       'This is a test message from Leads CRM.\n\n' +
       `Provider: ${provider.label}\n` +

@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0004 — templates, campaigns, and the lead -> campaign link.
+-- 0004 templates, campaigns, and the lead -> campaign link.
 -- ---------------------------------------------------------------------------
 
 create table if not exists public.templates (
@@ -19,7 +19,7 @@ create table if not exists public.templates (
 );
 
 comment on table public.templates is
-  'Reusable email templates. Admin-only — viewers must never see template bodies.';
+  'Reusable email templates. Admin-only viewers must never see template bodies.';
 
 create unique index if not exists templates_name_key on public.templates (lower(name));
 

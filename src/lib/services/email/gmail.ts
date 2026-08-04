@@ -19,7 +19,7 @@ const GMAIL_PORT = 465;
  * account; Google removed "less secure app" passwords otherwise.)
  *
  * Swapping to the Gmail REST API later means writing a new class against the
- * same EmailProvider interface — nothing above this file changes.
+ * same EmailProvider interface nothing above this file changes.
  */
 export class GmailProvider implements EmailProvider {
   readonly id = 'gmail' as const;

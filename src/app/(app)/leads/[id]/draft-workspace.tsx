@@ -37,7 +37,7 @@ import { EMAIL_TYPES, type EmailType, type EmailVersion } from '@/lib/supabase/d
  * version history. The rules this UI has to make visible:
  *
  *   * Saving an edit CREATES a version. It does not overwrite the one on
- *     screen — the button says "Save as new version" for that reason.
+ *     screen the button says "Save as new version" for that reason.
  *   * Regenerating creates a version too, and the previous one stays one click
  *     away in the history below.
  *   * Exactly one version per step is active. That is the one shown by default
@@ -172,7 +172,7 @@ function PlaceholderWarning({ subject, content }: { subject: string | null; cont
         <p className="mt-1 text-muted-foreground">
           These would reach the recipient exactly as written. Edit the draft or regenerate it.
           Only <code className="font-mono">{'{{token}}'}</code> placeholders from the template list
-          are substituted — square brackets are treated as ordinary prose.
+          are substituted square brackets are treated as ordinary prose.
         </p>
       </div>
     </div>
@@ -223,7 +223,7 @@ function DraftEditor({
 
   const active = versions.find((v) => v.active) ?? versions[0] ?? null;
   // Hooks cannot sit behind the early return below, so this runs for the
-  // empty-state case too — hence the null-safe arguments.
+  // empty-state case too hence the null-safe arguments.
   const placeholders = usePlaceholders(active?.subject ?? null, active?.content ?? '');
 
   if (!active) {
@@ -465,7 +465,7 @@ function VersionHistory({
   return (
     <div className="rounded-lg border border-border">
       <p className="border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground">
-        Version history — any version can be made active again
+        Version history any version can be made active again
       </p>
       <ul className="divide-y divide-border">
         {versions.map((version) => {
@@ -494,7 +494,7 @@ function VersionHistory({
                 ) : null}
               </div>
               <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                {version.subject ? <span className="font-medium">{version.subject} — </span> : null}
+                {version.subject ? <span className="font-medium">{version.subject} </span> : null}
                 {version.content.slice(0, 220)}
               </p>
             </li>

@@ -12,7 +12,7 @@ values (
   'Quick idea for {{business_name}}',
   E'Hi {{first_name}},\n\n' ||
   E'I came across {{business_name}} in {{city}} and noticed {{personalization}}.\n\n' ||
-  E'We build AI automation for {{niche}} — usually lead capture, follow-up and ' ||
+  E'We build AI automation for {{niche}} usually lead capture, follow-up and ' ||
   E'a website chatbot that answers the questions your team keeps retyping.\n\n' ||
   E'Worth a short call next week?\n\n' ||
   E'{{signature}}',
@@ -22,7 +22,7 @@ on conflict (lower(name)) do nothing;
 
 insert into public.campaigns (name, description, active, daily_limit, template_id)
 select
-  'Sheet2 — international outreach',
+  'Sheet2 international outreach',
   'Enriched leads imported from Leads.xlsx (Sheet2). Inactive until reviewed.',
   false,
   50,

@@ -15,7 +15,7 @@ import { readSheet, SheetsError } from './google-sheets';
  * upstream and land there. This only mirrors rows into Supabase.
  *
  * Identity, validation and normalization are deliberately NOT reimplemented
- * here — they come from src/lib/import, the same code the workbook importer
+ * here they come from src/lib/import, the same code the workbook importer
  * uses. One definition of "which lead is this", so the CLI and the sheet sync
  * can never disagree and produce duplicates of each other's rows.
  *
@@ -62,7 +62,7 @@ function diffFields(incoming: LeadInsert, existing: Lead): Partial<LeadInsert> {
     const next = incoming[field];
     const current = existing[field as keyof Lead];
 
-    // A blank cell never erases data already in the CRM — an operator may have
+    // A blank cell never erases data already in the CRM an operator may have
     // filled it in by hand, and the sheet not knowing about it is not a reason
     // to delete it.
     if (next === null || next === undefined) continue;
@@ -126,7 +126,7 @@ export async function syncFromGoogleSheet(options: SyncOptions = {}): Promise<Sy
   }
 
   // ---------------------------------------------------------------------
-  // Pass 1 — validate and collapse duplicates inside the sheet itself.
+  // Pass 1 validate and collapse duplicates inside the sheet itself.
   // ---------------------------------------------------------------------
   const batchId = randomUUID();
   const syncedAt = new Date().toISOString();
@@ -178,7 +178,7 @@ export async function syncFromGoogleSheet(options: SyncOptions = {}): Promise<Sy
   }
 
   // ---------------------------------------------------------------------
-  // Pass 2 — look up what already exists, then insert or update.
+  // Pass 2 look up what already exists, then insert or update.
   // ---------------------------------------------------------------------
   const admin = createServiceClient();
   const keys = [...candidates.keys()];
@@ -214,7 +214,7 @@ export async function syncFromGoogleSheet(options: SyncOptions = {}): Promise<Sy
 
     const patch = diffFields(lead, existing);
 
-    // Keep the row pointer current even when no content changed — rows move
+    // Keep the row pointer current even when no content changed rows move
     // when the sheet is sorted or edited above.
     const rowMoved = existing.sheet_row_number !== rowNumber;
     if (Object.keys(patch).length === 0 && !rowMoved) {

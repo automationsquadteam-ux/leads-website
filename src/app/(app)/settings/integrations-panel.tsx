@@ -147,7 +147,7 @@ export function IntegrationsPanel({
                   <span className="block text-xs text-muted-foreground">
                     {authMode === 'service_account'
                       ? 'Editing a lead updates its original row. The service account must have Editor access.'
-                      : 'Requires service-account auth — an API key is read-only.'}
+                      : 'Requires service-account auth an API key is read-only.'}
                   </span>
                 </span>
               </label>
@@ -194,7 +194,7 @@ export function IntegrationsPanel({
                 value={provider}
                 onChange={(e) => setProvider(e.target.value as typeof provider)}
               >
-                <option value="smtp">SMTP — any relay</option>
+                <option value="smtp">SMTP any relay</option>
                 <option value="gmail">Gmail / Google Workspace</option>
               </Select>
             </Field>
@@ -333,7 +333,7 @@ export function IntegrationsPanel({
       </form>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Actions — outside the config form so a click never submits it.      */}
+      {/* Actions outside the config form so a click never submits it.      */}
       {/* ------------------------------------------------------------------ */}
       <Card>
         <CardHeader>
@@ -455,7 +455,7 @@ function SyncSummaryCard({ result }: { result: SyncActionResult }) {
               {result.invalidRows.map((row) => (
                 <li key={row.rowNumber} className="text-xs text-danger">
                   <span className="tabular font-medium">Row {row.rowNumber}</span>
-                  {row.businessName ? ` · ${row.businessName}` : ''} — {row.reason}
+                  {row.businessName ? ` · ${row.businessName}` : ''} {row.reason}
                 </li>
               ))}
             </ul>

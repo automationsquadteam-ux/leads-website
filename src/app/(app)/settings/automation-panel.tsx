@@ -12,7 +12,7 @@ import type { IntegrationConfig } from '@/lib/services/config';
  * Manual triggers for the two automated pieces.
  *
  * Both call exactly the same functions the cron endpoint does, so what you see
- * here is what the schedule will do — not a separate "test mode" that can drift
+ * here is what the schedule will do not a separate "test mode" that can drift
  * from the real thing.
  */
 export function AutomationPanel({
@@ -95,7 +95,7 @@ export function AutomationPanel({
           <div className="rounded-md border border-border bg-muted px-3 py-2.5 text-xs text-muted-foreground">
             <p className="font-medium text-foreground">Running this on a schedule</p>
             <p className="mt-1">
-              The website never schedules anything itself — a Next.js server can be restarted or
+              The website never schedules anything itself a Next.js server can be restarted or
               scaled to zero at any moment, so an in-process timer is not a schedule. Point any cron
               service at the endpoint instead:
             </p>

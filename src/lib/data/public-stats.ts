@@ -18,7 +18,7 @@ import type { Database, Views } from '@/lib/supabase/database.types';
  *   * The SSR client would attach whatever session cookie the visitor happens
  *     to have, making an admin's view of this page silently different from an
  *     anonymous visitor's. A public page should render the same thing for
- *     everyone — that is what makes it reviewable.
+ *     everyone that is what makes it reviewable.
  *
  * The upshot: this module is incapable of leaking lead data, and that property
  * is enforced by Postgres grants rather than by care.
@@ -38,7 +38,7 @@ export interface PublicStats {
   campaigns: Views<'public_stats_campaigns'>[];
   /**
    * Opt-in lead list. Empty unless an admin switched it on AND chose which
-   * stages may appear — the view enforces both, so an empty array here is the
+   * stages may appear the view enforces both, so an empty array here is the
    * correct and expected default.
    */
   leads: Views<'public_stats_leads'>[];

@@ -37,7 +37,7 @@ export class SmtpProvider implements EmailProvider {
     }
     if (!options.fromAddress.trim()) {
       throw new EmailConfigError(
-        'No from address configured — the relay settings are fine, but there is nothing to send as. ' +
+        'No from address configured the relay settings are fine, but there is nothing to send as. ' +
           'Set "From address" under Settings → Integrations → Email provider and save.',
       );
     }

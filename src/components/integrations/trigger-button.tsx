@@ -21,7 +21,7 @@ export interface LastRun {
  * Trigger button with persistent run state.
  *
  * The status shown after a reload comes from integration_runs in the database,
- * not component state — so "last run" survives navigation, and a run started in
+ * not component state so "last run" survives navigation, and a run started in
  * another tab (or by a future scheduled job) is still reflected here.
  */
 export function TriggerButton({

@@ -12,11 +12,11 @@ import type {
  *
  * What this file does NOT do, deliberately:
  *
- *   * decide a stage — public.compute_pipeline_stage() does, in a BEFORE
+ *   * decide a stage public.compute_pipeline_stage() does, in a BEFORE
  *     trigger, on every write;
- *   * decide a next step — public.compute_next_step() does, and the
+ *   * decide a next step public.compute_next_step() does, and the
  *     pipeline_board view exposes it;
- *   * advance the sequence after a send — the email_logs trigger does.
+ *   * advance the sequence after a send the email_logs trigger does.
  *
  * Everything here is either "read what the database decided" or "record a fact
  * a human asserted" (verified this address, marked this stage complete, closed

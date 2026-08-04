@@ -42,7 +42,7 @@ export function formatDateTime(value: string | null | undefined): string {
   }).format(date);
 }
 
-/** "3 days ago" / "in 2 hours" — falls back to a date beyond a month. */
+/** "3 days ago" / "in 2 hours" falls back to a date beyond a month. */
 export function formatRelative(value: string | null | undefined): string {
   if (!value) return '—';
   const date = new Date(value);

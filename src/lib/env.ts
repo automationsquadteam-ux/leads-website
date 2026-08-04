@@ -6,7 +6,7 @@
  * crash `next build` on a machine that has no credentials configured.
  *
  * The `process.env.NEXT_PUBLIC_*` reads are written out literally because Next
- * inlines them at build time by textual substitution — destructuring or dynamic
+ * inlines them at build time by textual substitution destructuring or dynamic
  * indexing would break that.
  */
 
@@ -24,13 +24,13 @@ export function getSupabaseUrl(): string {
   return required('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL);
 }
 
-/** Anon key. Safe in the browser — every request is still subject to RLS. */
+/** Anon key. Safe in the browser every request is still subject to RLS. */
 export function getSupabaseAnonKey(): string {
   return required('NEXT_PUBLIC_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
 /**
- * Service role key — bypasses RLS.
+ * Service role key bypasses RLS.
  *
  * Server-side only. The guard below is a tripwire: if this module is ever
  * pulled into a client bundle the build-time replacement of `window` makes the

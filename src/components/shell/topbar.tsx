@@ -56,7 +56,7 @@ export function Topbar({
       <button
         type="button"
         disabled
-        title="Notifications — coming soon"
+        title="Notifications coming soon"
         aria-label="Notifications (coming soon)"
         className="relative cursor-not-allowed rounded-md p-2 text-muted-foreground opacity-60"
       >

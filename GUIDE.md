@@ -1,13 +1,14 @@
-# GUIDE.md — Leads CRM codebase guide
+# GUIDE.md Leads CRM codebase guide
 
 **Read this before changing anything. Update it before you finish.**
 
 This is the internal guide: how the code works, why it is shaped this way, and the traps
-that will bite you. `README.md` is the setup-and-usage document — this one is for whoever
+that will bite you. `README.md` is the setup-and-usage document this one is for whoever
 (human or AI agent) is about to modify the code.
 
 > **Standing rule:** read this file at the start of a task, update it at the end. If you
 > add a migration, a route, a service or a convention, it belongs here.
+> Nver add the double dash, never.
 
 ---
 
@@ -27,28 +28,28 @@ Node 20.9+. Windows dev box; PowerShell is the primary shell.
 | Area | Status |
 | --- | --- |
 | Schema, RLS, auth, middleware | Done |
-| Workbook importer (`Leads.xlsx`) | Done — 698 leads imported |
+| Workbook importer (`Leads.xlsx`) | Done 698 leads imported |
 | Full UI (dashboard, leads, campaigns, templates, logs, replies, settings) | Done |
 | Google Sheets sync (read) | Done |
-| Google Sheets write-back (CRM edit → sheet row) | Done — off by default, needs service account |
+| Google Sheets write-back (CRM edit → sheet row) | Done off by default, needs service account |
 | Email providers (SMTP, Gmail) + real sending | Done |
 | Encrypted credential storage | Done |
-| n8n | **Removed** (migration 0011) — the user does not want it |
+| n8n | **Removed** (migration 0011) the user does not want it |
 | Admin review workflow (research/personalization/3 drafts/notes) | Done |
-| Email versioning (`email_versions`) | Done — nothing is ever overwritten |
+| Email versioning (`email_versions`) | Done nothing is ever overwritten |
 | Outreach lifecycle (`lead_pipeline`, derived stage + next step) | Done |
-| Draft generation (template generator + Ollama) | Done — `ai.provider` setting |
-| Automatic follow-ups (`/api/cron/outreach`) | Done — needs `CRON_SECRET` |
-| Public statistics page (`/stats`, no login) | Done — anon reads 5 aggregate views |
+| Draft generation (template generator + Ollama) | Done `ai.provider` setting |
+| Automatic follow-ups (`/api/cron/outreach`) | Done needs `CRON_SECRET` |
+| Public statistics page (`/stats`, no login) | Done anon reads 5 aggregate views |
 | Analytics page | Done |
-| Modular outbound sync layer | Done — `lib/services/sync/` |
-| What signed-in *viewers* may see | **Still deliberately nothing** — `/stats` is the public answer |
-| Reply ingestion (inbound parsing) | Not built — `replies` is written by nothing yet |
-| Email verification service | Not built — `email_verified` is set by hand |
+| Modular outbound sync layer | Done `lib/services/sync/` |
+| What signed-in *viewers* may see | **Still deliberately nothing** `/stats` is the public answer |
+| Reply ingestion (inbound parsing) | Not built `replies` is written by nothing yet |
+| Email verification service | Not built `email_verified` is set by hand |
 
 ---
 
-## 2. Migration status — READ THIS FIRST
+## 2. Migration status READ THIS FIRST
 
 Migrations live in `supabase/migrations/`, applied in filename order.
 
@@ -83,17 +84,17 @@ migrations is a paste-into-the-SQL-editor job. That is the established workflow 
 ### Applied migrations are immutable
 
 0010 originally created the n8n keys. Once it had been applied to the live database it
-could not be edited — 0011 removes them instead. **Never edit a migration that has run.**
+could not be edited 0011 removes them instead. **Never edit a migration that has run.**
 Add a follow-up; that file is the record of the change.
 
 (0010 still carries a note pointing at 0011, so the pairing is obvious when reading it.)
 
-### Four generated SQL files — keep them in sync
+### Four generated SQL files keep them in sync
 
-- `supabase/schema.sql` — every migration, for a fresh project.
-- `supabase/schema-update-2-integrations.sql` — 0009 + 0010.
-- `supabase/schema-update-3-remove-n8n.sql` — 0011 only.
-- `supabase/schema-update-4-review-workflow.sql` — 0012 + 0013 + 0014.
+- `supabase/schema.sql` every migration, for a fresh project.
+- `supabase/schema-update-2-integrations.sql` 0009 + 0010.
+- `supabase/schema-update-3-remove-n8n.sql` 0011 only.
+- `supabase/schema-update-4-review-workflow.sql` 0012 + 0013 + 0014.
 
 All **generated**. Add a migration → regenerate. Never hand-edit them.
 
@@ -110,23 +111,23 @@ const exists = !error;
 
 ---
 
-## 3. The security model — the part you must not break
+## 3. The security model the part you must not break
 
 Three independent layers. Each alone would be a bug; together they fail closed.
 
-**Layer 1 — middleware (`src/proxy.ts`).**
+**Layer 1 middleware (`src/proxy.ts`).**
 Runs before every non-static request. Redirects anonymous users to `/login` (preserving
 `?next=`), and blocks non-admins from `ADMIN_PREFIXES`.
 
 > Next 16 renamed the convention: `proxy.ts` / `export function proxy`, not
 > `middleware.ts` / `middleware`. Same edge hook, same `config.matcher`.
 
-**Layer 2 — page and action guards (`src/lib/auth/session.ts`).**
+**Layer 2 page and action guards (`src/lib/auth/session.ts`).**
 `requireAdmin()` in pages, `assertAdmin()` in Server Actions.
 **Middleware does not run for Server Actions.** An action without `assertAdmin()` is
 directly callable by any authenticated user. This is the layer people forget.
 
-**Layer 3 — Row Level Security.**
+**Layer 3 Row Level Security.**
 Every table has RLS enabled; every policy requires `public.is_admin()`. A viewer who
 reaches an admin query gets zero rows.
 
@@ -148,7 +149,7 @@ them uses `select *`, on purpose.
 2. **Supabase's linter flags these as "Security Definer View".** That is intended. Ignore
    it. The warning you must *never* ignore is "RLS has not been enabled on public.X".
 
-### The `/stats` exception — anon can read exactly five views
+### The `/stats` exception anon can read exactly five views
 
 Migration 0013 **deliberately breaks** the "anon gets nothing" invariant, for five views
 and nothing else:
@@ -176,7 +177,7 @@ applies.
 
 #### The one view that can name businesses: `public_stats_leads`
 
-Migration 0015 added a view that CAN publish individual businesses — name, city, country,
+Migration 0015 added a view that CAN publish individual businesses name, city, country,
 industry and stage, and nothing else. It is **default-denied twice over**:
 
 1. `public.show_leads` is `false`, and
@@ -197,10 +198,10 @@ not on screen" and the stage would silently stay public.
 redirecting to `/dashboard`, so a visitor with no account sees the pipeline instead of a
 login wall. `/stats` is kept as a redirect for old links. `'/'` is in `PUBLIC_PATHS`; the
 matcher tests `pathname === p` first and `startsWith(p + '/')` second, and for `'/'` that
-second test is `startsWith('//')`, which never fires — so this opens the front page exactly
+second test is `startsWith('//')`, which never fires so this opens the front page exactly
 and nothing beneath it.
 
-`src/lib/data/public-stats.ts` reads these with a **plain anon client** — not the
+`src/lib/data/public-stats.ts` reads these with a **plain anon client** not the
 service-role client, not the cookie-bound SSR client. That is the point: the service-role
 key would make one mistyped table name a breach, and the SSR client would render a
 different page for an admin than for a visitor. With the anon key, Postgres grants make
@@ -219,10 +220,10 @@ relax the admin views back to `is_app_user()`.
 
 Two stores, deliberately separate:
 
-- `public.settings` — non-secret config (hosts, ports, URLs, sheet id, from address).
-- `public.integration_secrets` — credentials, **AES-256-GCM encrypted in the application**
+- `public.settings` non-secret config (hosts, ports, URLs, sheet id, from address).
+- `public.integration_secrets` credentials, **AES-256-GCM encrypted in the application**
   before they reach Postgres. RLS on with **zero policies**, and all grants revoked from
-  `anon` *and* `authenticated` — no browser token can read it, not even an admin's. Server
+  `anon` *and* `authenticated` no browser token can read it, not even an admin's. Server
   code reaches it via the service-role client after its own `assertAdmin()`.
 
 Secrets are write-only from the UI: set/replace only, never read back. The client sees a
@@ -236,7 +237,7 @@ every credential.
 | Check | Result |
 | --- | --- |
 | Anonymous anon-key request to any table or `dashboard_*` view | **401** (not an empty array) |
-| Anonymous anon-key request to `public_stats_*` | 200 — intended, see above |
+| Anonymous anon-key request to `public_stats_*` | 200 intended, see above |
 | Viewer `select` on leads / templates / settings | 0 rows |
 | Viewer on `/leads`, `/settings`, … | 307 → `/unauthorized` |
 | Admin on all 7 routes | 200 |
@@ -275,7 +276,7 @@ lead_activity   lead_id, kind, summary, detail, actor_id  (append-only audit)
 `lead_status`: `new · researching · ready · approved · sending · sent · replied · bounced ·
 invalid · archived`.
 
-### The pipeline is derived, not stored — the rule that matters most now
+### The pipeline is derived, not stored the rule that matters most now
 
 `lead_pipeline.current_stage` and the Next Step are **computed in Postgres**:
 
@@ -285,11 +286,11 @@ invalid · archived`.
 | Next step | `public.compute_next_step(lead_pipeline)` | `STABLE` (compares a due date to `now()`), exposed by the `pipeline_board` view |
 
 **Never re-implement either in TypeScript.** `src/lib/pipeline/labels.ts` holds labels,
-hints, tones and icons — presentation only. If you catch yourself writing an `if` that
+hints, tones and icons presentation only. If you catch yourself writing an `if` that
 picks a stage in TS, it belongs in a migration: two implementations of one rule is how the
 board and the scheduled sender start disagreeing about what a lead needs.
 
-`current_stage` is absent from the `Insert`/`Update` types on purpose — writing it does
+`current_stage` is absent from the `Insert`/`Update` types on purpose writing it does
 nothing, the trigger overwrites it.
 
 The pipeline is a **projection of facts**, kept current by four triggers:
@@ -311,7 +312,7 @@ Two consequences worth knowing:
    button, the cron sender and any future webhook reconciliation all move the lifecycle
    identically, and none of them has to remember to.
 
-Clearing a gate flag must also clear its `_at` stamp — `gateFlagPatch()` in
+Clearing a gate flag must also clear its `_at` stamp `gateFlagPatch()` in
 `lib/services/outreach/pipeline.ts` does this. The stamping trigger only fills a NULL, so
 without it, un-approving and re-approving would keep the original `approved_at` and
 "average approval time" would measure the wrong interval.
@@ -326,7 +327,7 @@ verifier actually returns:
 | `unverified` | never checked | default |
 | `valid` | deliverable | `email_verified := true` |
 | `invalid` | guaranteed bounce | `email_verified := false` **and the stage falls back to `need_email`** |
-| `accept_all` | catch-all domain — the check proved nothing | recorded, **not** auto-verified |
+| `accept_all` | catch-all domain the check proved nothing | recorded, **not** auto-verified |
 | `unknown` | verifier gave up | recorded, not auto-verified |
 
 Collapsing `accept_all` into true or false throws away exactly the distinction that decides
@@ -335,7 +336,7 @@ whether it is safe to send, which is why the column is not a boolean.
 An `invalid` lead keeps `leads.email`. Knowing which address was tried and failed is worth
 more than a tidy row, and the stage already says a new one is needed.
 
-The round trip is deliberately API-free — no verifier credentials, no bill, nothing to leak:
+The round trip is deliberately API-free no verifier credentials, no bill, nothing to leak:
 
 ```bash
 npm run emails:export                       # unverified-emails.csv
@@ -355,14 +356,14 @@ address because verifiers bill per address, not per lead.
 
 `email_versions` is append-only in practice. Editing a draft **inserts** a version;
 regenerating **inserts** a version. Nothing in `lib/services/email-versions.ts` UPDATEs
-`content` or `subject`. Rejecting keeps the row and its text — a rejected draft is often
+`content` or `subject`. Rejecting keeps the row and its text a rejected draft is often
 the most useful thing in the history.
 
 - `version_number` is assigned by a BEFORE INSERT trigger when omitted, so two concurrent
   saves cannot both compute the same `max()+1`.
 - Exactly one version per `(lead, type)` is `active`, enforced by a partial unique index.
   The trigger that clears the previous one is **BEFORE**, not AFTER: a plain unique index
-  is checked the instant the row hits the heap, so an AFTER trigger would never run — the
+  is checked the instant the row hits the heap, so an AFTER trigger would never run the
   insert would already have failed with 23505.
 - The active `initial` version is **mirrored** onto `leads.subject_line` / `draft_email` by
   a trigger. `email_versions` is the system of record; that copy exists so the sender, the
@@ -376,14 +377,14 @@ the most useful thing in the history.
   genuine upstream edit and becomes the next version.
 
   This was added in 0015 after the 0012 one-time backfill left 145 leads holding a draft
-  with no version — the review screen reported "no draft yet" for leads that plainly had
+  with no version the review screen reported "no draft yet" for leads that plainly had
   one. A trigger cannot drift the way a backfill did.
 
 ### What `email_logs` means, and what it does not
 
 `email_logs` is evidence that **this CRM** sent something. It is written only by
 `sendLeadEmail()`. Sends made upstream (n8n, by hand, anything else) never appear there,
-and nothing fabricates rows in it — corrupting the one table that is supposed to be proof
+and nothing fabricates rows in it corrupting the one table that is supposed to be proof
 of our own sending would be worse than a gap.
 
 `lead_pipeline` answers the other question: **was this lead emailed at all**, by anyone.
@@ -392,7 +393,7 @@ The sheet's "Email sent status" column feeds it through `sync_pipeline_from_lead
 Get these two backwards and the analytics lie. That is exactly what happened: 58 leads were
 sent upstream, so `analytics_industry_performance` (counting `email_logs`) reported 0 while
 the status counts said 58. It now reads `lead_pipeline`. **When adding an analytics view,
-pick the source by the question being asked** — "what did we send" is `email_logs`, "what
+pick the source by the question being asked** "what did we send" is `email_logs`, "what
 happened to this lead" is `lead_pipeline`.
 
 ### Lead identity (the single most important rule)
@@ -408,7 +409,7 @@ name:<name>|<city>         last resort
 
 Stored in `leads.dedupe_key` with a UNIQUE index. Inserts use
 `ON CONFLICT DO NOTHING ... RETURNING`, so the database itself reports which rows were new
-— exact counts, and safe against two syncs running concurrently.
+exact counts, and safe against two syncs running concurrently.
 
 **Never write a second identity rule.** If the sync and the importer disagree, they will
 create duplicates of each other's rows.
@@ -440,7 +441,7 @@ src/
     page.tsx         redirects to /dashboard
     login/           page · client form · signIn/signOut actions
     unauthorized/
-    stats/           PUBLIC statistics page — no session, anon client only
+    stats/           PUBLIC statistics page no session, anon client only
     api/
       admin/leads/[id]/regenerate/  POST { type } → new version (assertAdmin)
       cron/outreach/                scheduled sender (CRON_SECRET bearer)
@@ -468,12 +469,12 @@ src/
 
   lib/
     env.ts               lazy, guarded env access (+ getCronSecret → null when unset)
-    pipeline/labels.ts   stage/next-step LABELS ONLY — the logic lives in SQL
+    pipeline/labels.ts   stage/next-step LABELS ONLY the logic lives in SQL
     auth/session.ts      requireUser / requireAdmin / assertAdmin
     supabase/
       client.ts          browser
       server.ts          server components / actions (RLS applies)
-      service-client.ts  service-role factory — NO 'server-only' marker
+      service-client.ts  service-role factory NO 'server-only' marker
       admin.ts           re-export WITH 'server-only', for app code
       database.types.ts  hand-maintained schema types
     data/                read queries: dashboard · leads · misc · admin-dashboard ·
@@ -483,10 +484,10 @@ src/
       config.ts          typed reader for non-secret settings (sheets/email/ai/outreach/sending)
       secrets.ts         AES-256-GCM encrypted credential store
       activity.ts        lead_activity writer (best-effort)
-      email-versions.ts  create / activate / review — never overwrites
+      email-versions.ts  create / activate / review never overwrites
       integration-runs.ts run history
       google-sheets.ts   Sheets reader + OAuth token (API key / service account)
-      sheet-sync.ts      sync engine (sheet → CRM) — reuses lib/import
+      sheet-sync.ts      sync engine (sheet → CRM) reuses lib/import
       sheet-writer.ts    write-back (CRM → sheet row), takes a SyncSnapshot
       sync/              MODULAR OUTBOUND SYNC: types · google-sheet-target · index
       ai/                types · prompt · template-generator · ollama · index
@@ -510,12 +511,12 @@ hand-rolling a second query.
 **Tables are `table-fixed`.** Under the default `auto` layout a browser sizes columns to
 their widest cell and treats an explicit `width` as a suggestion, which is why dragging a
 column narrower than its longest value used to do nothing. `fixed` makes the declared width
-authoritative, so `TD` must be able to clip — it sets `overflow-hidden` and truncates.
+authoritative, so `TD` must be able to clip it sets `overflow-hidden` and truncates.
 Resize bounds are `MIN_COLUMN_WIDTH` (72px, about eight characters) and `MAX_COLUMN_WIDTH`
 (900px) in `data-table.tsx`. Do **not** re-add `minWidth` alongside `width` on the `TH`:
 that was the original floor that made narrowing impossible.
 
-**Adding an admin route** — do all four:
+**Adding an admin route** do all four:
 1. `requireAdmin()` at the top of the page.
 2. `assertAdmin()` at the top of every Server Action it calls.
 3. Add the prefix to `ADMIN_PREFIXES` in `src/proxy.ts`.
@@ -527,7 +528,7 @@ that was the original floor that made narrowing impossible.
 `lib/actions/leads.ts`). They never throw at the UI; they return a message the toast shows.
 
 A `'use server'` module may export **async functions only**. `type` and `interface`
-exports are fine (erased at compile time); a constant, array or object is not — it breaks
+exports are fine (erased at compile time); a constant, array or object is not it breaks
 every action in the file, not just itself. Shared values live in a plain module both sides
 import, e.g. `lib/templates/placeholders.ts`.
 
@@ -536,7 +537,7 @@ That keeps credentials server-side and gives one place to record run history.
 
 **Types.** `src/lib/supabase/database.types.ts` is hand-maintained. Change it in the same
 commit as the migration. It declares `Relationships: []`, so **PostgREST embedded selects
-(`leads(business_name)`) will not type-resolve** — use a second query and join in JS, as
+(`leads(business_name)`) will not type-resolve** use a second query and join in JS, as
 `lib/data/misc.ts` does.
 
 **Styling.** Semantic CSS variables only (`bg-surface`, `text-muted-foreground`,
@@ -544,7 +545,7 @@ commit as the migration. It declares `Relationships: []`, so **PostgREST embedde
 `globals.css`; `@theme inline` maps them into Tailwind.
 
 **Branding.** The logo is `public/logo.png` (full lockup) and `public/logo-mark.png` (gear
-mark only). Render it through `components/brand.tsx` — `BrandMark` / `BrandLockup` — never
+mark only). Render it through `components/brand.tsx` `BrandMark` / `BrandLockup` never
 with a bare `<Image>`: the source PNG **has no alpha channel**, so its background is solid
 white, and those components put it on a white tile so a dark theme shows a deliberate tile
 rather than a ragged white square.
@@ -552,7 +553,7 @@ rather than a ragged white square.
 Icons and social cards come from Next's **file conventions** in `src/app/`: `icon.png`,
 `apple-icon.png`, `opengraph-image.png`, `twitter-image.png`. Next emits the tags itself
 with hashed URLs, so do **not** also declare `icons` or `openGraph.images` in
-`layout.tsx` — you would get duplicate tags that disagree after the next asset change.
+`layout.tsx` you would get duplicate tags that disagree after the next asset change.
 `metadataBase` (from `NEXT_PUBLIC_SITE_URL`, else the Vercel host, else localhost) is what
 makes the relative image paths absolute, which scrapers require.
 
@@ -565,7 +566,7 @@ mark:  extract {left:0, top:90, w:1254, h:690} -> trim -> pad 8% to a square -> 
 og:    1200x630 white canvas <- composite(trim(logo) resized to height 470, centre)
 ```
 
-**Accessibility (load-bearing, not decoration).** Status is never colour alone — badges pair
+**Accessibility (load-bearing, not decoration).** Status is never colour alone badges pair
 colour + icon + text. Charts ship a visually-hidden `<table>`. Sortable headers set
 `aria-sort`; nav sets `aria-current`. Focus rings are global and never removed.
 `prefers-reduced-motion` is honoured globally.
@@ -576,7 +577,7 @@ render an editable field that silently goes nowhere.
 **Outbound changes go through `lib/services/sync`, never straight to a target.** Actions
 call `syncLeadChange(leadId, fields)` and fold the result in with `appendSyncMessage()`.
 One decision point for "does this change need pushing", and adding a destination is a new
-`SyncTarget` plus one line in the registry — no caller changes.
+`SyncTarget` plus one line in the registry no caller changes.
 
 **The review workspace is many small forms, not one big one.** Research, personalization,
 each draft and notes each save independently. A single "Save everything" form would mean
@@ -589,27 +590,27 @@ about.
 
 | Trap | What happens | Fix |
 | --- | --- | --- |
-| `loading.tsx` at `leads/` | Its Suspense boundary covers `leads/[id]` too, so that route starts streaming (commits HTTP 200) before `notFound()` runs — a missing lead renders the not-found page with **status 200** | Keep it in the `(list)` route group |
+| `loading.tsx` at `leads/` | Its Suspense boundary covers `leads/[id]` too, so that route starts streaming (commits HTTP 200) before `notFound()` runs a missing lead renders the not-found page with **status 200** | Keep it in the `(list)` route group |
 | `setState` in a mount effect | `react-hooks/set-state-in-effect` error (React Compiler lint) | `useSyncExternalStore` for external state (see `use-persisted-state.ts`), or adjust state during render |
 | Accessing a ref during render | "Cannot access refs during render" | Do it in an effect, or restructure so it is unnecessary |
-| `import 'server-only'` in a CLI script | Throws under plain Node — the package's default export throws | Import `service-client.ts`, not `admin.ts` |
+| `import 'server-only'` in a CLI script | Throws under plain Node the package's default export throws | Import `service-client.ts`, not `admin.ts` |
 | Exporting a non-component value from a `'use client'` module and importing it in a Server Component | You get a client-reference proxy, not the value | Put it in a plain module (`theme-script.ts`) |
 | `.select('*', { head: true })` for existence checks | Returns **no error** for a non-existent table | Use a real `.select('*').limit(1)`, and test a known-bad control |
 | PowerShell `Get-Content`/`Set-Content` round-trip on source files | Mangles UTF-8 (em dashes → mojibake) | Use the Write/Edit tools |
 | Next 16 + TypeScript 7 | "does not provide the compiler API required by Next.js" | Stay on TypeScript 6 |
 | ESLint 10 + `eslint-config-next` | `eslint-plugin-react` crashes despite the `>=9` peer range | Stay on ESLint 9 |
 | `.or()` with unsanitised user input | Commas/parens break out of the filter expression | `sanitizeSearch()` in `lib/data/leads.ts` strips `,()\` and `%_` |
-| A component that renders a `<form>` used inside another form | `<form> cannot be a descendant of <form>` — hydration error, inner submit undefined | Take plain args and call the action from a click handler (see `secret-field.tsx`) |
+| A component that renders a `<form>` used inside another form | `<form> cannot be a descendant of <form>` hydration error, inner submit undefined | Take plain args and call the action from a click handler (see `secret-field.tsx`) |
 | Editing an already-applied migration | Files and live database silently diverge | Add a follow-up migration instead |
-| **Exporting a non-async value from a `'use server'` file** | `A "use server" file can only export async functions, found object.` The **whole module fails to evaluate**, so *every* action in it 500s — including ones that have nothing to do with the offending export. The stack points at the generated action loader, never at the real culprit, and the browser just says "Could not reach the server" | Move the value to a plain module and import it from both sides (`lib/templates/placeholders.ts` exists for exactly this). `type`/`interface` exports are fine — they are erased |
-| **A Server Action toasting "Could not reach the server"** | The action did not fail — every action catches and *returns*. The POST itself 500'd or 404'd. Check the **server** log, not the browser | Usually the row above. Otherwise a dev server that recompiled while the page stayed open, leaving stale action ids: reload the page |
-| An AFTER trigger that clears a sibling before a partial UNIQUE index | Never runs — the index is checked the instant the row hits the heap, so the INSERT already failed with 23505 | Use a BEFORE trigger (see `enforce_single_active_version`) |
+| **Exporting a non-async value from a `'use server'` file** | `A "use server" file can only export async functions, found object.` The **whole module fails to evaluate**, so *every* action in it 500s including ones that have nothing to do with the offending export. The stack points at the generated action loader, never at the real culprit, and the browser just says "Could not reach the server" | Move the value to a plain module and import it from both sides (`lib/templates/placeholders.ts` exists for exactly this). `type`/`interface` exports are fine they are erased |
+| **A Server Action toasting "Could not reach the server"** | The action did not fail every action catches and *returns*. The POST itself 500'd or 404'd. Check the **server** log, not the browser | Usually the row above. Otherwise a dev server that recompiled while the page stayed open, leaving stale action ids: reload the page |
+| An AFTER trigger that clears a sibling before a partial UNIQUE index | Never runs the index is checked the instant the row hits the heap, so the INSERT already failed with 23505 | Use a BEFORE trigger (see `enforce_single_active_version`) |
 | `ON CONFLICT DO UPDATE SET x = coalesce(public.tbl.x, excluded.x)` | Schema-qualifying the target is a syntax error | Alias the target: `insert into public.tbl as p ... set x = coalesce(p.x, excluded.x)` |
-| Writing `current_stage` on `lead_pipeline` | Silently ignored — the BEFORE trigger recomputes it | Set the gate flags; the stage follows |
+| Writing `current_stage` on `lead_pipeline` | Silently ignored the BEFORE trigger recomputes it | Set the gate flags; the stage follows |
 | Reading `/stats` data with the service-role client | Turns one typo into a data breach on a page anyone can load | Use the plain anon client (`lib/data/public-stats.ts`); Postgres grants then make a leak impossible |
 | Ollama streaming by default | Returns NDJSON, `JSON.parse` chokes halfway through | `stream: false` in the request body |
-| `round(avg(x), 1) filter (where …)` | `42809: FILTER specified, but round is not an aggregate function` — FILTER binds to the aggregate, not to a function wrapping it | `round((avg(x) filter (where …))::numeric, 1)` — see `analytics_funnel_timing` |
-| Adding a column anywhere but the END of an existing `create or replace view` | `42P16: cannot change name of view column "x" to "y"`. Replace can only **append**; inserting a column reads as renaming the one already in that position | `drop view if exists …;` then `create view …`. Add `cascade` only if something depends on it — check first, because cascade silently drops dependents too |
+| `round(avg(x), 1) filter (where …)` | `42809: FILTER specified, but round is not an aggregate function` FILTER binds to the aggregate, not to a function wrapping it | `round((avg(x) filter (where …))::numeric, 1)` see `analytics_funnel_timing` |
+| Adding a column anywhere but the END of an existing `create or replace view` | `42P16: cannot change name of view column "x" to "y"`. Replace can only **append**; inserting a column reads as renaming the one already in that position | `drop view if exists …;` then `create view …`. Add `cascade` only if something depends on it check first, because cascade silently drops dependents too |
 
 ---
 
@@ -618,13 +619,13 @@ about.
 All services live in `src/lib/services/` and are called only from Server Actions in
 `src/lib/actions/integrations.ts` (or `review.ts`), or from the cron route handler.
 
-**Google Sheets** (`google-sheets.ts`) — reads a whole tab. Two auth modes: API key (public
-sheet) or service account (private sheet; JWT signed with `node:crypto` — no `googleapis`
+**Google Sheets** (`google-sheets.ts`) reads a whole tab. Two auth modes: API key (public
+sheet) or service account (private sheet; JWT signed with `node:crypto` no `googleapis`
 dependency). Requests `UNFORMATTED_VALUE` so dates arrive as Excel serials that the existing
 normalizer already handles. The OAuth scope is the read/write `spreadsheets` scope, not
 `.readonly`, because the same token drives write-back.
 
-**Sheets write-back** (`sheet-writer.ts`) — pushes CRM edits back to the originating row.
+**Sheets write-back** (`sheet-writer.ts`) pushes CRM edits back to the originating row.
 
 - **Requires service-account auth with Editor access.** An API key is read-only and can
   never authorise a write; `saveIntegrationConfig` refuses the api_key + write_back
@@ -634,7 +635,7 @@ normalizer already handles. The OAuth scope is the read/write `spreadsheets` sco
 - Maps values onto columns by matching normalized headers, with **several candidate headers
   per value** (`follow-up 1` / `followup 1` / `follow up 1`) because the sheet is written
   by a process outside this codebase and its headers drift. A value whose headers are all
-  absent is skipped — **columns are never created**.
+  absent is skipped **columns are never created**.
 - Now writes status, stage, next step, notes and both follow-up drafts as well as the
   original identity/research/initial-draft columns.
 - `undefined` from a value resolver means "nothing to say" and leaves the cell alone;
@@ -646,33 +647,33 @@ normalizer already handles. The OAuth scope is the read/write `spreadsheets` sco
   database write look like it failed; the outcome is appended to the toast so a silent
   failure is impossible.
 
-**Sheet sync** (`sheet-sync.ts`) — reuses `lib/import/mapping.ts` for validation and
+**Sheet sync** (`sheet-sync.ts`) reuses `lib/import/mapping.ts` for validation and
 identity. Reports Imported / Updated / Skipped / Invalid / duplicates-in-sheet. A blank
 cell never erases existing CRM data. Pure function of (sheet, database), so a cron route
 can call it exactly as the button does. **Nothing polls.**
 
-**Email** (`email/`) — `EmailProvider` is `verify()` + `send()`. One provider active at a
+**Email** (`email/`) `EmailProvider` is `verify()` + `send()`. One provider active at a
 time via the `email.provider` setting. SMTP uses any relay; Gmail uses an App Password over
 `smtp.gmail.com:465` (no OAuth consent screen for a single owned mailbox). Adding Resend or
 SendGrid = one new class + one line in the factory; no caller changes.
 
-**Placeholder guard — a draft with unfilled placeholders cannot be sent.**
+**Placeholder guard a draft with unfilled placeholders cannot be sent.**
 
 `findUnresolvedPlaceholders()` in `email/render.ts` runs inside `sendLeadEmail()`, *after*
 rendering. That location is the point: it is the one function every send path goes through
-— the Send button, the API and the cron sender — so the automation is covered too, which is
+the Send button, the API and the cron sender so the automation is covered too, which is
 exactly the case where nobody is watching. The review UI shows the same warning early and
 disables Send, but that is convenience; the block is server-side.
 
 It catches two shapes:
 
-- `{{unknown}}` — a token `renderPlaceholders` left verbatim because it has no value.
-- `[Title Case]` or `[oneword]` — the human/AI "fill this in" convention. **The renderer
+- `{{unknown}}` a token `renderPlaceholders` left verbatim because it has no value.
+- `[Title Case]` or `[oneword]` the human/AI "fill this in" convention. **The renderer
   never substituted square brackets**, so these are ordinary prose to this system and would
   be mailed literally.
 
 The bracket rule was fitted to the real data rather than guessed. Measured over the 698
-imported drafts: **574 (82%) contained placeholders** — `[Your Name]` ×291,
+imported drafts: **574 (82%) contained placeholders** `[Your Name]` ×291,
 `[Business Owner]` ×177, `[City]` ×162, `[Business Name]` ×142. Requiring Title Case *or* a
 single lower-case token keeps every one of those (including `[niche]`) while clearing
 bracketed prose asides like `[and Karachi too]` and citations like `[1]`.
@@ -681,11 +682,11 @@ Blocking rather than warning is a deliberate asymmetry: a refused send costs one
 mailing "Hi [Business Owner's Name]" costs the prospect.
 
 **Three things must all be present before anything can send**, and `SmtpProvider`'s
-constructor checks them in this order — the *first* one that fails is the message the user
+constructor checks them in this order the *first* one that fails is the message the user
 sees, which matters when diagnosing a report:
 
 1. `smtp.host`
-2. `email.default_from_address` — **the one people miss.** A relay configured perfectly
+2. `email.default_from_address` **the one people miss.** A relay configured perfectly
    still cannot send without it, because there is no envelope sender.
 3. the `smtp.password` secret
 
@@ -695,39 +696,39 @@ only in the second, so an operator could fill in every field on the email card, 
 and get an error naming a field that was not on screen. Error messages now name the exact
 card, not a section title that does not exist.
 
-**Sending a lead's draft** (`email/send-lead-email.ts`) — ordering is deliberate:
+**Sending a lead's draft** (`email/send-lead-email.ts`) ordering is deliberate:
 
 1. Resolve the **active version** of the requested step from `email_versions`. For
    `initial` there is a fallback to `leads.subject_line` / `draft_email`, because leads
    imported before versioning have their draft there.
 2. Write `email_logs` as `queued` **before** sending, with `email_type` and
-   `email_version_id` — a crash mid-send still leaves evidence. A log written only on
+   `email_version_id` a crash mid-send still leaves evidence. A log written only on
    success loses exactly the cases you need to investigate.
 3. Set lead to `sending` so a second click cannot double-send.
 4. Send; record `sent`/`failed`, provider message id, error text.
 5. Lead → `sent` + `last_contacted_at`, or back on failure (`approved` for an initial,
-   `sent` for a follow-up — the earlier email did go out). Never stranded.
+   `sent` for a follow-up the earlier email did go out). Never stranded.
 
 It does **not** touch `lead_pipeline`. The `email_logs` trigger does that.
 
-**Draft generation** (`ai/`) — `EmailGenerator` is `verify()` + `generate()`, chosen by the
+**Draft generation** (`ai/`) `EmailGenerator` is `verify()` + `generate()`, chosen by the
 `ai.provider` setting:
 
-- `template` (default) — deterministic, offline, no model. Composes a draft from the
+- `template` (default) deterministic, offline, no model. Composes a draft from the
   campaign template plus the lead's research; follow-ups get their own shape with one
   specific sentence pulled from research, because reusing the initial template verbatim is
   the most obvious tell of an automated sequence. Every draft is attributed as `template`,
   never as AI output.
-- `ollama` — a local model over plain HTTP, no SDK. `stream: false` (Ollama returns NDJSON
+- `ollama` a local model over plain HTTP, no SDK. `stream: false` (Ollama returns NDJSON
   otherwise), timeout is a setting and defaults to 120s because a cold model load is slow.
   Provenance is recorded as `ollama:<model>` so "which model wrote the drafts that
   performed" is answerable later.
 
 `prompt.ts` is provider-independent on purpose: switching engines changes *how* text is
-produced, never *what the model was told*. `parseGeneratedEmail()` is forgiving — models
+produced, never *what the model was told*. `parseGeneratedEmail()` is forgiving models
 drift from any output contract, and a usable body should not be discarded over formatting.
 
-**Outbound sync** (`sync/`) — `syncLeadChange(leadId, fields)` resolves one snapshot (lead
+**Outbound sync** (`sync/`) `syncLeadChange(leadId, fields)` resolves one snapshot (lead
 + pipeline + next step + active draft per step) and fans it out to every enabled
 `SyncTarget`. A throwing target cannot take the others down with it. Adding an API target
 later is a new file plus one registry line; the snapshot already carries everything an
@@ -740,7 +741,7 @@ outbound webhook would want.
   schedule, it is a coin flip. `vercel.json` declares an hourly cron; any external
   scheduler works equally well.
 - Auth is a `CRON_SECRET` bearer token compared with `timingSafeEqual` (lengths checked
-  first — `timingSafeEqual` throws on a mismatch, which would itself leak the length).
+  first `timingSafeEqual` throws on a mismatch, which would itself leak the length).
   **Unset ⇒ 503.** It fails closed.
 - Follow-ups that are due are sent, generating a draft first when none exists. The
   **initial** email only goes automatically when `outreach.auto_send_initial` is explicitly
@@ -754,7 +755,7 @@ outbound webhook would want.
   because serverless platforms kill a request mid-flight and a partially completed run that
   recorded every send is fine.
 
-**Run history** (`integration-runs.ts`) — every invocation writes a row, so
+**Run history** (`integration-runs.ts`) every invocation writes a row, so
 Running/Success/Failed/last-run survives reloads and redeploys. `reapStaleRuns()` closes out
 runs orphaned by a crash, so the UI never shows "Running" forever. Integrations are now
 `google_sheets` | `email` | `outreach` | `ai`.
@@ -771,7 +772,7 @@ npm run lint
 npm run import:leads:dry   # validate Leads.xlsx, write nothing
 npm run import:leads       # idempotent: second run imports 0
 
-npm run leads:purge                    # DRY RUN — what would be deleted
+npm run leads:purge                    # DRY RUN what would be deleted
 npm run leads:purge -- --yes           # delete, writing a backup first
 npm run leads:purge -- --source="google-sheets:Sheet1" --yes
 npm run leads:purge -- --restore=backups/leads-<stamp>.json
@@ -784,14 +785,14 @@ npm run emails:status                            # verification counts
 
 `leads:purge` cascades to `email_versions`, `lead_pipeline`, `lead_activity`,
 `email_logs` and `replies`, so it removes far more than the lead count suggests. It writes
-a timestamped JSON backup to `backups/` (gitignored — real emails and drafts) before
+a timestamped JSON backup to `backups/` (gitignored real emails and drafts) before
 deleting, and refuses `--no-backup` on a full purge. The backup restores leads only:
 draft *history* does not come back, so prefer `--source` over wiping everything.
 
 Exercising the scheduled sender by hand:
 
 ```bash
-# dry run — counts what is due, sends nothing
+# dry run counts what is due, sends nothing
 curl "http://localhost:3000/api/cron/outreach?dry=1" -H "Authorization: Bearer $CRON_SECRET"
 # for real
 curl -X POST http://localhost:3000/api/cron/outreach -H "Authorization: Bearer $CRON_SECRET"
@@ -803,7 +804,7 @@ ignored.
 **Verification standard for this project:** typecheck + lint + build, *and* exercise the
 change against the live database or the running app. Compiling is not evidence that it
 works. Past sessions created throwaway admin/viewer users, drove real HTTP requests with
-valid Supabase SSR cookies, asserted on the responses, then deleted the users — that is the
+valid Supabase SSR cookies, asserted on the responses, then deleted the users that is the
 bar. Delete temp scripts afterwards; anything left in `scripts/` gets type-checked by the
 build.
 
@@ -829,9 +830,9 @@ Document `1D0IlVsbD1zl4mxlQ7lfyjZ8__QXGD0V_KoYC4WRNke4`, title "Leads":
 
 | Tab | Populated rows | Columns | Research | Drafts |
 | --- | --- | --- | --- | --- |
-| Sheet1 | 687 | 12 | **none — no such column** | none |
+| Sheet1 | 687 | 12 | **none no such column** | none |
 | **Sheet2** | **703** | 26 | 456 | 139 |
-| Sheet3 | 0 (headers only) | 26 | — | — |
+| Sheet3 | 0 (headers only) | 26 | | |
 
 `sheets.sheet_name` shipped defaulting to `Sheet1`, so the first sync pulled 468 leads with
 no research and no drafts and mixed them in with the enriched workbook import. **It is now
@@ -839,7 +840,7 @@ set to `Sheet2`.** If leads ever appear with empty research, check this setting 
 
 Note the discrepancy worth knowing about: the workbook `Leads.xlsx` carries **698 drafts**,
 the live Sheet2 only **139**. The two are not the same snapshot. Re-syncing the sheet will
-not reproduce the workbook's drafts — `npm run import:leads` is the only way to get those
+not reproduce the workbook's drafts `npm run import:leads` is the only way to get those
 back (and it sets no `sheet_row_number`, so those leads cannot write back to the sheet).
 
 ---

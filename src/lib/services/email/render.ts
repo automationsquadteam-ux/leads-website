@@ -3,8 +3,8 @@ import type { Lead } from '@/lib/supabase/database.types';
 /**
  * Placeholder substitution for template bodies and drafts.
  *
- * Lives in its own module — with no `server-only` marker and no imports beyond
- * types — because both the sender and the draft generator need it. Keeping it
+ * Lives in its own module with no `server-only` marker and no imports beyond
+ * types because both the sender and the draft generator need it. Keeping it
  * next to either one would drag that module's dependencies (nodemailer, the
  * service-role client) into the other.
  */
@@ -21,7 +21,7 @@ export function placeholderValues(lead: Lead, signature: string): Record<string,
     personalization: lead.personalization ?? '',
     // No contact-name column exists yet, so this resolves to empty rather than
     // to a fake name. A template that opens "Hi {{first_name}}," therefore
-    // renders "Hi ," — visible in review, which is the point: a silent
+    // renders "Hi ," visible in review, which is the point: a silent
     // "Hi [Business Owner]" is what actually goes out and embarrasses you.
     first_name: '',
     signature,
@@ -48,7 +48,7 @@ export function renderPlaceholders(template: string, lead: Lead, signature: stri
  * This exists because it actually happened: the imported drafts were full of
  * `[Business Owner's Name]` and `[Business Name]`. The renderer only substitutes
  * the `{{token}}` form, so a square-bracket placeholder is not a placeholder to
- * this system at all — it is ordinary prose, and it would have been mailed to a
+ * this system at all it is ordinary prose, and it would have been mailed to a
  * real business verbatim.
  *
  * Two categories are caught, both AFTER rendering:
@@ -61,7 +61,7 @@ export function renderPlaceholders(template: string, lead: Lead, signature: stri
  *
  * The bracket rule is shaped by what the real drafts actually contained
  * (measured over 698 of them): placeholders are either Title Case —
- * `[Business Owner]`, `[Your Name]`, `[City]` — or a single lower-case token,
+ * `[Business Owner]`, `[Your Name]`, `[City]` or a single lower-case token,
  * `[niche]`. A bracketed prose aside like "[and Karachi too]" is lower-case
  * *and* multi-word, so requiring one of those two shapes keeps every real
  * placeholder and drops the aside. Numeric citations such as `[1]` never match.

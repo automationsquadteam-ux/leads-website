@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0007 — Dashboard views (the viewer role's ONLY window onto the data).
+-- 0007 Dashboard views (the viewer role's ONLY window onto the data).
 --
 -- Why views instead of RLS policies on the base tables:
 --   RLS is row-level. It cannot say "this role may read leads.status but not
@@ -9,7 +9,7 @@
 --
 --   Each view is created WITHOUT security_invoker, so it executes with the
 --   privileges of its owner and bypasses the base tables' RLS. That is exactly
---   what makes them readable by viewers — which is also why every view below
+--   what makes them readable by viewers which is also why every view below
 --   must be audited for what it exposes. The rules:
 --     * no email addresses, no phone numbers
 --     * no research, personalization, drafts, subject lines or reply bodies

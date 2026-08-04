@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0013 — Public statistics: the ONLY objects in this schema readable by anon.
+-- 0013 Public statistics: the ONLY objects in this schema readable by anon.
 --
 -- READ THIS BEFORE TOUCHING ANY VIEW BELOW.
 --
@@ -13,7 +13,7 @@
 --
 --   * Aggregates only. Never a lead id, business name, website, email address,
 --     phone number, city, note, research paragraph, draft, subject line or
---     reply body. Not even indirectly — a count grouped by business_name is a
+--     reply body. Not even indirectly a count grouped by business_name is a
 --     list of business names with extra steps.
 --   * Campaign NAMES are ours, not the prospects'. They are the one identifier
 --     that appears here, and only because "Campaign Performance" is explicitly
@@ -24,7 +24,7 @@
 --     why every column had to be justified above.
 --
 -- Adding a column to any view in this file is a disclosure decision. If you are
--- not certain it is aggregate-only, it does not belong here — put it in a
+-- not certain it is aggregate-only, it does not belong here put it in a
 -- dashboard_* view instead, where is_admin() applies.
 -- ---------------------------------------------------------------------------
 
@@ -91,10 +91,10 @@ select
   )                                                                                            as avg_response_hours;
 
 comment on view public.public_stats_overview is
-  'PUBLIC (anon-readable). Aggregate counters and rates only — no lead identity of any kind.';
+  'PUBLIC (anon-readable). Aggregate counters and rates only no lead identity of any kind.';
 
 -- ---------------------------------------------------------------------------
--- Stage distribution — the funnel chart.
+-- Stage distribution the funnel chart.
 -- ---------------------------------------------------------------------------
 create or replace view public.public_stats_stages
 with (security_invoker = false) as
@@ -110,7 +110,7 @@ comment on view public.public_stats_stages is
 
 -- ---------------------------------------------------------------------------
 -- Status distribution. Mirrors dashboard_lead_status_counts without the
--- is_admin() gate — a bare enum label and a count.
+-- is_admin() gate a bare enum label and a count.
 -- ---------------------------------------------------------------------------
 create or replace view public.public_stats_statuses
 with (security_invoker = false) as
@@ -165,7 +165,7 @@ comment on view public.public_stats_activity_daily is
 
 -- ---------------------------------------------------------------------------
 -- Campaign performance. Campaign names are our own labels, not prospect data.
--- Deliberately omits daily_limit and the schedule window — operational detail
+-- Deliberately omits daily_limit and the schedule window operational detail
 -- with no reason to be public.
 -- ---------------------------------------------------------------------------
 create or replace view public.public_stats_campaigns

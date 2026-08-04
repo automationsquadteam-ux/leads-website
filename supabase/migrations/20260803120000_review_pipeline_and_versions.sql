@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0012 — Admin review workflow: email versioning, outreach lifecycle, activity.
+-- 0012 Admin review workflow: email versioning, outreach lifecycle, activity.
 --
 -- Three new tables and the machinery that keeps them honest:
 --
@@ -162,7 +162,7 @@ create table if not exists public.email_versions (
 
   status         public.email_version_status not null default 'draft',
   -- The version shown by default and used by the sender. At most one per
-  -- (lead, type) — enforced by a partial unique index below.
+  -- (lead, type) enforced by a partial unique index below.
   active         boolean not null default false,
 
   -- Provenance: 'manual', 'import', 'template', 'ollama:<model>', ...
@@ -219,7 +219,7 @@ create trigger email_versions_set_version_number
 --
 -- BEFORE, not AFTER: email_versions_single_active_idx is a plain unique index,
 -- which Postgres checks the instant the row hits the heap. An AFTER trigger
--- would never run — the insert would already have failed with 23505. Clearing
+-- would never run the insert would already have failed with 23505. Clearing
 -- the sibling first is what makes "activate this version" a single statement
 -- for the caller.
 --
@@ -338,7 +338,7 @@ create trigger lead_pipeline_set_updated_at
   for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
--- Stage and Next Step — the two derivations the whole product hangs on.
+-- Stage and Next Step the two derivations the whole product hangs on.
 --
 -- Both take the row, not a lead id, so they can be applied inside a trigger on
 -- NEW before it is written, and inside a view over many rows, with no extra
@@ -365,7 +365,7 @@ as $$
 $$;
 
 comment on function public.compute_pipeline_stage(public.lead_pipeline) is
-  'Derives current_stage from the row. The ONE definition — do not re-implement in application code.';
+  'Derives current_stage from the row. The ONE definition do not re-implement in application code.';
 
 -- STABLE, not IMMUTABLE: the follow-up arms compare a due date against now().
 create or replace function public.compute_next_step(p public.lead_pipeline)
@@ -425,7 +425,7 @@ create trigger lead_pipeline_derive_stage
 --
 -- Direction of travel: evidence only ever turns a flag ON. A blank research
 -- field does not un-complete research, because an admin may have marked the
--- stage complete deliberately — only an explicit UPDATE from the review UI
+-- stage complete deliberately only an explicit UPDATE from the review UI
 -- clears a flag. Getting this backwards would make the "Mark complete" button
 -- silently undo itself on the next save.
 -- ---------------------------------------------------------------------------
@@ -498,8 +498,8 @@ create trigger email_versions_sync_pipeline
 --   followup1 -> followup1_sent,   followup2_due = sent + outreach.followup2_delay_days (3)
 --   followup2 -> followup2_sent    (sequence exhausted; next step is close)
 --
--- Driven by email_logs so that ANY path which records a send — the Send button,
--- the cron sender, a future webhook reconciliation — advances the pipeline
+-- Driven by email_logs so that ANY path which records a send the Send button,
+-- the cron sender, a future webhook reconciliation advances the pipeline
 -- identically. The email service never has to remember to do it.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_email_log()
@@ -569,7 +569,7 @@ create trigger replies_sync_pipeline
   for each row execute function public.sync_pipeline_from_reply();
 
 -- ---------------------------------------------------------------------------
--- lead_activity — the feed behind "Recent Activity" and the per-lead audit.
+-- lead_activity the feed behind "Recent Activity" and the per-lead audit.
 -- ---------------------------------------------------------------------------
 create table if not exists public.lead_activity (
   id         uuid primary key default gen_random_uuid(),
@@ -595,7 +595,7 @@ create index if not exists lead_activity_kind_idx    on public.lead_activity (ki
 --
 -- Without it a send cannot tell the pipeline which step it satisfied, and
 -- follow-up conversion analytics have nothing to group by. Existing rows are
--- initial sends by definition — nothing else existed when they were written.
+-- initial sends by definition nothing else existed when they were written.
 -- ---------------------------------------------------------------------------
 alter table public.email_logs
   add column if not exists email_type       public.email_type not null default 'initial',
@@ -655,7 +655,7 @@ join public.leads l on l.id = p.lead_id
 where public.is_admin();
 
 comment on view public.pipeline_board is
-  'Admin-only pipeline rows with the derived next_step. Contains contact data — never grant to anon.';
+  'Admin-only pipeline rows with the derived next_step. Contains contact data never grant to anon.';
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security for the new tables. Same shape as migration 0008:

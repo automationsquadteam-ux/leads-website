@@ -106,7 +106,7 @@ function printSummary(summary: ImportSummary): void {
 
   const line = '─'.repeat(58);
   console.log(`\n${line}`);
-  console.log(`  Import summary${summary.dryRun ? '  (DRY RUN — nothing was written)' : ''}`);
+  console.log(`  Import summary${summary.dryRun ? '  (DRY RUN nothing was written)' : ''}`);
   console.log(line);
   console.log(`  File            ${summary.file}`);
   console.log(`  Sheet           ${summary.sheet}`);
@@ -125,14 +125,14 @@ function printSummary(summary: ImportSummary): void {
 
   const accounted = imported + skipped + duplicates + invalid + updated;
   if (accounted !== totalRows) {
-    console.log(`  ! ${totalRows - accounted} row(s) unaccounted for — check errors below.`);
+    console.log(`  ! ${totalRows - accounted} row(s) unaccounted for check errors below.`);
   }
 
   if (summary.invalidRows.length > 0) {
     console.log(`\n  Invalid rows (first 10 of ${summary.invalidRows.length}):`);
     for (const row of summary.invalidRows.slice(0, 10)) {
       const reasons = row.errors.map((e) => `${e.field}: ${e.message}`).join('; ');
-      console.log(`    row ${row.rowNumber}  ${row.businessName ?? '(no name)'} — ${reasons}`);
+      console.log(`    row ${row.rowNumber}  ${row.businessName ?? '(no name)'} ${reasons}`);
     }
   }
 
@@ -150,7 +150,7 @@ function printSummary(summary: ImportSummary): void {
   if (summary.warnings.length > 0) {
     console.log(`\n  Field warnings (first 10 of ${summary.warnings.length}):`);
     for (const w of summary.warnings.slice(0, 10)) {
-      console.log(`    row ${w.rowNumber}  ${w.businessName ?? ''} — ${w.warning}`);
+      console.log(`    row ${w.rowNumber}  ${w.businessName ?? ''} ${w.warning}`);
     }
   }
 

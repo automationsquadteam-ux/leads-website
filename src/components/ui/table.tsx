@@ -17,7 +17,7 @@ export function TableWrap({ className, ...props }: React.HTMLAttributes<HTMLDivE
  * unbreakable cell and treats an explicit `width` as a suggestion it may
  * ignore. That is why dragging a column narrower than its longest value did
  * nothing. With `fixed`, the declared widths are honoured exactly and cells
- * clip — which is what makes resizing work at all.
+ * clip which is what makes resizing work at all.
  *
  * The consequence is that cells MUST be able to clip: TD below sets
  * overflow-hidden and truncates. Anything that must stay fully visible needs

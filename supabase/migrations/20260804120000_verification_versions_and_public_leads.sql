@@ -1,25 +1,25 @@
 -- ---------------------------------------------------------------------------
--- 0015 — Email verification, draft-version repair, and opt-in public leads.
+-- 0015 Email verification, draft-version repair, and opt-in public leads.
 --
 -- Fixes three things the live data exposed, plus one new feature.
 --
--- BUG 1 — 145 leads have leads.draft_email but no email_versions row.
+-- BUG 1 145 leads have leads.draft_email but no email_versions row.
 --   The 0012 backfill was a one-time INSERT. After the leads were purged and
 --   re-synced from the sheet, drafts arrived again but nothing created versions
 --   for them, so the review workspace reported "no draft yet" for leads that
 --   plainly had one. Fixed by a trigger, so it can never drift again.
 --
--- BUG 2 — 58 leads are status='sent' but lead_pipeline.first_email_sent is
+-- BUG 2 58 leads are status='sent' but lead_pipeline.first_email_sent is
 --   NULL, because they were sent by the upstream n8n pipeline and the sheet's
 --   "Date Sent" column is empty. Their stage read 'approved' and follow-up
 --   conversion counted zero sends.
 --
--- BUG 3 — analytics_industry_performance counted email_logs rows, which only
+-- BUG 3 analytics_industry_performance counted email_logs rows, which only
 --   ever contain sends made BY THIS CRM. With every send done upstream it
 --   reported 0 while the status counts said 58. Rebased on lead_pipeline, which
 --   records that a lead was emailed regardless of who did it.
 --
--- NEW — email verification state (NeverBounce and friends), and an opt-in,
+-- NEW email verification state (NeverBounce and friends), and an opt-in,
 --   admin-controlled public lead list.
 -- ---------------------------------------------------------------------------
 
@@ -63,7 +63,7 @@ create index if not exists lead_pipeline_verification_idx
 -- An address that hard-bounces is worse than no address: it looks actionable
 -- and is not. Such a lead goes back to 'need_email' so it surfaces in the
 -- "Leads Missing Email" queue and someone finds a new one. leads.email is kept
--- — the record of what was tried has value.
+-- the record of what was tried has value.
 -- ---------------------------------------------------------------------------
 create or replace function public.compute_pipeline_stage(p public.lead_pipeline)
 returns public.pipeline_stage
@@ -143,7 +143,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- BUG 1 — a draft on the lead always produces a version.
+-- BUG 1 a draft on the lead always produces a version.
 --
 -- Drafts arrive on leads.draft_email from the sheet sync and the workbook
 -- importer, neither of which knows about versioning. This turns that column
@@ -205,7 +205,7 @@ create trigger leads_version_draft
   for each row execute function public.version_lead_draft();
 
 -- ---------------------------------------------------------------------------
--- BUG 2 — a lead the sheet reports as sent has been sent.
+-- BUG 2 a lead the sheet reports as sent has been sent.
 --
 -- Recorded on the pipeline rather than as a fabricated email_logs row:
 -- email_logs means "this CRM sent this", and inventing entries there would
@@ -246,7 +246,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- BUG 3 — industry analytics measured the wrong thing.
+-- BUG 3 industry analytics measured the wrong thing.
 --
 -- `email_logs` answers "what did this CRM send". `lead_pipeline` answers "was
 -- this lead emailed", which is the question a per-industry breakdown is asking
@@ -260,7 +260,7 @@ $$;
 --
 --   42P16: cannot change name of view column "replies_received" to "followups_sent"
 --
--- Nothing depends on this view — it is a leaf read by the analytics page — so
+-- Nothing depends on this view it is a leaf read by the analytics page so
 -- dropping it is safe and needs no CASCADE.
 -- ---------------------------------------------------------------------------
 drop view if exists public.analytics_industry_performance;
@@ -343,7 +343,7 @@ limit (
 );
 
 comment on view public.public_stats_leads is
-  'PUBLIC (anon-readable) and OFF by default. Name, city, country, industry and stage only — never contact details, research, drafts or notes.';
+  'PUBLIC (anon-readable) and OFF by default. Name, city, country, industry and stage only never contact details, research, drafts or notes.';
 
 grant select on public.public_stats_leads to anon, authenticated;
 revoke insert, update, delete on public.public_stats_leads from anon, authenticated;

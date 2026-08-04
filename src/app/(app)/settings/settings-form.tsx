@@ -157,11 +157,11 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
             label="Generator"
             htmlFor="ai-provider"
             className="sm:col-span-2"
-            hint="Template composes drafts from the campaign template plus the lead research — deterministic, offline, always available. Ollama hands the same context to a local model."
+            hint="Template composes drafts from the campaign template plus the lead research deterministic, offline, always available. Ollama hands the same context to a local model."
           >
             <Select id="ai-provider" name="string:ai.provider" defaultValue={provider}>
-              <option value="template">Template — deterministic, no model</option>
-              <option value="ollama">Ollama — local model</option>
+              <option value="template">Template deterministic, no model</option>
+              <option value="ollama">Ollama local model</option>
             </Select>
           </Field>
 
@@ -238,8 +238,8 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
               name="bool:outreach.auto_followups"
               defaultValue={bool('outreach.auto_followups', true) ? 'true' : 'false'}
             >
-              <option value="true">Yes — send when due</option>
-              <option value="false">No — I will send them</option>
+              <option value="true">Yes send when due</option>
+              <option value="false">No I will send them</option>
             </Select>
           </Field>
 
@@ -253,8 +253,8 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
               name="bool:outreach.auto_send_initial"
               defaultValue={bool('outreach.auto_send_initial', false) ? 'true' : 'false'}
             >
-              <option value="false">No — approved emails wait for a click</option>
-              <option value="true">Yes — send approved emails automatically</option>
+              <option value="false">No approved emails wait for a click</option>
+              <option value="true">Yes send approved emails automatically</option>
             </Select>
           </Field>
 
@@ -292,8 +292,8 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
               name="bool:outreach.require_verified_email"
               defaultValue={bool('outreach.require_verified_email', true) ? 'true' : 'false'}
             >
-              <option value="true">Yes — skip unverified</option>
-              <option value="false">No — send anyway</option>
+              <option value="true">Yes skip unverified</option>
+              <option value="false">No send anyway</option>
             </Select>
           </Field>
 
@@ -307,8 +307,8 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
               name="bool:outreach.followup_requires_approval"
               defaultValue={bool('outreach.followup_requires_approval', false) ? 'true' : 'false'}
             >
-              <option value="false">No — send when due</option>
-              <option value="true">Yes — hold for review</option>
+              <option value="false">No send when due</option>
+              <option value="true">Yes hold for review</option>
             </Select>
           </Field>
 
@@ -339,7 +339,7 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
               defaultValue={bool('sending.paused', false) ? 'true' : 'false'}
             >
               <option value="false">Sending enabled</option>
-              <option value="true">Paused — send nothing</option>
+              <option value="true">Paused send nothing</option>
             </Select>
           </Field>
         </CardContent>
@@ -362,15 +362,15 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
           <Field
             label="Publish a list of businesses"
             htmlFor="public-show-leads"
-            hint="Even when on, only business name, city, country, industry and stage are published — never an address, phone number, research note or draft."
+            hint="Even when on, only business name, city, country, industry and stage are published never an address, phone number, research note or draft."
           >
             <Select
               id="public-show-leads"
               name="bool:public.show_leads"
               defaultValue={showLeads ? 'true' : 'false'}
             >
-              <option value="false">No — aggregate counts only</option>
-              <option value="true">Yes — publish the stages I pick below</option>
+              <option value="false">No aggregate counts only</option>
+              <option value="true">Yes publish the stages I pick below</option>
             </Select>
           </Field>
 

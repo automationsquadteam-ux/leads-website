@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0003 — leads
+-- 0003 leads
 --
 -- Column groups:
 --   identity      business_name .. source
@@ -92,7 +92,7 @@ create table if not exists public.leads (
 comment on table public.leads is
   'Cold-outreach prospects. Admin-only at the row level; viewers read the public.dashboard_* views instead.';
 comment on column public.leads.dedupe_key is
-  'Import identity (email > website > business name+city). UNIQUE — makes imports idempotent.';
+  'Import identity (email > website > business name+city). UNIQUE makes imports idempotent.';
 
 create unique index if not exists leads_dedupe_key_key on public.leads (dedupe_key);
 

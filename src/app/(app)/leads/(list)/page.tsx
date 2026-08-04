@@ -44,7 +44,7 @@ export default async function LeadsPage({
   const statuses = parseStatuses(single('status'));
 
   // ?view=<name> is how every dashboard widget drills through. Unknown values
-  // are ignored rather than erroring — a stale bookmark should show the full
+  // are ignored rather than erroring a stale bookmark should show the full
   // list, not a crash.
   const viewParam = single('view');
   const view = viewParam && isLeadView(viewParam) ? viewParam : undefined;

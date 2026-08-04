@@ -7,7 +7,7 @@ export function cleanText(value: unknown): string | null {
   return text === '' ? null : text;
 }
 
-/** Same, but preserves newlines — for research prose and draft bodies. */
+/** Same, but preserves newlines for research prose and draft bodies. */
 export function cleanMultiline(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value)
@@ -48,7 +48,7 @@ const JUNK_EMAIL_LOCAL_PARTS = [
   /^name$/i,
   /^example$/i,
   /^test$/i,
-  /^info$/i, // only junk when paired with a junk domain — see isJunkEmail
+  /^info$/i, // only junk when paired with a junk domain see isJunkEmail
 ];
 
 export function isJunkEmail(email: string): boolean {
@@ -123,13 +123,13 @@ export function normalizePhone(value: unknown): string | null {
  * Excel believes 1900 was a leap year, so serial 60 is a date that never
  * existed (1900-02-29) and everything from 61 onward is shifted a day. The
  * usual 1899-12-30 epoch bakes in that shift, which is right for serial >= 61
- * and a day out below it — hence the split. Any real spreadsheet date is far
+ * and a day out below it hence the split. Any real spreadsheet date is far
  * above 61, but getting this wrong silently is exactly the sort of bug that
  * shows up later as "all our dates are off by one".
  */
 function excelSerialToDate(serial: number): Date | null {
   if (!Number.isFinite(serial) || serial <= 0 || serial > 2_958_465) return null;
-  if (serial === 60) return null; // 1900-02-29 — does not exist
+  if (serial === 60) return null; // 1900-02-29 does not exist
 
   const epoch = serial < 60 ? Date.UTC(1899, 11, 31) : Date.UTC(1899, 11, 30);
   return new Date(epoch + Math.round(serial * 86_400_000));
@@ -157,7 +157,7 @@ export function normalizeDate(value: unknown): string | null {
     return excelSerialToDate(Number(text))?.toISOString() ?? null;
   }
 
-  // DD-MM-YYYY or DD/MM/YYYY — day-first, matching the workbook.
+  // DD-MM-YYYY or DD/MM/YYYY day-first, matching the workbook.
   const dayFirst = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (dayFirst) {
     const [, d, m, y] = dayFirst;

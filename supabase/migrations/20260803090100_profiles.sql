@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0002 — profiles + the role helpers every RLS policy is built on.
+-- 0002 profiles + the role helpers every RLS policy is built on.
 -- ---------------------------------------------------------------------------
 
 create table if not exists public.profiles (

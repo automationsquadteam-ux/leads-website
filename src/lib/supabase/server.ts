@@ -7,7 +7,7 @@ import type { Database } from './database.types';
 /**
  * Supabase client for Server Components, Route Handlers and Server Actions.
  *
- * Requests made with it carry the caller's session, so RLS applies — a viewer
+ * Requests made with it carry the caller's session, so RLS applies a viewer
  * asking for leads gets an empty result, not a leak.
  */
 export async function createClient() {

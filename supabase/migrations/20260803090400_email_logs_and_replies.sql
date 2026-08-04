@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0005 — email_logs and replies (the append-only side of the system).
+-- 0005 email_logs and replies (the append-only side of the system).
 -- ---------------------------------------------------------------------------
 
 create table if not exists public.email_logs (
@@ -56,7 +56,7 @@ create table if not exists public.replies (
 );
 
 comment on table public.replies is
-  'Inbound responses. reply_text is prospect content — admin-only; viewers get counts via public.dashboard_reply_stats.';
+  'Inbound responses. reply_text is prospect content admin-only; viewers get counts via public.dashboard_reply_stats.';
 
 create index if not exists replies_lead_id_idx     on public.replies (lead_id);
 create index if not exists replies_received_at_idx on public.replies (received_at desc);

@@ -8,11 +8,11 @@ import { finishRun, startRun } from '@/lib/services/integration-runs';
 /**
  * Scheduled outreach endpoint.
  *
- * The app does not schedule anything itself — a Next.js server can be scaled to
+ * The app does not schedule anything itself a Next.js server can be scaled to
  * zero or duplicated at any moment, so an in-process timer is not a schedule.
  * Something external calls this on an interval:
  *
- *   Vercel Cron      vercel.json (already committed) — sends the CRON_SECRET
+ *   Vercel Cron      vercel.json (already committed) sends the CRON_SECRET
  *                    as a Bearer token automatically.
  *   Windows / Linux  schtasks or crontab running:
  *                    curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
@@ -39,7 +39,7 @@ function isAuthorized(request: NextRequest): boolean {
   const a = Buffer.from(presented);
   const b = Buffer.from(expected);
   // timingSafeEqual throws on a length mismatch, which would itself leak the
-  // length — compare sizes first and only then in constant time.
+  // length compare sizes first and only then in constant time.
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }

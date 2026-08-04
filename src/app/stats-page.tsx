@@ -18,7 +18,7 @@ import { formatNumber, formatPercent } from '@/lib/utils';
 /**
  * The public front page. No login, no session, no cookies.
  *
- * Safety does not come from this file — it comes from the database. Every
+ * Safety does not come from this file it comes from the database. Every
  * figure is read with the ANON key, and the only objects granted to `anon` are
  * the six `public_stats_*` views. There is no query here that could return a
  * contact address, a research note or a draft, because the anon role cannot
@@ -26,7 +26,7 @@ import { formatNumber, formatPercent } from '@/lib/utils';
  *
  * The one place identity can appear is the lead list, and it is off by default:
  * an admin must both enable it and pick which stages may show. Even then the
- * view exposes name, city, country, industry and stage — nothing else.
+ * view exposes name, city, country, industry and stage nothing else.
  */
 
 function formatHours(hours: number | null | undefined): string {
@@ -108,7 +108,7 @@ export async function PublicStatsPage() {
                 Cold outreach, measured honestly.
               </h1>
               <p className="mt-3 text-base leading-relaxed text-muted-foreground text-pretty">
-                Every figure below is read straight from the live pipeline — research completed,
+                Every figure below is read straight from the live pipeline research completed,
                 emails sent, replies received. Nothing is rounded up and nothing is a mock-up. Lead
                 identities and contact details are never published here.
               </p>
@@ -296,7 +296,7 @@ export async function PublicStatsPage() {
           {/*
             Opt-in lead list. The view returns nothing unless an admin turned it
             on and picked stages, so this section simply does not render by
-            default — no empty-state placeholder advertising data we are not
+            default no empty-state placeholder advertising data we are not
             publishing.
           */}
           {data.leads.length > 0 ? (
@@ -312,7 +312,7 @@ export async function PublicStatsPage() {
                       {formatNumber(data.leads.length)} business
                       {data.leads.length === 1 ? '' : 'es'}
                       {countries > 0 ? ` across ${formatNumber(countries)} countr${countries === 1 ? 'y' : 'ies'}` : ''}
-                      . Name and location only — no contact details.
+                      . Name and location only no contact details.
                     </CardDescription>
                   </div>
                 </CardHeader>

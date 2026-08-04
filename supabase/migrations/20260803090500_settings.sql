@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0006 — settings
+-- 0006 settings
 --
 -- Key/value rather than one wide row: the brief calls for "future configuration
 -- values", and a jsonb value column lets later prompts add keys without a
@@ -42,7 +42,7 @@ insert into public.settings (key, value, description, is_sensitive) values
    'Minimum delay between two consecutive sends, to look human.', false),
 
   ('sending.paused',           'false'::jsonb,
-   'Global kill switch — when true no email leaves the system.', false),
+   'Global kill switch when true no email leaves the system.', false),
 
   ('email.default_signature',
    '"Best regards,\nAutomation Squad\nhttps://automationsquad.example"'::jsonb,

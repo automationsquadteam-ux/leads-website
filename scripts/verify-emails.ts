@@ -125,7 +125,7 @@ function dryRun(text: string): void {
   for (const [status, n] of [...tally].sort((a, b) => b[1] - a[1])) {
     console.log(`    ${String(n).padStart(6)}  ${status}`);
   }
-  console.log('\n  Dry run — nothing was written.\n');
+  console.log('\n  Dry run nothing was written.\n');
 }
 
 async function main(): Promise<void> {
@@ -166,7 +166,7 @@ async function main(): Promise<void> {
     const line = '  ' + '─'.repeat(58);
 
     console.log(`\n${line}`);
-    console.log(`  Verification import${summary.ok ? '' : ' — FAILED'}`);
+    console.log(`  Verification import${summary.ok ? '' : ' FAILED'}`);
     console.log(line);
     console.log(`  Rows read        ${String(summary.totalRows).padStart(6)}`);
     console.log(`  Leads updated    ${String(summary.matched).padStart(6)}`);

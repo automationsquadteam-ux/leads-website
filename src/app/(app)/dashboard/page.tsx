@@ -82,7 +82,7 @@ export default async function DashboardPage() {
         {/*
           Every figure here links to the exact rows it counted. The named views
           in lib/data/leads.ts are what keep the count and the list in
-          agreement — a card reading 114 that opens a page of 97 is worse than
+          agreement a card reading 114 that opens a page of 97 is worse than
           no card at all.
         */}
         <section aria-label="Today" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -178,7 +178,7 @@ export default async function DashboardPage() {
           <MetricCard
             label="Dead Addresses"
             value={formatNumber(widgets.invalidEmail)}
-            hint="Verified undeliverable — need a new source"
+            hint="Verified undeliverable need a new source"
             icon={MailX}
             tone={widgets.invalidEmail > 0 ? 'danger' : 'default'}
             href="/leads?view=invalid_email"

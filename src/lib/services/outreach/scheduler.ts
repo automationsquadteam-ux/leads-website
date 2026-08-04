@@ -32,7 +32,7 @@ import { syncLeadChange } from '../sync';
  *     the query and the send.
  *   * `sending.paused` stops everything, unconditionally.
  *
- * Advancing the pipeline is not done here — the email_logs trigger does it, so
+ * Advancing the pipeline is not done here the email_logs trigger does it, so
  * a send from this loop and a send from the Send button move the lifecycle the
  * same way.
  */
@@ -172,7 +172,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
 /**
  * Make sure an active draft exists for this step, generating one if not.
  *
- * A follow-up nobody has written is the normal case — the lead-gen process
+ * A follow-up nobody has written is the normal case the lead-gen process
  * produces the initial email only. Generating on demand is what makes the
  * sequence actually automatic; `outreach.followup_requires_approval` turns it
  * into "prepare, then wait for a human" instead.
@@ -287,7 +287,7 @@ export async function runOutreachCycle(
   if (due.length === 0) return finish('Nothing is due.');
   if (dryRun) {
     return finish(
-      `Dry run: ${due.length} email(s) are due — ` +
+      `Dry run: ${due.length} email(s) are due ` +
         `${due.filter((d) => d.type === 'initial').length} initial, ` +
         `${due.filter((d) => d.type === 'followup1').length} follow-up 1, ` +
         `${due.filter((d) => d.type === 'followup2').length} follow-up 2. Nothing was sent.`,
@@ -357,7 +357,7 @@ export async function runOutreachCycle(
     }
 
     // Space sends out so a burst does not look like a mail blast. Skipped on
-    // the last item — there is nothing left to space it from.
+    // the last item there is nothing left to space it from.
     const isLast = item === due[due.length - 1];
     if (!isLast && config.sending.minGapSeconds > 0) {
       const gap = Math.min(config.sending.minGapSeconds * 1000, 10_000);

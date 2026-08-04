@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 /**
  * The Automation Squad mark.
  *
- * Rendered on a white tile because the source PNG has no alpha channel — its
+ * Rendered on a white tile because the source PNG has no alpha channel its
  * background is solid white. Dropping it straight onto a dark surface would
  * show a white square with ragged edges; the tile makes that deliberate instead
  * of accidental, and keeps the mark legible in both themes.

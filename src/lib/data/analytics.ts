@@ -4,7 +4,7 @@ import type { Views } from '@/lib/supabase/database.types';
 /**
  * Analytics reads.
  *
- * Every figure comes from an `analytics_*` or `dashboard_*` view — none is
+ * Every figure comes from an `analytics_*` or `dashboard_*` view none is
  * computed here. That is the point: a view is one definition, so "reply rate"
  * cannot mean one thing on the dashboard and another on this page. The only
  * TypeScript in this file is the shape of the response.

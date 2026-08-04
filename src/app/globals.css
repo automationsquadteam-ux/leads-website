@@ -7,7 +7,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
-  Design system: "Data-Dense Dashboard" — Linear / Vercel / GitHub register.
+  Design system: "Data-Dense Dashboard" Linear / Vercel / GitHub register.
   Tokens are semantic (surface, muted, border) rather than literal (gray-100) so
   a theme change never requires touching a component.
 */
@@ -42,7 +42,7 @@
   --ring: #2563eb;
   --overlay: rgb(15 23 42 / 0.5);
 
-  /* Density scale — 8/10 (dashboard). */
+  /* Density scale 8/10 (dashboard). */
   --sidebar-width: 240px;
   --header-height: 56px;
   --row-height: 36px;
@@ -142,7 +142,7 @@
     font-variation-settings: normal;
   }
 
-  /* A single, consistent focus ring everywhere — never removed, per a11y rules. */
+  /* A single, consistent focus ring everywhere never removed, per a11y rules. */
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;

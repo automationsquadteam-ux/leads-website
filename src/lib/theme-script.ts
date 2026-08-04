@@ -2,7 +2,7 @@ export const THEME_STORAGE_KEY = 'leadscrm-theme';
 
 /**
  * Injected into <head> and run before paint so the stored theme is applied
- * before first render — otherwise dark-mode users get a white flash.
+ * before first render otherwise dark-mode users get a white flash.
  *
  * Lives in its own (non-"use client") module because a Server Component can
  * only import a plain value like this from a server-importable file; pulling it

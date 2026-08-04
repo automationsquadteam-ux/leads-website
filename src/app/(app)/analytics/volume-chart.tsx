@@ -17,7 +17,7 @@ const LABELS: Record<Resolution, string> = {
  * Sending volume at three resolutions behind one toggle.
  *
  * Three separate charts would take three times the vertical space to answer the
- * same question — the reader wants one trend, at the granularity that suits
+ * same question the reader wants one trend, at the granularity that suits
  * what they are looking for. Each series is aggregated in its own Postgres
  * view, so switching does not re-bucket anything client-side.
  */

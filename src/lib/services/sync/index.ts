@@ -9,7 +9,7 @@ export type { SyncField, SyncReport, SyncSnapshot, SyncTarget, SyncOutcome } fro
 export { ALL_SYNC_FIELDS } from './types';
 
 /**
- * Outbound synchronisation — one call, N targets.
+ * Outbound synchronisation one call, N targets.
  *
  * Every admin change that must leave the CRM (research, personalization, a
  * draft, status, stage, notes) goes through `syncLeadChange()`. Actions never
@@ -20,7 +20,7 @@ export { ALL_SYNC_FIELDS } from './types';
  *   * a target that is off, or unreachable, cannot make the database write
  *     that preceded it look like it failed.
  *
- * The CRM is the system of record. Sync is best-effort by design — but never
+ * The CRM is the system of record. Sync is best-effort by design but never
  * silent: the outcome comes back in the report and ends up in the toast.
  *
  * ── Adding an API target later ────────────────────────────────────────────
@@ -67,7 +67,7 @@ export async function buildSyncSnapshot(leadId: string): Promise<SyncSnapshot | 
     lead,
     pipeline: pipelineResult.data ?? null,
     // pipeline_board is gated on is_admin(), and the service-role client is not
-    // an admin JWT — so this is null in practice for server-side callers. The
+    // an admin JWT so this is null in practice for server-side callers. The
     // stage on the pipeline row is the useful part; next_step is a bonus when
     // the caller happens to have an admin session.
     nextStep: boardResult.data?.next_step ?? null,
@@ -146,7 +146,7 @@ export async function syncSnapshot(
  * Fold a sync report into an action's message.
  *
  * The database write already succeeded by the time this runs, so the result
- * stays `ok` — but a failed push is appended verbatim. A sync that fails
+ * stays `ok` but a failed push is appended verbatim. A sync that fails
  * silently is worse than one that fails loudly.
  */
 export function appendSyncMessage(base: string, report: SyncReport): string {

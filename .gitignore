@@ -13,7 +13,7 @@ next-env.d.ts
 build/
 dist/
 
-# environment — never commit real keys
+# environment never commit real keys
 .env
 .env.local
 .env*.local
@@ -26,7 +26,7 @@ supabase/.env
 # import artifacts
 import-report*.json
 
-# purge backups — contain real lead data (emails, research, drafts)
+# purge backups contain real lead data (emails, research, drafts)
 backups/
 
 # misc

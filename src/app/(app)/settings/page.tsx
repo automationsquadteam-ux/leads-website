@@ -67,7 +67,7 @@ export default async function SettingsPage() {
           <h2 className="mb-3 text-sm font-semibold">Automation</h2>
           {/*
             Only whether the secret EXISTS crosses to the client, never its
-            value — the panel needs to say "configured" or "not configured" and
+            value the panel needs to say "configured" or "not configured" and
             nothing more.
           */}
           <AutomationPanel

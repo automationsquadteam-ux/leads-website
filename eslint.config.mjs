@@ -9,7 +9,7 @@ const eslintConfig = [
       'node_modules/**',
       'next-env.d.ts',
       'import-report*.json',
-      // Editor/agent tooling that ships its own scripts — not application code.
+      // Editor/agent tooling that ships its own scripts not application code.
       '.claude/**',
       '.Claude/**',
       '.vscode/**',
@@ -19,7 +19,7 @@ const eslintConfig = [
   ...nextTypescript,
   {
     rules: {
-      // `_name` marks a deliberately unused binding — used by placeholder
+      // `_name` marks a deliberately unused binding used by placeholder
       // actions whose signature is fixed by their future implementation.
       '@typescript-eslint/no-unused-vars': [
         'warn',

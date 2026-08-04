@@ -38,7 +38,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {/*
         aria-live="polite" announces without stealing focus, which a toast must
-        never do — it would yank the user out of whatever they were doing.
+        never do it would yank the user out of whatever they were doing.
       */}
       <div
         aria-live="polite"

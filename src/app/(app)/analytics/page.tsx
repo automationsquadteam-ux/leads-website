@@ -25,7 +25,7 @@ function formatDuration(hours: number | null | undefined): string {
  * Analytics.
  *
  * Every figure on this page comes from an `analytics_*` or `dashboard_*` view.
- * Nothing is aggregated in TypeScript — that is what keeps a rate on this page
+ * Nothing is aggregated in TypeScript that is what keeps a rate on this page
  * identical to the same rate on the dashboard.
  */
 export default async function AnalyticsPage() {

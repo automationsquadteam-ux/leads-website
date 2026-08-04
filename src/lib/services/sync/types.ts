@@ -4,7 +4,7 @@ import type { EmailType, Lead, LeadPipeline } from '@/lib/supabase/database.type
  * The outbound-sync contract.
  *
  * Every admin change that must leave the CRM goes through one call —
- * `syncLeadChange()` — and fans out to whatever targets are registered and
+ * `syncLeadChange()` and fans out to whatever targets are registered and
  * enabled. Today that is the Google Sheet. Adding a webhook, a CRM push or an
  * n8n-facing API later is a new file implementing `SyncTarget` plus one entry
  * in the registry: no caller changes, no second place that decides "did
@@ -46,7 +46,7 @@ export interface SyncSnapshot {
   pipeline: LeadPipeline | null;
   /** Derived next step, from pipeline_board. Null when the row is missing. */
   nextStep: string | null;
-  /** Active draft per step — what a reader of the sheet should actually see. */
+  /** Active draft per step what a reader of the sheet should actually see. */
   activeDrafts: Partial<Record<EmailType, { subject: string | null; content: string }>>;
 }
 
@@ -68,7 +68,7 @@ export interface SyncTarget {
 
 export interface SyncReport {
   outcomes: SyncOutcome[];
-  /** True when at least one target tried and failed — surfaced in the toast. */
+  /** True when at least one target tried and failed surfaced in the toast. */
   hasFailure: boolean;
   /** Single-line summary suitable for appending to an action's message. */
   summary: string | null;

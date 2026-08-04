@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0009 — Restrict the dashboard views to admins.
+-- 0009 Restrict the dashboard views to admins.
 --
 -- Previously these views were guarded by public.is_app_user(), so any signed-in
 -- user (including a viewer) could read aggregate lead statistics: totals,
@@ -11,7 +11,7 @@
 --
 -- Nothing else changes: the views keep running with owner privileges (that is
 -- what lets them read past the admin-only RLS on the base tables), and the
--- authenticated grant stays — is_admin() inside the view is the actual gate.
+-- authenticated grant stays is_admin() inside the view is the actual gate.
 -- ---------------------------------------------------------------------------
 
 create or replace view public.dashboard_overview

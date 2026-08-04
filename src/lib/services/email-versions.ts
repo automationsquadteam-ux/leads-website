@@ -118,7 +118,7 @@ export async function setActiveVersion(versionId: string): Promise<VersionResult
 /**
  * Approve or reject a version.
  *
- * Rejecting keeps the row and its content — the audit value of versioning is
+ * Rejecting keeps the row and its content the audit value of versioning is
  * precisely that a rejected draft can be read back later. It does clear
  * `active` for a rejection, because a rejected draft must not be sendable.
  */
@@ -156,7 +156,7 @@ export async function reviewVersion(
   };
 }
 
-/** Active drafts keyed by type — what the sender and the sheet mirror read. */
+/** Active drafts keyed by type what the sender and the sheet mirror read. */
 export async function getActiveVersions(
   leadId: string,
 ): Promise<Partial<Record<EmailType, EmailVersion>>> {

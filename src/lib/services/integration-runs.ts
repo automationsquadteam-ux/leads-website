@@ -94,7 +94,7 @@ export async function getRecentRuns(limit = 15): Promise<IntegrationRun[]> {
 }
 
 /**
- * Close out runs that were left 'running' — a crash, a redeploy mid-request, or
+ * Close out runs that were left 'running' a crash, a redeploy mid-request, or
  * a serverless timeout. Without this the UI would show "Running" forever.
  */
 export async function reapStaleRuns(olderThanMinutes = 15): Promise<void> {

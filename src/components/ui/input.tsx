@@ -38,7 +38,7 @@ export const Select = React.forwardRef<
   );
 });
 
-/** Visible label — placeholder-only labelling fails the forms guidelines. */
+/** Visible label placeholder-only labelling fails the forms guidelines. */
 export function Label({
   className,
   required,

@@ -7,13 +7,13 @@ import { readSession } from '@/lib/supabase/middleware';
  *
  * This is Next.js middleware. Next 16 renamed the file convention from
  * `middleware.ts` / `export function middleware` to `proxy.ts` /
- * `export function proxy` — same edge-runtime hook, same `config.matcher`,
+ * `export function proxy` same edge-runtime hook, same `config.matcher`,
  * new name. Using the old name still works but logs a deprecation warning.
  *
  * Three tiers:
- *   public  — /login and the auth callback
- *   signed-in — dashboards, open to admin and viewer
- *   admin   — everything under ADMIN_PREFIXES
+ *   public  /login and the auth callback
+ *   signed-in dashboards, open to admin and viewer
+ *   admin   everything under ADMIN_PREFIXES
  *
  * This is the first line of defence, not the only one. Pages and Server Actions
  * still call requireAdmin()/assertAdmin(), and RLS is the backstop underneath
@@ -24,7 +24,7 @@ import { readSession } from '@/lib/supabase/middleware';
  * Routes reachable while signed out.
  *
  *   /           the public front page. Reads only the anon-granted
- *               public_stats_* views — aggregates, plus an opt-in lead list
+ *               public_stats_* views aggregates, plus an opt-in lead list
  *               that is empty unless an admin enabled it.
  *   /stats      legacy alias, redirects to /.
  *   /api/cron   scheduled endpoints. No session exists for a cron caller, so
@@ -32,7 +32,7 @@ import { readSession } from '@/lib/supabase/middleware';
  *               Listing them here skips the login redirect, NOT the auth check.
  *
  * isPublic() matches `pathname === p` or `pathname.startsWith(p + '/')`. For
- * '/' the second test is `startsWith('//')`, which never fires — so this opens
+ * '/' the second test is `startsWith('//')`, which never fires so this opens
  * the front page exactly, not the whole site.
  */
 const PUBLIC_PATHS = ['/', '/login', '/auth/callback', '/stats', '/api/cron'];
@@ -95,7 +95,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   /**
    * Run on everything except static assets and image files. Note this WILL
-   * match /unauthorized and /dashboard — both need a session check.
+   * match /unauthorized and /dashboard both need a session check.
    */
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf)$).*)',
