@@ -1,0 +1,194 @@
+@import 'tailwindcss';
+
+/*
+  Dark mode is class-driven (not prefers-color-scheme) so the top-bar toggle can
+  override the OS setting. `.dark` is set on <html> by ThemeScript.
+*/
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Design system: "Data-Dense Dashboard" — Linear / Vercel / GitHub register.
+  Tokens are semantic (surface, muted, border) rather than literal (gray-100) so
+  a theme change never requires touching a component.
+*/
+:root {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #f1f5f9;
+  --foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --primary-subtle: #eff6ff;
+
+  --success: #059669;
+  --success-subtle: #ecfdf5;
+  --warning: #d97706;
+  --warning-subtle: #fffbeb;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-subtle: #fef2f2;
+  --info: #0891b2;
+  --info-subtle: #ecfeff;
+  --violet: #7c3aed;
+  --violet-subtle: #f5f3ff;
+
+  --ring: #2563eb;
+  --overlay: rgb(15 23 42 / 0.5);
+
+  /* Density scale — 8/10 (dashboard). */
+  --sidebar-width: 240px;
+  --header-height: 56px;
+  --row-height: 36px;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #09090b;
+  --surface: #121215;
+  --surface-raised: #18181c;
+  --surface-hover: #1f1f24;
+  --foreground: #fafafa;
+  --muted: #1c1c20;
+  --muted-foreground: #a1a1aa;
+  --border: #27272a;
+  --border-strong: #3f3f46;
+
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-foreground: #ffffff;
+  --primary-subtle: #17233f;
+
+  --success: #10b981;
+  --success-subtle: #0d2a22;
+  --warning: #f59e0b;
+  --warning-subtle: #2e2410;
+  --danger: #ef4444;
+  --danger-hover: #f87171;
+  --danger-subtle: #33191b;
+  --info: #22d3ee;
+  --info-subtle: #0d2a30;
+  --violet: #a78bfa;
+  --violet-subtle: #221c3a;
+
+  --ring: #3b82f6;
+  --overlay: rgb(0 0 0 / 0.65);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-subtle: var(--primary-subtle);
+
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-info: var(--info);
+  --color-info-subtle: var(--info-subtle);
+  --color-violet: var(--violet);
+  --color-violet-subtle: var(--violet-subtle);
+
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-mono-stack), ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    /* Inter's contextual alternates + tabular figures keep data columns steady. */
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: normal;
+  }
+
+  /* A single, consistent focus ring everywhere — never removed, per a11y rules. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+}
+
+@layer utilities {
+  /* Numeric columns must not jitter as values change. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border-radius: 9999px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Honour the OS reduced-motion setting globally. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

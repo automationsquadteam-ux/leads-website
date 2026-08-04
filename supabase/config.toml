@@ -1,0 +1,40 @@
+# Minimal local-development config for the Supabase CLI.
+# Running `supabase init` in this folder will regenerate a fuller version for
+# whichever CLI you have installed; the keys below are the stable ones.
+
+project_id = "leads-crm"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+# Off locally so the seeded dev accounts can sign in immediately.
+enable_confirmations = false

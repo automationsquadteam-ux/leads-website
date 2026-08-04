@@ -1,0 +1,899 @@
+/**
+ * Database types for the Leads CRM schema.
+ *
+ * Hand-maintained to mirror `supabase/migrations/*.sql`. Once you have a live
+ * project you can regenerate instead:
+ *
+ *   npm run types:gen                       # local stack
+ *   supabase gen types typescript --project-id <ref> > src/lib/supabase/database.types.ts
+ *
+ * If you change a migration, change this file in the same commit.
+ */
+
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+export type AppRole = 'admin' | 'viewer';
+
+export type LeadStatus =
+  | 'new'
+  | 'researching'
+  | 'ready'
+  | 'approved'
+  | 'sending'
+  | 'sent'
+  | 'replied'
+  | 'bounced'
+  | 'invalid'
+  | 'archived';
+
+export type EmailLogStatus =
+  | 'queued'
+  | 'sent'
+  | 'delivered'
+  | 'opened'
+  | 'clicked'
+  | 'bounced'
+  | 'complained'
+  | 'failed';
+
+export type ReplySentiment = 'positive' | 'neutral' | 'negative' | 'unsubscribe' | 'auto_reply';
+
+export type IntegrationRunStatus = 'running' | 'success' | 'failed';
+
+/** Which message of the three-step sequence a draft belongs to. */
+export type EmailType = 'initial' | 'followup1' | 'followup2';
+
+export type EmailVersionStatus = 'draft' | 'approved' | 'rejected';
+
+/**
+ * Where a lead sits in the outreach lifecycle. Derived in Postgres by
+ * public.compute_pipeline_stage() — never assigned by application code.
+ */
+export type PipelineStage =
+  | 'need_email'
+  | 'need_verification'
+  | 'research'
+  | 'draft'
+  | 'review'
+  | 'approved'
+  | 'initial_sent'
+  | 'followup1_sent'
+  | 'followup2_sent'
+  | 'replied'
+  | 'closed';
+
+/** Derived by public.compute_next_step(). Also never assigned in TypeScript. */
+export type PipelineNextStep =
+  | 'need_email'
+  | 'need_verification'
+  | 'research_lead'
+  | 'generate_draft'
+  | 'approve_draft'
+  | 'send_initial_email'
+  | 'await_followup1'
+  | 'send_followup1'
+  | 'await_followup2'
+  | 'send_followup2'
+  | 'close_workflow'
+  | 'complete';
+
+export type ActivityKind =
+  | 'research_edited'
+  | 'personalization_edited'
+  | 'draft_edited'
+  | 'draft_regenerated'
+  | 'draft_approved'
+  | 'draft_rejected'
+  | 'version_activated'
+  | 'stage_completed'
+  | 'notes_edited'
+  | 'status_changed'
+  | 'email_sent'
+  | 'reply_received'
+  | 'sheet_synced';
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          role: AppRole;
+          full_name: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          role?: AppRole;
+          full_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          role?: AppRole;
+          full_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+
+      leads: {
+        Row: {
+          id: string;
+          business_name: string;
+          website: string | null;
+          email: string | null;
+          phone: string | null;
+          city: string | null;
+          country: string | null;
+          niche: string | null;
+          category: string | null;
+          source: string | null;
+          status: LeadStatus;
+          campaign_id: string | null;
+          research_summary: string | null;
+          website_observations: string | null;
+          automation_opportunities: string | null;
+          ai_chatbot_opportunities: string | null;
+          website_improvement_opportunities: string | null;
+          personalization: string | null;
+          interesting_facts: string | null;
+          outreach_angle: string | null;
+          social_links: Json;
+          researched_at: string | null;
+          subject_line: string | null;
+          draft_email: string | null;
+          drafted_at: string | null;
+          notes: string | null;
+          last_contacted_at: string | null;
+          next_followup_at: string | null;
+          dedupe_key: string;
+          import_batch_id: string | null;
+          imported_at: string | null;
+          sheet_row_number: number | null;
+          sheet_synced_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_name: string;
+          website?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          city?: string | null;
+          country?: string | null;
+          niche?: string | null;
+          category?: string | null;
+          source?: string | null;
+          status?: LeadStatus;
+          campaign_id?: string | null;
+          research_summary?: string | null;
+          website_observations?: string | null;
+          automation_opportunities?: string | null;
+          ai_chatbot_opportunities?: string | null;
+          website_improvement_opportunities?: string | null;
+          personalization?: string | null;
+          interesting_facts?: string | null;
+          outreach_angle?: string | null;
+          social_links?: Json;
+          researched_at?: string | null;
+          subject_line?: string | null;
+          draft_email?: string | null;
+          drafted_at?: string | null;
+          notes?: string | null;
+          last_contacted_at?: string | null;
+          next_followup_at?: string | null;
+          dedupe_key: string;
+          import_batch_id?: string | null;
+          imported_at?: string | null;
+          sheet_row_number?: number | null;
+          sheet_synced_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['leads']['Insert']>;
+        Relationships: [];
+      };
+
+      templates: {
+        Row: {
+          id: string;
+          name: string;
+          subject: string;
+          body: string;
+          variables: string[];
+          is_active: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          subject: string;
+          body: string;
+          variables?: string[];
+          is_active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['templates']['Insert']>;
+        Relationships: [];
+      };
+
+      campaigns: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          active: boolean;
+          daily_limit: number;
+          template_id: string | null;
+          starts_at: string | null;
+          ends_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          active?: boolean;
+          daily_limit?: number;
+          template_id?: string | null;
+          starts_at?: string | null;
+          ends_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['campaigns']['Insert']>;
+        Relationships: [];
+      };
+
+      email_logs: {
+        Row: {
+          id: string;
+          lead_id: string;
+          campaign_id: string | null;
+          template_id: string | null;
+          status: EmailLogStatus;
+          provider: string | null;
+          message_id: string | null;
+          subject: string | null;
+          sent_at: string | null;
+          error: string | null;
+          sent_by: string | null;
+          created_at: string;
+          email_type: EmailType;
+          email_version_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          campaign_id?: string | null;
+          template_id?: string | null;
+          status?: EmailLogStatus;
+          provider?: string | null;
+          message_id?: string | null;
+          subject?: string | null;
+          sent_at?: string | null;
+          error?: string | null;
+          sent_by?: string | null;
+          created_at?: string;
+          email_type?: EmailType;
+          email_version_id?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['email_logs']['Insert']>;
+        Relationships: [];
+      };
+
+      /**
+       * Immutable draft history. Regenerating INSERTS; nothing is overwritten.
+       *
+       * `version_number` is filled in by a BEFORE INSERT trigger when omitted,
+       * which is why it is optional on Insert but always present on Row.
+       */
+      email_versions: {
+        Row: {
+          id: string;
+          lead_id: string;
+          type: EmailType;
+          version_number: number;
+          subject: string | null;
+          content: string;
+          status: EmailVersionStatus;
+          active: boolean;
+          generated_by: string;
+          created_by: string | null;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          review_note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          type: EmailType;
+          version_number?: number;
+          subject?: string | null;
+          content: string;
+          status?: EmailVersionStatus;
+          active?: boolean;
+          generated_by?: string;
+          created_by?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          review_note?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['email_versions']['Insert']>;
+        Relationships: [];
+      };
+
+      /**
+       * Outreach lifecycle projection, one row per lead.
+       *
+       * `current_stage` is derived by trigger — writing it has no effect, the
+       * trigger overwrites whatever you send. It is absent from Insert/Update
+       * on purpose so the type system says so too.
+       */
+      lead_pipeline: {
+        Row: {
+          lead_id: string;
+          current_stage: PipelineStage;
+          email_found: boolean;
+          email_found_at: string | null;
+          email_verified: boolean;
+          email_verified_at: string | null;
+          research_complete: boolean;
+          research_completed_at: string | null;
+          draft_ready: boolean;
+          draft_ready_at: string | null;
+          approved: boolean;
+          approved_at: string | null;
+          first_email_sent: string | null;
+          followup1_due: string | null;
+          followup1_sent: string | null;
+          followup2_due: string | null;
+          followup2_sent: string | null;
+          replied: string | null;
+          closed: string | null;
+          closed_reason: string | null;
+          auto_followups: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          lead_id: string;
+          email_found?: boolean;
+          email_found_at?: string | null;
+          email_verified?: boolean;
+          email_verified_at?: string | null;
+          research_complete?: boolean;
+          research_completed_at?: string | null;
+          draft_ready?: boolean;
+          draft_ready_at?: string | null;
+          approved?: boolean;
+          approved_at?: string | null;
+          first_email_sent?: string | null;
+          followup1_due?: string | null;
+          followup1_sent?: string | null;
+          followup2_due?: string | null;
+          followup2_sent?: string | null;
+          replied?: string | null;
+          closed?: string | null;
+          closed_reason?: string | null;
+          auto_followups?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['lead_pipeline']['Insert']>;
+        Relationships: [];
+      };
+
+      lead_activity: {
+        Row: {
+          id: string;
+          lead_id: string;
+          kind: ActivityKind;
+          summary: string;
+          detail: string | null;
+          actor_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          kind: ActivityKind;
+          summary: string;
+          detail?: string | null;
+          actor_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['lead_activity']['Insert']>;
+        Relationships: [];
+      };
+
+      replies: {
+        Row: {
+          id: string;
+          lead_id: string;
+          email_log_id: string | null;
+          reply_text: string | null;
+          sentiment: ReplySentiment | null;
+          confidence: number | null;
+          is_handled: boolean;
+          received_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          email_log_id?: string | null;
+          reply_text?: string | null;
+          sentiment?: ReplySentiment | null;
+          confidence?: number | null;
+          is_handled?: boolean;
+          received_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['replies']['Insert']>;
+        Relationships: [];
+      };
+
+      settings: {
+        Row: {
+          key: string;
+          value: Json;
+          description: string | null;
+          is_sensitive: boolean;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          value: Json;
+          description?: string | null;
+          is_sensitive?: boolean;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['settings']['Insert']>;
+        Relationships: [];
+      };
+
+      integration_secrets: {
+        Row: {
+          key: string;
+          ciphertext: string;
+          hint: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          ciphertext: string;
+          hint?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['integration_secrets']['Insert']>;
+        Relationships: [];
+      };
+
+      integration_runs: {
+        Row: {
+          id: string;
+          integration: string;
+          action: string;
+          status: IntegrationRunStatus;
+          message: string | null;
+          stats: Json;
+          started_at: string;
+          finished_at: string | null;
+          duration_ms: number | null;
+          triggered_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          integration: string;
+          action: string;
+          status?: IntegrationRunStatus;
+          message?: string | null;
+          stats?: Json;
+          started_at?: string;
+          finished_at?: string | null;
+          duration_ms?: number | null;
+          triggered_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['integration_runs']['Insert']>;
+        Relationships: [];
+      };
+    };
+
+    Views: {
+      dashboard_overview: {
+        Row: {
+          total_leads: number;
+          new_leads: number;
+          researching_leads: number;
+          ready_leads: number;
+          sent_leads: number;
+          replied_leads: number;
+          bounced_leads: number;
+          excluded_leads: number;
+          leads_with_research: number;
+          leads_with_draft: number;
+          followups_due: number;
+          countries_covered: number;
+          niches_covered: number;
+        };
+        Relationships: [];
+      };
+      dashboard_lead_status_counts: {
+        Row: { status: LeadStatus; lead_count: number; pct_of_total: number | null };
+        Relationships: [];
+      };
+      dashboard_leads_by_country: {
+        Row: {
+          country: string;
+          lead_count: number;
+          sent_count: number;
+          replied_count: number;
+          drafted_count: number;
+        };
+        Relationships: [];
+      };
+      dashboard_leads_by_niche: {
+        Row: { niche: string; lead_count: number; replied_count: number };
+        Relationships: [];
+      };
+      dashboard_leads_by_category: {
+        Row: { category: string; lead_count: number };
+        Relationships: [];
+      };
+      dashboard_leads_created_daily: {
+        Row: { day: string; leads_added: number };
+        Relationships: [];
+      };
+      dashboard_campaign_stats: {
+        Row: {
+          campaign_id: string;
+          campaign_name: string;
+          active: boolean;
+          daily_limit: number;
+          starts_at: string | null;
+          ends_at: string | null;
+          leads_assigned: number;
+          emails_sent: number;
+          emails_bounced: number;
+          emails_failed: number;
+          replies_received: number;
+          reply_rate_pct: number | null;
+          bounce_rate_pct: number | null;
+        };
+        Relationships: [];
+      };
+      dashboard_email_activity_daily: {
+        Row: {
+          day: string;
+          attempts: number;
+          sent: number;
+          delivered: number;
+          opened: number;
+          bounced: number;
+          failed: number;
+        };
+        Relationships: [];
+      };
+      dashboard_reply_stats: {
+        Row: {
+          sentiment: string;
+          reply_count: number;
+          handled_count: number;
+          unhandled_count: number;
+          pct_of_replies: number | null;
+        };
+        Relationships: [];
+      };
+      dashboard_reply_activity_daily: {
+        Row: {
+          day: string;
+          replies: number;
+          positive: number;
+          neutral: number;
+          negative: number;
+          unsubscribe: number;
+        };
+        Relationships: [];
+      };
+      dashboard_leads_safe: {
+        Row: {
+          id: string;
+          business_name: string;
+          city: string | null;
+          country: string | null;
+          niche: string | null;
+          category: string | null;
+          status: LeadStatus;
+          campaign_id: string | null;
+          created_at: string;
+          last_contacted_at: string | null;
+          has_research: boolean;
+          has_draft: boolean;
+        };
+        Relationships: [];
+      };
+
+      /* --------------------------------------------------------------------- */
+      /* Pipeline (admin-only — contains contact data)                          */
+      /* --------------------------------------------------------------------- */
+
+      pipeline_board: {
+        Row: {
+          lead_id: string;
+          business_name: string;
+          email: string | null;
+          city: string | null;
+          country: string | null;
+          niche: string | null;
+          lead_status: LeadStatus;
+          campaign_id: string | null;
+          current_stage: PipelineStage;
+          next_step: PipelineNextStep;
+          email_found: boolean;
+          email_verified: boolean;
+          research_complete: boolean;
+          draft_ready: boolean;
+          approved: boolean;
+          approved_at: string | null;
+          draft_ready_at: string | null;
+          first_email_sent: string | null;
+          followup1_due: string | null;
+          followup1_sent: string | null;
+          followup2_due: string | null;
+          followup2_sent: string | null;
+          replied: string | null;
+          closed: string | null;
+          closed_reason: string | null;
+          auto_followups: boolean;
+          updated_at: string;
+        };
+        Relationships: [];
+      };
+
+      /* --------------------------------------------------------------------- */
+      /* PUBLIC — anon-readable. Aggregates only; see migration 0013 before      */
+      /* adding a single column here.                                           */
+      /* --------------------------------------------------------------------- */
+
+      public_stats_overview: {
+        Row: {
+          total_leads: number;
+          need_email: number;
+          need_verification: number;
+          researching: number;
+          awaiting_draft: number;
+          draft_ready: number;
+          approved: number;
+          closed: number;
+          emails_sent: number;
+          emails_attempted: number;
+          emails_bounced: number;
+          initial_sent: number;
+          followup1_sent: number;
+          followup2_sent: number;
+          replies: number;
+          positive_replies: number;
+          negative_replies: number;
+          neutral_replies: number;
+          bounce_rate_pct: number | null;
+          reply_rate_pct: number | null;
+          avg_response_hours: number | null;
+        };
+        Relationships: [];
+      };
+      public_stats_stages: {
+        Row: { stage: PipelineStage; lead_count: number; pct_of_total: number | null };
+        Relationships: [];
+      };
+      public_stats_statuses: {
+        Row: { status: LeadStatus; lead_count: number };
+        Relationships: [];
+      };
+      public_stats_activity_daily: {
+        Row: {
+          day: string;
+          emails_sent: number;
+          emails_bounced: number;
+          replies: number;
+          positive_replies: number;
+          negative_replies: number;
+        };
+        Relationships: [];
+      };
+      public_stats_campaigns: {
+        Row: {
+          campaign_name: string;
+          active: boolean;
+          leads_assigned: number;
+          emails_sent: number;
+          emails_bounced: number;
+          replies_received: number;
+          reply_rate_pct: number | null;
+          bounce_rate_pct: number | null;
+        };
+        Relationships: [];
+      };
+
+      /* --------------------------------------------------------------------- */
+      /* Analytics (admin-only)                                                 */
+      /* --------------------------------------------------------------------- */
+
+      analytics_email_weekly: {
+        Row: { week_start: string; attempts: number; sent: number; bounced: number; failed: number };
+        Relationships: [];
+      };
+      analytics_email_monthly: {
+        Row: { month_start: string; attempts: number; sent: number; bounced: number; failed: number };
+        Relationships: [];
+      };
+      analytics_reply_rate_daily: {
+        Row: { day: string; sent: number; replies: number; reply_rate_pct: number | null };
+        Relationships: [];
+      };
+      analytics_funnel_timing: {
+        Row: {
+          avg_approval_hours: number | null;
+          avg_send_delay_hours: number | null;
+          avg_reply_hours: number | null;
+          avg_drafting_hours: number | null;
+          approved_sample: number;
+          sent_sample: number;
+        };
+        Relationships: [];
+      };
+      analytics_template_performance: {
+        Row: {
+          template_id: string;
+          template_name: string;
+          is_active: boolean;
+          emails_sent: number;
+          emails_bounced: number;
+          replies_received: number;
+          reply_rate_pct: number | null;
+        };
+        Relationships: [];
+      };
+      analytics_industry_performance: {
+        Row: {
+          industry: string;
+          leads: number;
+          emails_sent: number;
+          replies_received: number;
+          positive_replies: number;
+          reply_rate_pct: number | null;
+        };
+        Relationships: [];
+      };
+      analytics_stage_distribution: {
+        Row: { stage: PipelineStage; lead_count: number; pct_of_total: number | null };
+        Relationships: [];
+      };
+      analytics_followup_conversion: {
+        Row: {
+          step: EmailType;
+          step_order: number;
+          sent: number;
+          replies: number;
+          reply_rate_pct: number | null;
+        };
+        Relationships: [];
+      };
+      analytics_generation_daily: {
+        Row: {
+          day: string;
+          generated_by: string;
+          versions_created: number;
+          approved: number;
+          rejected: number;
+        };
+        Relationships: [];
+      };
+    };
+
+    Functions: {
+      current_app_role: { Args: Record<string, never>; Returns: AppRole };
+      is_admin: { Args: Record<string, never>; Returns: boolean };
+      is_app_user: { Args: Record<string, never>; Returns: boolean };
+    };
+
+    Enums: {
+      app_role: AppRole;
+      lead_status: LeadStatus;
+      email_log_status: EmailLogStatus;
+      reply_sentiment: ReplySentiment;
+      integration_run_status: IntegrationRunStatus;
+      email_type: EmailType;
+      email_version_status: EmailVersionStatus;
+      pipeline_stage: PipelineStage;
+      pipeline_next_step: PipelineNextStep;
+      activity_kind: ActivityKind;
+    };
+
+    CompositeTypes: Record<string, never>;
+  };
+}
+
+/* ------------------------------------------------------------------------- */
+/* Convenience aliases                                                        */
+/* ------------------------------------------------------------------------- */
+
+type PublicSchema = Database['public'];
+
+export type Tables<T extends keyof PublicSchema['Tables']> = PublicSchema['Tables'][T]['Row'];
+export type TablesInsert<T extends keyof PublicSchema['Tables']> = PublicSchema['Tables'][T]['Insert'];
+export type TablesUpdate<T extends keyof PublicSchema['Tables']> = PublicSchema['Tables'][T]['Update'];
+export type Views<T extends keyof PublicSchema['Views']> = PublicSchema['Views'][T]['Row'];
+
+export type Profile = Tables<'profiles'>;
+export type Lead = Tables<'leads'>;
+export type LeadInsert = TablesInsert<'leads'>;
+export type Template = Tables<'templates'>;
+export type Campaign = Tables<'campaigns'>;
+export type EmailLog = Tables<'email_logs'>;
+export type Reply = Tables<'replies'>;
+export type Setting = Tables<'settings'>;
+export type IntegrationRun = Tables<'integration_runs'>;
+export type EmailVersion = Tables<'email_versions'>;
+export type EmailVersionInsert = TablesInsert<'email_versions'>;
+export type LeadPipeline = Tables<'lead_pipeline'>;
+export type LeadPipelineUpdate = TablesUpdate<'lead_pipeline'>;
+export type LeadActivity = Tables<'lead_activity'>;
+export type PipelineBoardRow = Views<'pipeline_board'>;
+
+export const LEAD_STATUSES: readonly LeadStatus[] = [
+  'new',
+  'researching',
+  'ready',
+  'approved',
+  'sending',
+  'sent',
+  'replied',
+  'bounced',
+  'invalid',
+  'archived',
+] as const;
+
+export const APP_ROLES: readonly AppRole[] = ['admin', 'viewer'] as const;
+
+/** Sequence order. Used for tab order and for resolving "what comes next". */
+export const EMAIL_TYPES: readonly EmailType[] = ['initial', 'followup1', 'followup2'] as const;
+
+/** Earliest to latest. Ordering a board by this array matches the SQL enum order. */
+export const PIPELINE_STAGES: readonly PipelineStage[] = [
+  'need_email',
+  'need_verification',
+  'research',
+  'draft',
+  'review',
+  'approved',
+  'initial_sent',
+  'followup1_sent',
+  'followup2_sent',
+  'replied',
+  'closed',
+] as const;
