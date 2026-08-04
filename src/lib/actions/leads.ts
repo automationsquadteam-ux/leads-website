@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { assertAdmin } from '@/lib/auth/session';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service-client';
 import { recordActivity } from '@/lib/services/activity';
 import { sendLeadEmail } from '@/lib/services/email/send-lead-email';
 import { appendSyncMessage, syncLeadChange } from '@/lib/services/sync';
@@ -179,6 +180,11 @@ export async function bulkSetStatus(ids: string[], status: LeadStatus): Promise<
   }
   if (ids.length === 0) return { ok: false, message: 'No leads selected.' };
 
+  // Approving is not a status change. Route it to the action that also signs
+  // off the draft version, or the lead looks approved everywhere except the one
+  // place the sender checks.
+  if (status === 'approved') return bulkApproveDrafts(ids);
+
   const supabase = await createClient();
   const { error } = await supabase.from('leads').update({ status }).in('id', ids);
   if (error) return { ok: false, message: error.message };
@@ -186,4 +192,71 @@ export async function bulkSetStatus(ids: string[], status: LeadStatus): Promise<
   revalidatePath('/leads');
   revalidatePath('/dashboard');
   return { ok: true, message: `${ids.length} lead${ids.length === 1 ? '' : 's'} updated.` };
+}
+
+/**
+ * Approve the active initial draft for each selected lead.
+ *
+ * There are two records of "approved" and they must move together:
+ *
+ *   lead_pipeline.approved   what the dashboard counts and the scheduler
+ *                            queries to find work
+ *   email_versions.status    what the scheduler checks immediately BEFORE
+ *                            sending an initial email
+ *
+ * Setting only the lead status (which is what this used to do) satisfied the
+ * first and not the second, so the dashboard would report leads as Ready to
+ * Send while the sender skipped every one of them saying "waiting for
+ * approval" — with nothing in the UI to explain the contradiction.
+ *
+ * Approving the VERSION is the right primitive: its trigger sets
+ * lead_pipeline.approved, and the lead status follows here.
+ */
+export async function bulkApproveDrafts(ids: string[]): Promise<ActionResult> {
+  let session;
+  try {
+    session = await assertAdmin();
+  } catch {
+    return { ok: false, message: 'You do not have permission to perform this action.' };
+  }
+  if (ids.length === 0) return { ok: false, message: 'No leads selected.' };
+
+  const admin = createServiceClient();
+  const reviewedAt = new Date().toISOString();
+
+  const { data: versions } = await admin
+    .from('email_versions')
+    .select('id, lead_id')
+    .in('lead_id', ids)
+    .eq('type', 'initial')
+    .eq('active', true);
+
+  const approvable = versions ?? [];
+  if (approvable.length === 0) {
+    return {
+      ok: false,
+      message: 'None of those leads has a draft to approve. Generate one first.',
+    };
+  }
+
+  const { error } = await admin
+    .from('email_versions')
+    .update({ status: 'approved', reviewed_by: session.user.id, reviewed_at: reviewedAt })
+    .in('id', approvable.map((v) => v.id));
+
+  if (error) return { ok: false, message: error.message };
+
+  const approvedLeadIds = approvable.map((v) => v.lead_id);
+  await admin.from('leads').update({ status: 'approved' }).in('id', approvedLeadIds);
+
+  revalidatePath('/leads');
+  revalidatePath('/dashboard');
+
+  const missing = ids.length - approvedLeadIds.length;
+  return {
+    ok: true,
+    message:
+      `${approvedLeadIds.length} draft${approvedLeadIds.length === 1 ? '' : 's'} approved and ready to send.` +
+      (missing > 0 ? ` ${missing} had no draft and were skipped.` : ''),
+  };
 }

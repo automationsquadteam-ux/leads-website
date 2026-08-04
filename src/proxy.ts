@@ -30,12 +30,14 @@ import { readSession } from '@/lib/supabase/middleware';
  *   /api/cron   scheduled endpoints. No session exists for a cron caller, so
  *               they authenticate with the CRON_SECRET bearer token themselves.
  *               Listing them here skips the login redirect, NOT the auth check.
+ *   /api/inbound  the Cloudflare Email Worker posts here. Same deal: no
+ *               session, bearer token checked inside the route.
  *
  * isPublic() matches `pathname === p` or `pathname.startsWith(p + '/')`. For
  * '/' the second test is `startsWith('//')`, which never fires so this opens
  * the front page exactly, not the whole site.
  */
-const PUBLIC_PATHS = ['/', '/login', '/auth/callback', '/stats', '/api/cron'];
+const PUBLIC_PATHS = ['/', '/login', '/auth/callback', '/stats', '/api/cron', '/api/inbound'];
 
 /**
  * Everything below these prefixes requires role = 'admin'.

@@ -97,6 +97,40 @@ function withinWorkingHours(config: IntegrationConfig, now: Date): boolean {
   return minutes >= toMinutes(start) && minutes <= toMinutes(end);
 }
 
+/**
+ * How long until the minimum gap has elapsed since the last email left.
+ *
+ * Measured against `email_logs`, not against a timer inside this loop, which is
+ * the only way the gap survives:
+ *
+ *   * a run that sends two emails and stops at its time budget, with the next
+ *     run starting seconds later;
+ *   * someone pressing "Run now" while the scheduled run is still going;
+ *   * two cron invocations overlapping.
+ *
+ * A loop-local `sleep` between iterations honours the gap within one run and
+ * nowhere else, which is exactly the case that produces a burst.
+ *
+ * Returns 0 when nothing has been sent yet, or the gap has already passed.
+ */
+async function gapRemainingMs(minGapSeconds: number): Promise<number> {
+  if (minGapSeconds <= 0) return 0;
+
+  const admin = createServiceClient();
+  const { data } = await admin
+    .from('email_logs')
+    .select('sent_at')
+    .not('sent_at', 'is', null)
+    .order('sent_at', { ascending: false })
+    .limit(1);
+
+  const last = data?.[0]?.sent_at;
+  if (!last) return 0;
+
+  const elapsed = Date.now() - new Date(last).getTime();
+  return Math.max(0, minGapSeconds * 1000 - elapsed);
+}
+
 async function sendsToday(): Promise<number> {
   const admin = createServiceClient();
   const startOfDay = new Date();
@@ -241,7 +275,6 @@ export async function runOutreachCycle(
 ): Promise<OutreachRunSummary> {
   const started = Date.now();
   const dryRun = options.dryRun ?? false;
-  const maxRuntimeMs = options.maxRuntimeMs ?? 45_000;
 
   const summary: OutreachRunSummary = {
     ok: true,
@@ -256,6 +289,16 @@ export async function runOutreachCycle(
   };
 
   const config = await getIntegrationConfig();
+
+  /*
+   * How long this run may spend, including time asleep waiting out the gap.
+   *
+   * Configurable because the ceiling is the hosting platform's, not ours: a
+   * Vercel Hobby function is killed at 60s, Pro allows up to 300. With a 90s
+   * gap and a 50s budget exactly one email goes per run, so the CRON FREQUENCY
+   * is what paces bulk sending — see the note in the cron route.
+   */
+  const maxRuntimeMs = options.maxRuntimeMs ?? config.outreach.maxRuntimeSeconds * 1000;
 
   const finish = (message: string): OutreachRunSummary => {
     summary.message = message;
@@ -300,6 +343,34 @@ export async function runOutreachCycle(
     if (Date.now() - started > maxRuntimeMs) {
       summary.notes.push('Run time budget reached; the remainder is left for the next run.');
       break;
+    }
+
+    /*
+     * Honour the minimum gap BEFORE sending, not after.
+     *
+     * Checked ahead of every send including the first of a run, and measured
+     * against the last email that actually left (see gapRemainingMs). Doing it
+     * afterwards only paces sends within one run, so two runs back to back —
+     * or a "Run now" during a scheduled run — would fire two emails seconds
+     * apart however large the setting.
+     *
+     * The queue mixes initial emails and follow-ups, so the gap applies between
+     * any two messages regardless of type. That is the point: the recipient's
+     * mail server sees one sending pattern, not two interleaved ones.
+     */
+    const waitMs = await gapRemainingMs(config.sending.minGapSeconds);
+    if (waitMs > 0) {
+      const budgetLeft = maxRuntimeMs - (Date.now() - started);
+      if (waitMs > budgetLeft) {
+        // Waiting would outlive the request. Stop cleanly and let the next run
+        // pick it up — the gap is measured from the database, so nothing is
+        // lost by stopping here.
+        summary.notes.push(
+          `Next send is ${Math.ceil(waitMs / 1000)}s away (minimum gap of ${config.sending.minGapSeconds}s). Left for the next run.`,
+        );
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
 
     // Re-check: a reply or a manual send can land between the query and here.
@@ -356,13 +427,10 @@ export async function runOutreachCycle(
       summary.notes.push(`${item.lead_id}: ${result.message}`);
     }
 
-    // Space sends out so a burst does not look like a mail blast. Skipped on
-    // the last item there is nothing left to space it from.
-    const isLast = item === due[due.length - 1];
-    if (!isLast && config.sending.minGapSeconds > 0) {
-      const gap = Math.min(config.sending.minGapSeconds * 1000, 10_000);
-      await new Promise((resolve) => setTimeout(resolve, gap));
-    }
+    // No trailing sleep: the gap is enforced at the TOP of the next iteration,
+    // against the send that was just recorded. The previous version slept here
+    // and capped the wait at 10 seconds, so a 90-second setting waited 10 —
+    // the UI promised one thing and the sender did another.
   }
 
   summary.ok = summary.failed === 0;

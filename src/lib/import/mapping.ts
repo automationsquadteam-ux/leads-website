@@ -37,7 +37,9 @@ const HEADER_MAP: Record<string, string> = {
   reply: 'reply',
 
   'email sent status': 'sent_status',
-  'email draft status': 'draft_status',
+  // "Email draft Status" was removed from the sheet (2026-08-04). It was mapped
+  // but never read by anything — deriveStatus uses the draft body itself, which
+  // is a fact rather than a label someone remembered to update.
   'email data done': 'draft_done',
   'research status': 'research_status',
 
@@ -179,7 +181,19 @@ export function mapRow(row: SheetRow, options: MapOptions): MapResult {
   return { ok: true, value: { lead, warnings } };
 }
 
-/** Fields refreshed by `--update`. Pipeline and operator-owned state is excluded. */
+/**
+ * Fields refreshed by `--update`. Pipeline and operator-owned state is excluded.
+ *
+ * `last_contacted_at` is the one deliberate exception. It carries the sheet's
+ * "Date Sent", and for emails sent by the upstream n8n pipeline the sheet is
+ * the ONLY record of when that happened — the CRM has no email_logs row for
+ * them. Without it here, a corrected Date Sent would sync into nothing and the
+ * follow-up schedule would stay anchored to the import date instead of the real
+ * send date.
+ *
+ * Safe because diffFields() skips blank incoming cells, so an empty Date Sent
+ * never erases a send the CRM recorded itself.
+ */
 export const REFRESHABLE_FIELDS = [
   'business_name',
   'website',
@@ -200,4 +214,5 @@ export const REFRESHABLE_FIELDS = [
   'social_links',
   'subject_line',
   'draft_email',
+  'last_contacted_at',
 ] as const satisfies readonly (keyof LeadInsert)[];

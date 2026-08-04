@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import type {
   EmailLog,
+  EmailVerificationStatus,
   EmailVersion,
   Lead,
   LeadActivity,
@@ -88,16 +89,19 @@ export interface LeadListParams {
   search?: string;
   statuses?: LeadStatus[];
   view?: LeadView;
+  /** Filter by email verification state. Empty means no filter. */
+  verification?: EmailVerificationStatus[];
   sort?: SortColumn;
   direction?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }
 
-/** A lead plus the two pipeline figures the list shows on every row. */
+/** A lead plus the pipeline figures the list shows on every row. */
 export interface LeadRow extends Lead {
   stage: PipelineBoardRow['current_stage'] | null;
   nextStep: PipelineBoardRow['next_step'] | null;
+  verification: PipelineBoardRow['email_verification_status'] | null;
 }
 
 export interface LeadListResult {
@@ -148,9 +152,37 @@ async function idsForView(
     case 'needs_draft':
       query = query.eq('research_complete', true).eq('draft_ready', false);
       break;
-    case 'ready_to_send':
-      query = query.eq('approved', true).is('first_email_sent', null);
-      break;
+    case 'ready_to_send': {
+      /*
+       * "Ready to send" must mean what the SENDER means by it.
+       *
+       * lead_pipeline.approved alone is not enough: before an initial email the
+       * scheduler checks that the ACTIVE version is approved. Counting only the
+       * pipeline flag produced a card reading N while the sender skipped all N
+       * saying "waiting for approval". Both conditions, or the number lies.
+       */
+      const { data: approvedVersions } = await supabase
+        .from('email_versions')
+        .select('lead_id')
+        .eq('type', 'initial')
+        .eq('active', true)
+        .eq('status', 'approved');
+
+      const withApprovedDraft = new Set((approvedVersions ?? []).map((v) => v.lead_id));
+      if (withApprovedDraft.size === 0) return [];
+
+      const { data: pipelineReady } = await supabase
+        .from('lead_pipeline')
+        .select('lead_id')
+        .eq('approved', true)
+        .is('first_email_sent', null)
+        .is('closed', null)
+        .limit(5000);
+
+      return (pipelineReady ?? [])
+        .map((r) => r.lead_id)
+        .filter((id) => withApprovedDraft.has(id));
+    }
     case 'followup1_due':
       query = query
         .is('followup1_sent', null)
@@ -198,6 +230,7 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
     search = '',
     statuses = [],
     view,
+    verification = [],
     sort = 'created_at',
     direction = 'desc',
     page = 1,
@@ -208,12 +241,32 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
 
   let query = supabase.from('leads').select('*', { count: 'exact' });
 
-  if (view) {
-    const ids = await idsForView(supabase, view);
-    if (ids.length === 0) {
+  // A named view and a verification filter both resolve to a set of lead ids.
+  // Intersecting them here keeps "Awaiting verification, and also dead" a
+  // sensible combination rather than two mutually exclusive modes.
+  const idFilters: string[][] = [];
+
+  if (view) idFilters.push(await idsForView(supabase, view));
+
+  if (verification.length > 0) {
+    const { data } = await supabase
+      .from('lead_pipeline')
+      .select('lead_id')
+      .in('email_verification_status', verification)
+      .limit(5000);
+    idFilters.push((data ?? []).map((r) => r.lead_id));
+  }
+
+  if (idFilters.length > 0) {
+    const intersection = idFilters.reduce((acc, ids) => {
+      const set = new Set(ids);
+      return acc.filter((id) => set.has(id));
+    });
+
+    if (intersection.length === 0) {
       return { rows: [], total: 0, page, pageSize, error: null };
     }
-    query = query.in('id', ids);
+    query = query.in('id', intersection);
   }
 
   const term = sanitizeSearch(search);
@@ -241,15 +294,26 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
   // embedded select cannot be used: the hand-written Database types declare
   // `Relationships: []`, so PostgREST embeds do not type-resolve. Only the page
   // of leads actually being rendered is looked up.
-  const stageById = new Map<string, { stage: PipelineBoardRow['current_stage']; nextStep: PipelineBoardRow['next_step'] }>();
+  const stageById = new Map<
+    string,
+    {
+      stage: PipelineBoardRow['current_stage'];
+      nextStep: PipelineBoardRow['next_step'];
+      verification: PipelineBoardRow['email_verification_status'];
+    }
+  >();
   if (leads.length > 0) {
     const { data: board } = await supabase
       .from('pipeline_board')
-      .select('lead_id, current_stage, next_step')
+      .select('lead_id, current_stage, next_step, email_verification_status')
       .in('lead_id', leads.map((lead) => lead.id));
 
     for (const row of board ?? []) {
-      stageById.set(row.lead_id, { stage: row.current_stage, nextStep: row.next_step });
+      stageById.set(row.lead_id, {
+        stage: row.current_stage,
+        nextStep: row.next_step,
+        verification: row.email_verification_status,
+      });
     }
   }
 
@@ -258,6 +322,7 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
       ...lead,
       stage: stageById.get(lead.id)?.stage ?? null,
       nextStep: stageById.get(lead.id)?.nextStep ?? null,
+      verification: stageById.get(lead.id)?.verification ?? null,
     })),
     total: count ?? 0,
     page,

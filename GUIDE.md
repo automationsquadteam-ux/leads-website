@@ -70,9 +70,77 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0013 | `20260803120100_public_stats_views.sql` | ✅ yes |
 | 0014 | `20260803120200_analytics_views.sql` | ✅ yes |
 | 0015 | `20260804120000_verification_versions_and_public_leads.sql` | ❌ **NOT YET** |
+| 0016 | `20260804140000_inbound_messages.sql` | ❌ **NOT YET** |
+| 0017 | `20260804160000_verify_on_send_and_board.sql` | ❌ **NOT YET** |
+| 0018 | `20260804180000_schedule_followups_for_backfilled_sends.sql` | ❌ **NOT YET** |
+| 0019 | `20260804200000_sheet_date_sent_is_authoritative.sql` | ❌ **NOT YET** |
+| 0020 | `20260804220000_outreach_run_budget.sql` | ❌ **NOT YET** |
 
 **To apply 0015:** paste `supabase/schema-update-5-verification-and-public-leads.sql` into
 the Supabase SQL editor and Run. Idempotent, includes both backfills.
+
+**To apply 0016:** then paste `supabase/schema-update-6-inbound-mail.sql`. Without it the
+Replies page errors, `/api/inbound/reply` cannot store anything, and the auto-reply trigger
+bug below is still live.
+
+**To apply 0017:** then paste `supabase/schema-update-7-verify-on-send.sql`. Without it the
+Verified column and filter on the leads list are empty, and leads already emailed still
+read as unverified.
+
+**To apply 0018:** then paste `supabase/schema-update-8-schedule-followups.sql`.
+
+**To apply 0019:** then paste `supabase/schema-update-9-date-sent-authoritative.sql`.
+
+**To apply 0020:** then paste `supabase/schema-update-10-run-budget.sql`.
+
+Apply them in order. 0017 rewrites `pipeline_board`, which 0015 created.
+
+### Two definitions of "approved" — do not add a third
+
+`lead_pipeline.approved` is derived from `leads.status`. The scheduler, immediately before
+an initial send, instead requires the **active `email_versions` row** to have
+`status = 'approved'`.
+
+They can disagree, and they did: 58 leads showed `pipeline.approved` while zero versions
+were approved, so the dashboard would report leads as Ready to Send and the sender would
+skip every one of them with "waiting for approval", with nothing on screen explaining it.
+
+The rule: **approving a lead must set both.** `approveVersion()` already did.
+`bulkSetStatus(ids, 'approved')` did not, and now routes to `bulkApproveDrafts()`, which
+approves the version (whose trigger sets the pipeline flag) and then the lead status. The
+`ready_to_send` view and the dashboard card both intersect the two conditions, so the number
+cannot promise something the sender will not do.
+
+### Who owns the send date
+
+`leads.last_contacted_at` carries the sheet's **Date Sent**, and it is the anchor the entire
+follow-up schedule hangs off. Two rules, set in 0019:
+
+1. A send **this CRM** made — an `email_logs` row with a `sent_at` — is authoritative. The
+   sheet may never move it.
+2. Otherwise the **sheet wins**, because for an upstream send its Date Sent column is the
+   only record that exists.
+
+`followup1_due` is re-derived whenever the date moves, or correcting a send date would leave
+the schedule pointing at the old one. It is never moved once the follow-up has actually gone.
+
+`last_contacted_at` is therefore in `REFRESHABLE_FIELDS`, the one deliberate exception to
+"pipeline state is excluded". Without it a corrected Date Sent syncs into nothing.
+`diffFields()` skips blank cells, so an empty Date Sent cannot erase a send the CRM recorded.
+
+The write-back sends **date only** (`YYYY-MM-DD`), not an ISO timestamp: the importer's
+normalizer handles that form, Excel serials and `DD-MM-YYYY`, so the value round-trips.
+
+**"Email draft Status" was removed from the sheet on 2026-08-04** and its mapping is gone
+from both directions. Nothing read it — `deriveStatus()` uses the presence of a draft body,
+which is a fact rather than a label someone has to remember to update.
+
+### A send recorded outside the CRM must still schedule its follow-up
+
+`followup1_due` is set by the `email_logs` trigger. Sends made upstream have no `email_logs`
+row — 0015 writes `first_email_sent` directly — so their due date stayed NULL and
+`compute_next_step()` parked them on `await_followup1` permanently while the cron reported
+nothing to do. 0018 makes `sync_pipeline_from_lead()` schedule it too, and backfills.
 
 Until then: `email_verification_status` does not exist, so `npm run emails:import` fails,
 the dashboard's "Dead Addresses" card and the `awaiting_verification` view error, and the
@@ -336,7 +404,25 @@ whether it is safe to send, which is why the column is not a boolean.
 An `invalid` lead keeps `leads.email`. Knowing which address was tried and failed is worth
 more than a tidy row, and the stage already says a new one is needed.
 
-The round trip is deliberately API-free no verifier credentials, no bill, nothing to leak:
+**A successful send verifies the address** (0017). The relay accepted it and no bounce came
+back, which is stronger evidence than a probe. The self-correcting half is what makes that
+safe to assert: a hard bounce (0016) revises it to `invalid`. An existing `invalid` is never
+overwritten, because a verifier that says the address is dead outranks a relay that merely
+agreed to try.
+
+Two front doors, same services underneath, so a CSV handled either way produces identical
+state:
+
+- **Browser** Settings, Email verification. The download button hits
+  `GET /api/admin/emails/unverified.csv`; the upload runs `uploadVerificationCsv`.
+- **Terminal** the npm scripts below.
+
+The leads list has a `Verified` column and a `?verify=` filter (`/leads?verify=invalid`).
+Verification and a named `?view=` intersect rather than override each other, so "awaiting
+verification AND dead" is a sensible combination.
+
+The round trip is deliberately API-free, with no verifier credentials, no bill and nothing
+to leak:
 
 ```bash
 npm run emails:export                       # unverified-emails.csv
@@ -379,6 +465,59 @@ the most useful thing in the history.
   This was added in 0015 after the 0012 one-time backfill left 145 leads holding a draft
   with no version the review screen reported "no draft yet" for leads that plainly had
   one. A trigger cannot drift the way a backfill did.
+
+### Inbound mail (migration 0016)
+
+Transport is a **Cloudflare Email Worker** (`cloudflare/email-worker.js`), because
+Cloudflare Email Routing forwards mail and does not host a mailbox, so there is no IMAP
+server to poll. The Worker forwards to the human inbox and POSTs to
+`/api/inbound/reply`. It parses no meaning and matches nothing.
+
+All attribution happens in `lib/services/inbound/`, next to `email_logs`:
+
+| Step | Rule |
+| --- | --- |
+| 1. Store | Always, before classifying. A message we cannot understand must still be visible, not dropped. |
+| 2. Classify | Bounce, then auto-reply, then reply. |
+| 3. Attribute | **Threading first**: `In-Reply-To`/`References` against `email_logs.message_id`. Then From address, but **only when exactly one lead matches** — this dataset has leads sharing an address, and picking one would be a coin flip presented as fact. Then unmatched. |
+| 4. Record | Only a matched, genuine reply becomes a `public.replies` row. |
+
+**Threading is not merely more accurate, it is the only method that works in the normal
+case**: you mail `info@company.com` and the owner answers from their personal address.
+From-address matching loses that reply entirely.
+
+Two tables, two meanings, same distinction as `email_logs` vs `lead_pipeline`:
+`inbound_messages` is everything that arrived; `public.replies` is genuine replies from
+known leads, and it is what drives the pipeline and every rate. Bounces and autoresponders
+never reach it.
+
+**A hard bounce is free verification.** 5.x.x sets `email_verification_status = 'invalid'`,
+which sends the lead back to `need_email`. 4.x.x (mailbox full, greylisted) changes
+nothing — treating a full mailbox as a dead address throws away a good lead. No status
+code is read as soft, because the cautious reading is the one that does not delete work.
+
+**Unsubscribe is terminal**: it closes the workflow and sets `auto_followups = false`. The
+`replied` stamp alone only changes the next step.
+
+Sentiment is rules first (`inbound/classify.ts`), and only the ambiguous middle goes to
+Ollama (`ai/classify-reply.ts`, temperature 0, 20s timeout). A model outage degrades the
+classification instead of blocking ingestion.
+
+Manual assignment goes through the **same** `createReply()` as automatic ingestion, so a
+hand-assigned reply produces identical state. A second insert path would be a second
+definition of "a reply happened".
+
+#### The auto-reply trigger bug
+
+`sync_pipeline_from_reply()` used to set `lead_pipeline.replied` for **any** row in
+`public.replies`. Out-of-office is the single most common thing cold outreach gets back, so
+the moment inbound mail started arriving, every autoresponder would have marked its lead as
+having answered and permanently stopped that sequence. 0016 makes the trigger ignore
+`auto_reply` and clears the flag for any lead whose only replies were automatic.
+
+Under the current design an auto-reply never reaches `public.replies` at all — but a rule
+enforced only by the code that happens to call it is not enforced, so the trigger holds it
+too.
 
 ### What `email_logs` means, and what it does not
 
@@ -751,9 +890,32 @@ outbound webhook would want.
   `sending.daily_limit` → `outreach.max_sends_per_run` → per-lead re-check of
   replied/closed/already-sent (a reply can land between the query and the send) →
   `auto_followups` on the lead.
-- Bails out at a wall-clock budget (45s default) and leaves the rest for the next run,
-  because serverless platforms kill a request mid-flight and a partially completed run that
-  recorded every send is fine.
+- Bails out at `outreach.max_runtime_seconds` (50s default) and leaves the rest for the next
+  run, because serverless platforms kill a request mid-flight and a partially completed run
+  that recorded every send is fine. Keep it BELOW the platform timeout (Vercel Hobby 60s,
+  Pro 300s); the route asks for `maxDuration = 300`, which Vercel clamps to the plan.
+
+#### Pacing: the gap is measured from the database, not from a loop timer
+
+`sending.min_gap_seconds` is enforced at the TOP of each iteration by `gapRemainingMs()`,
+which reads the most recent `email_logs.sent_at`. That is the only way the gap survives:
+
+- a run that stops at its budget, with the next run starting seconds later;
+- someone pressing "Run now" during a scheduled run;
+- two cron invocations overlapping.
+
+A trailing `sleep` between iterations paces one run and nothing else, which is exactly the
+case that produces a burst. The old code did that **and** capped the wait at 10 seconds, so
+a 90-second setting waited 10 while the settings screen claimed otherwise.
+
+Initial emails and follow-ups are **one queue**, so the gap applies between any two messages
+regardless of type. The recipient's mail server sees one sending pattern, not two
+interleaved ones.
+
+Consequence worth internalising: with a 90s gap and a 50s budget, **one email leaves per
+run**. Bulk pacing is the cron frequency, not the length of a run. To clear a queue faster,
+call the endpoint more often (cron-job.org gives minute granularity free; Vercel Hobby crons
+only fire once a day) rather than raising the budget.
 
 **Run history** (`integration-runs.ts`) every invocation writes a row, so
 Running/Success/Failed/last-run survives reloads and redeploys. `reapStaleRuns()` closes out
@@ -856,6 +1018,11 @@ back (and it sets no `sheet_row_number`, so those leads cannot write back to the
 | 2026-08-03 | This guide created |
 | 2026-08-03 | n8n removed (0011); Sheets write-back added; nested-`<form>` hydration bug fixed in `secret-field.tsx` |
 | 2026-08-03 | 0011 confirmed applied to the live DB (the guide had it as pending) |
+| 2026-08-04 | **0020**: the minimum send gap was silently capped at 10s, so a 90s setting waited 10. Now honoured in full and measured against the last recorded send, so it holds across runs and manual triggers; run budget became a setting |
+| 2026-08-04 | **0019**: the sheet's Date Sent is authoritative for upstream sends and re-anchors `followup1_due`; `last_contacted_at` added to `REFRESHABLE_FIELDS`; the removed "Email draft Status" column unmapped in both directions; `workers_dev = false` so the Worker deploy stops asking for a subdomain |
+| 2026-08-04 | **0018**: sheet-reported sends now schedule follow-up 1 (they never did, so 58 leads were parked on await_followup1 forever); the two definitions of "approved" reconciled, and `bulkSetStatus('approved')` routed to `bulkApproveDrafts()` so the dashboard cannot promise a send the scheduler will skip |
+| 2026-08-04 | **0017**: a successful send marks the address verified (revised by a later hard bounce); `pipeline_board` gained the verification columns; leads list got a Verified column and `?verify=` filter; Settings gained a download/upload panel for the verifier round trip and a bulk follow-up draft generator |
+| 2026-08-04 | **0016**: inbound mail. `inbound_messages` staging, Cloudflare Email Worker transport, threading-first matching, bounce and auto-reply filters, rules+Ollama sentiment, rebuilt Replies inbox with a lead picker. Fixes the auto-reply trigger that would have stopped a sequence on every out-of-office |
 | 2026-08-04 | **0015**: email verification enum + CSV round trip (`emails:export`/`import`); `version_lead_draft()` repairs 145 leads whose drafts had no version; sheet-reported sends land on `lead_pipeline`; industry analytics rebased off `email_logs`; opt-in `public_stats_leads` |
 | 2026-08-04 | `/` is now the public front page with a hero; dashboard figures link to matching `/leads?view=` lists; tables switched to `table-fixed` so columns actually resize (72–900px) |
 | 2026-08-04 | Automation Squad branding: favicon, apple icon, OG + Twitter cards via Next file conventions; `components/brand.tsx` in the sidebar, sign-in and `/stats` |

@@ -1,0 +1,28 @@
+# Cloudflare Email Worker for inbound reply ingestion.
+#
+#   wrangler deploy
+#   wrangler secret put CRM_INBOUND_URL      # https://<host>/api/inbound/reply
+#   wrangler secret put CRM_INBOUND_SECRET   # matches INBOUND_SECRET on the CRM
+#   wrangler secret put FORWARD_TO           # your Gmail, must be a verified
+#                                            # Email Routing destination
+#
+# Secrets are set with `wrangler secret put`, never listed in [vars] here —
+# this file is committed.
+#
+# After deploying, point the route at it:
+#   Cloudflare dashboard -> your domain -> Email -> Email Routing -> Routes
+#   Edit send@... : change the action to "Send to a Worker" and pick this one.
+
+name = "leads-crm-inbound"
+main = "email-worker.js"
+compatibility_date = "2026-01-01"
+
+# No [triggers] and no routes: an Email Worker is invoked by Email Routing, not
+# by HTTP. It has no public URL, which is one fewer thing exposed.
+#
+# workers_dev = false is what stops `wrangler deploy` asking you to register a
+# <name>.workers.dev subdomain. That prompt exists because Wrangler assumes a
+# Worker wants an HTTP address; this one does not, and giving it one would
+# publish a public endpoint that answers nothing while widening the surface for
+# no reason.
+workers_dev = false

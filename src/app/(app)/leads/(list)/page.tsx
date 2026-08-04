@@ -8,7 +8,10 @@ import {
   getLeads, getStatusFacets, isLeadView, isSortColumn,
   LEAD_VIEWS, type SortColumn,
 } from '@/lib/data/leads';
-import { LEAD_STATUSES, type LeadStatus } from '@/lib/supabase/database.types';
+import {
+  EMAIL_VERIFICATION_STATUSES, LEAD_STATUSES,
+  type EmailVerificationStatus, type LeadStatus,
+} from '@/lib/supabase/database.types';
 import { formatNumber } from '@/lib/utils';
 import { LeadsTable } from './leads-table';
 import { LeadsSyncActions } from './sync-actions';
@@ -24,6 +27,15 @@ function parseStatuses(raw: string | undefined): LeadStatus[] {
     .split(',')
     .map((s) => s.trim())
     .filter((s): s is LeadStatus => allowed.has(s));
+}
+
+function parseVerification(raw: string | undefined): EmailVerificationStatus[] {
+  if (!raw) return [];
+  const allowed = new Set<string>(EMAIL_VERIFICATION_STATUSES);
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s): s is EmailVerificationStatus => allowed.has(s));
 }
 
 export default async function LeadsPage({
@@ -49,6 +61,8 @@ export default async function LeadsPage({
   const viewParam = single('view');
   const view = viewParam && isLeadView(viewParam) ? viewParam : undefined;
 
+  const verification = parseVerification(single('verify'));
+
   const sortParam = single('sort') ?? 'created_at';
   const sort: SortColumn = isSortColumn(sortParam) ? sortParam : 'created_at';
   const direction = single('dir') === 'asc' ? 'asc' : 'desc';
@@ -60,7 +74,7 @@ export default async function LeadsPage({
   const pageSize = PAGE_SIZES.includes(sizeRaw) ? sizeRaw : 50;
 
   const [result, facets] = await Promise.all([
-    getLeads({ search, statuses, view, sort, direction, page, pageSize }),
+    getLeads({ search, statuses, view, verification, sort, direction, page, pageSize }),
     getStatusFacets(),
   ]);
 
@@ -108,6 +122,7 @@ export default async function LeadsPage({
           pageSize={pageSize}
           search={search}
           statuses={statuses}
+          verification={verification}
           sort={sort}
           direction={direction}
           facets={facets}

@@ -1,5 +1,10 @@
 import type { BadgeTone } from '@/components/ui/badge';
-import type { EmailType, PipelineNextStep, PipelineStage } from '@/lib/supabase/database.types';
+import type {
+  EmailType,
+  EmailVerificationStatus,
+  PipelineNextStep,
+  PipelineStage,
+} from '@/lib/supabase/database.types';
 
 /**
  * Presentation for the pipeline enums and ONLY presentation.
@@ -157,6 +162,37 @@ export const NEXT_STEP_META: Record<PipelineNextStep, NextStepMeta> = {
     hint: 'Nothing left to do.',
     tone: 'neutral',
     automatable: false,
+  },
+};
+
+export const VERIFICATION_META: Record<
+  EmailVerificationStatus,
+  { label: string; hint: string; tone: BadgeTone }
+> = {
+  unverified: {
+    label: 'Unverified',
+    hint: 'Never checked. Export it and run it through a verifier.',
+    tone: 'neutral',
+  },
+  valid: {
+    label: 'Verified',
+    hint: 'Deliverable. Either a verifier confirmed it or a real email was accepted.',
+    tone: 'success',
+  },
+  accept_all: {
+    label: 'Catch-all',
+    hint: 'The domain accepts every address, so the check proved nothing either way.',
+    tone: 'warning',
+  },
+  unknown: {
+    label: 'Unknown',
+    hint: 'The verifier could not decide. Worth re-running.',
+    tone: 'warning',
+  },
+  invalid: {
+    label: 'Dead',
+    hint: 'Proved undeliverable. This lead needs a new address.',
+    tone: 'danger',
   },
 };
 

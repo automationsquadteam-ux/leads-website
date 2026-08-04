@@ -6,9 +6,11 @@ import { getIntegrationConfig } from '@/lib/services/config';
 import { encryptionAvailable, listSecretStatus } from '@/lib/services/secrets';
 import { getLatestRuns, reapStaleRuns } from '@/lib/services/integration-runs';
 import type { LastRun } from '@/components/integrations/trigger-button';
+import { getVerificationCounts } from '@/lib/data/admin-dashboard';
 import { AutomationPanel } from './automation-panel';
 import { IntegrationsPanel } from './integrations-panel';
 import { SettingsForm } from './settings-form';
+import { VerificationPanel } from './verification-panel';
 
 export const metadata = { title: 'Settings' };
 
@@ -19,11 +21,12 @@ export default async function SettingsPage() {
   // "Running" forever.
   await reapStaleRuns();
 
-  const [{ rows, error }, config, secrets, latestRuns] = await Promise.all([
+  const [{ rows, error }, config, secrets, latestRuns, verification] = await Promise.all([
     getSettings(),
     getIntegrationConfig(),
     listSecretStatus(),
     getLatestRuns(),
+    getVerificationCounts(),
   ]);
 
   const lastRuns: Record<string, LastRun | null> = {};
@@ -60,6 +63,14 @@ export default async function SettingsPage() {
             secrets={secrets}
             lastRuns={lastRuns}
             encryptionReady={encryptionAvailable()}
+          />
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold">Email verification &amp; follow-ups</h2>
+          <VerificationPanel
+            counts={verification.counts}
+            sentWithoutFollowups={verification.sentWithoutFollowups}
           />
         </section>
 

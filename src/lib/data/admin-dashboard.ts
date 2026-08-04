@@ -171,14 +171,30 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
         .eq('draft_ready', false)
         .is('closed', null),
     ),
-    countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
-        .eq('approved', true)
-        .is('first_email_sent', null)
-        .is('closed', null),
-    ),
+    // Counts what the SENDER requires, not just the pipeline flag: an initial
+    // email also needs its active version approved. Counting the flag alone
+    // produced a card reading N while the sender skipped all N. See the
+    // ready_to_send view in lib/data/leads.ts.
+    (async () => {
+      const [{ data: approvedVersions }, { data: pipelineReady }] = await Promise.all([
+        supabase
+          .from('email_versions')
+          .select('lead_id')
+          .eq('type', 'initial')
+          .eq('active', true)
+          .eq('status', 'approved'),
+        supabase
+          .from('lead_pipeline')
+          .select('lead_id')
+          .eq('approved', true)
+          .is('first_email_sent', null)
+          .is('closed', null)
+          .limit(5000),
+      ]);
+
+      const withApprovedDraft = new Set((approvedVersions ?? []).map((v) => v.lead_id));
+      return (pipelineReady ?? []).filter((r) => withApprovedDraft.has(r.lead_id)).length;
+    })(),
     countOf(() =>
       supabase
         .from('lead_pipeline')
@@ -204,6 +220,61 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     invalidEmail,
     error: null,
   };
+}
+
+/**
+ * Verification counts, plus how many sent leads are still missing a follow-up
+ * draft. Feeds the Settings verification panel.
+ */
+export async function getVerificationCounts(): Promise<{
+  counts: Record<string, number>;
+  sentWithoutFollowups: number;
+}> {
+  const supabase = await createClient();
+
+  const statuses = ['unverified', 'valid', 'invalid', 'accept_all', 'unknown'] as const;
+  const counts: Record<string, number> = {};
+
+  await Promise.all(
+    statuses.map(async (status) => {
+      const { count } = await supabase
+        .from('lead_pipeline')
+        .select('*', { count: 'exact', head: true })
+        .eq('email_verification_status', status);
+      counts[status] = count ?? 0;
+    }),
+  );
+
+  // Leads that have been emailed and are still in play.
+  const { data: sent } = await supabase
+    .from('lead_pipeline')
+    .select('lead_id')
+    .not('first_email_sent', 'is', null)
+    .is('replied', null)
+    .is('closed', null)
+    .limit(5000);
+
+  const sentIds = (sent ?? []).map((row) => row.lead_id);
+  let sentWithoutFollowups = 0;
+
+  if (sentIds.length > 0) {
+    const { data: versions } = await supabase
+      .from('email_versions')
+      .select('lead_id, type')
+      .in('lead_id', sentIds)
+      .eq('active', true)
+      .in('type', ['followup1', 'followup2']);
+
+    const have = new Set((versions ?? []).map((row) => `${row.lead_id}:${row.type}`));
+    // Counts missing DRAFTS, not leads: a lead with neither follow-up is two
+    // pieces of work, and the button generates both.
+    for (const id of sentIds) {
+      if (!have.has(`${id}:followup1`)) sentWithoutFollowups += 1;
+      if (!have.has(`${id}:followup2`)) sentWithoutFollowups += 1;
+    }
+  }
+
+  return { counts, sentWithoutFollowups };
 }
 
 export interface ActivityRow extends LeadActivity {

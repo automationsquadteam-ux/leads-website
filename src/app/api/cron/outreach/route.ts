@@ -28,6 +28,18 @@ import { finishRun, startRun } from '@/lib/services/integration-runs';
 // Sending email is not a cacheable GET.
 export const dynamic = 'force-dynamic';
 
+/**
+ * The run sleeps between sends to honour `sending.min_gap_seconds`, so it needs
+ * longer than the default function timeout. Vercel clamps this to what the plan
+ * allows (Hobby 60s, Pro 300s) rather than erroring, so asking for 300 is safe
+ * either way.
+ *
+ * Keep `outreach.max_runtime_seconds` BELOW whatever the plan grants: the run
+ * stops itself cleanly at that budget, whereas the platform killing it does so
+ * mid-flight.
+ */
+export const maxDuration = 300;
+
 function isAuthorized(request: NextRequest): boolean {
   const expected = getCronSecret();
   if (!expected) return false;

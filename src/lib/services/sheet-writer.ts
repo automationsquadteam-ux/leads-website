@@ -99,21 +99,28 @@ const WRITEBACK_COLUMNS: WritebackColumn[] = [
       return draft && draft.trim() !== '' ? 'Yes' : undefined;
     },
   },
-  {
-    key: 'email_draft_status',
-    headers: ['email draft status'],
-    value: (s) => {
-      const draft = s.activeDrafts.initial?.content ?? s.lead.draft_email;
-      if (!draft || draft.trim() === '') return undefined;
-      return s.pipeline?.approved ? 'Approved' : 'Drafted';
-    },
-  },
+  // "Email draft Status" was removed from the sheet on 2026-08-04 and its
+  // mapping is gone from both directions. Nothing read it: whether a draft
+  // exists is answered by the draft itself.
   {
     key: 'email_sent_status',
     headers: ['email sent status', 'email status'],
     value: (s) => (s.pipeline?.first_email_sent ? 'Yes' : undefined),
   },
   {
+    /*
+     * Date Sent is the anchor the whole follow-up schedule hangs off.
+     *
+     * For emails the upstream pipeline sent, this column is the ONLY record of
+     * when it happened — there is no email_logs row — and the sync reads it
+     * back into leads.last_contacted_at, which sets first_email_sent and
+     * therefore followup1_due. Writing it on every send keeps the sheet and the
+     * schedule describing the same day.
+     *
+     * Date only, not a full timestamp: the importer's normalizer handles
+     * YYYY-MM-DD, Excel serials and DD-MM-YYYY, so this round-trips cleanly.
+     * An ISO timestamp would not.
+     */
     key: 'date_sent',
     headers: ['date sent'],
     value: (s) => (s.pipeline?.first_email_sent ? s.pipeline.first_email_sent.slice(0, 10) : undefined),

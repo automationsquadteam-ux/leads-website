@@ -48,6 +48,8 @@ export interface IntegrationConfig {
     requireVerifiedEmail: boolean;
     followupRequiresApproval: boolean;
     maxSendsPerRun: number;
+    /** Wall-clock ceiling for one scheduled run, including gap waits. */
+    maxRuntimeSeconds: number;
   };
   sending: {
     /** Global kill switch. Nothing leaves the system while this is true. */
@@ -121,6 +123,9 @@ export async function getIntegrationConfig(): Promise<IntegrationConfig> {
       requireVerifiedEmail: asBoolean(get('outreach.require_verified_email'), true),
       followupRequiresApproval: asBoolean(get('outreach.followup_requires_approval'), false),
       maxSendsPerRun: asNumber(get('outreach.max_sends_per_run'), 25),
+      // 50s keeps a Vercel Hobby function (killed at 60s) safely inside its
+      // limit. Raise it towards 280 on Pro to fit more gap waits per run.
+      maxRuntimeSeconds: asNumber(get('outreach.max_runtime_seconds'), 50),
     },
     sending: {
       paused: asBoolean(get('sending.paused'), false),

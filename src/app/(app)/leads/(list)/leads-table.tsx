@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Users, ExternalLink, Archive, CheckCircle2, Ban } from 'lucide-react';
+import { Users, ExternalLink, Archive, CheckCircle2, Ban, Download } from 'lucide-react';
 
 import { DataTable, type Column } from '@/components/data-table';
 import { SearchBar } from '@/components/search-bar';
@@ -11,14 +11,20 @@ import { FilterPanel, ActiveFilters } from '@/components/filter-panel';
 import { Pagination } from '@/components/pagination';
 import { EmptyState } from '@/components/empty-state';
 import { StatusBadge } from '@/components/status-badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import { NextStepBadge, StageBadge } from '@/components/pipeline-badge';
 import { bulkSetStatus } from '@/lib/actions/leads';
+import { VERIFICATION_META } from '@/lib/pipeline/labels';
 import type { LeadRow } from '@/lib/data/leads';
-import type { LeadStatus } from '@/lib/supabase/database.types';
-import { displayUrl, formatDate, formatNumber } from '@/lib/utils';
+import {
+  EMAIL_VERIFICATION_STATUSES,
+  type EmailVerificationStatus,
+  type LeadStatus,
+} from '@/lib/supabase/database.types';
+import { cn, displayUrl, formatDate, formatNumber } from '@/lib/utils';
 
 interface Props {
   rows: LeadRow[];
@@ -27,6 +33,7 @@ interface Props {
   pageSize: number;
   search: string;
   statuses: LeadStatus[];
+  verification: EmailVerificationStatus[];
   sort: string;
   direction: 'asc' | 'desc';
   facets: Record<string, number>;
@@ -42,7 +49,7 @@ const DASH = '—';
  * cache to invalidate.
  */
 export function LeadsTable({
-  rows, total, page, pageSize, search, statuses, sort, direction, facets,
+  rows, total, page, pageSize, search, statuses, verification, sort, direction, facets,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -114,6 +121,20 @@ export function LeadsTable({
           ) : (
             <span className="text-muted-foreground">{DASH}</span>
           ),
+      },
+      {
+        key: 'verification',
+        header: 'Verified',
+        width: 120,
+        render: (lead) => {
+          if (!lead.verification) return <span className="text-muted-foreground">{DASH}</span>;
+          const meta = VERIFICATION_META[lead.verification];
+          return (
+            <Badge tone={meta.tone} title={meta.hint}>
+              {meta.label}
+            </Badge>
+          );
+        },
       },
       {
         key: 'phone',
@@ -210,6 +231,55 @@ export function LeadsTable({
           facets={facets}
           onChange={(next) => update({ status: next.length > 0 ? next.join(',') : null })}
         />
+
+        {/*
+          Verification is its own filter rather than another status chip: it
+          answers a different question ("can I email this?") and is the one you
+          reach for before a send run.
+        */}
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by email verification">
+          {EMAIL_VERIFICATION_STATUSES.map((status) => {
+            const active = verification.includes(status);
+            return (
+              <button
+                key={status}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  const next = active
+                    ? verification.filter((v) => v !== status)
+                    : [...verification, status];
+                  update({ verify: next.length > 0 ? next.join(',') : null });
+                }}
+                className={cn(
+                  'cursor-pointer rounded-md border px-2 py-1 text-xs font-medium transition-colors',
+                  active
+                    ? 'border-primary bg-primary-subtle text-primary'
+                    : 'border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground',
+                )}
+                title={VERIFICATION_META[status].hint}
+              >
+                {VERIFICATION_META[status].label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex-1" />
+
+        {/*
+          Export is a plain link, not a fetch. The browser's own download
+          handling is more reliable than reconstructing a Blob, and it works
+          with the filters already in the URL.
+        */}
+        <a
+          href="/api/admin/emails/unverified.csv"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-surface-hover"
+          title="Download every address with no definite verdict, ready for NeverBounce"
+        >
+          <Download className="size-3.5" aria-hidden="true" />
+          Export unverified
+        </a>
       </div>
 
       <ActiveFilters

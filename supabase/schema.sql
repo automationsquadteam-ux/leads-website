@@ -1,21 +1,6 @@
--- ===========================================================================
--- Leads CRM complete schema for a fresh Supabase project.
---
--- GENERATED FILE. Do not hand-edit: it is every migration in
--- supabase/migrations/ concatenated in filename order. Add a migration, then
--- regenerate this file.
---
--- For an EXISTING database, apply the incremental bundles instead:
---   schema-update-2-integrations.sql                   0009 + 0010
---   schema-update-3-remove-n8n.sql                     0011
---   schema-update-4-review-workflow.sql                0012 + 0013 + 0014
---   schema-update-5-verification-and-public-leads.sql  0015
--- ===========================================================================
+-- GENERATED: every migration in filename order. Regenerate after adding one.
 
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803090000_init_enums_and_helpers.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803090000_init_enums_and_helpers.sql
 -- ---------------------------------------------------------------------------
 -- 0001 Extensions, enums and shared helper functions.
 --
@@ -108,11 +93,7 @@ $$;
 comment on function public.set_updated_at() is
   'BEFORE UPDATE trigger function: stamps updated_at with the server clock.';
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803090100_profiles.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803090100_profiles.sql
 -- ---------------------------------------------------------------------------
 -- 0002 profiles + the role helpers every RLS policy is built on.
 -- ---------------------------------------------------------------------------
@@ -261,11 +242,7 @@ create trigger profiles_prevent_role_escalation
   before update on public.profiles
   for each row execute function public.prevent_role_escalation();
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803090200_leads.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803090200_leads.sql
 -- ---------------------------------------------------------------------------
 -- 0003 leads
 --
@@ -382,11 +359,7 @@ create trigger leads_set_updated_at
   before update on public.leads
   for each row execute function public.set_updated_at();
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803090300_templates_and_campaigns.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803090300_templates_and_campaigns.sql
 -- ---------------------------------------------------------------------------
 -- 0004 templates, campaigns, and the lead -> campaign link.
 -- ---------------------------------------------------------------------------
@@ -459,11 +432,7 @@ alter table public.leads
 
 create index if not exists leads_campaign_id_idx on public.leads (campaign_id);
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803090400_email_logs_and_replies.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803090400_email_logs_and_replies.sql
 -- ---------------------------------------------------------------------------
 -- 0005 email_logs and replies (the append-only side of the system).
 -- ---------------------------------------------------------------------------
@@ -529,11 +498,7 @@ create index if not exists replies_received_at_idx on public.replies (received_a
 create index if not exists replies_sentiment_idx   on public.replies (sentiment);
 create index if not exists replies_unhandled_idx   on public.replies (received_at desc) where not is_handled;
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803090500_settings.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803090500_settings.sql
 -- ---------------------------------------------------------------------------
 -- 0006 settings
 --
@@ -617,11 +582,7 @@ insert into public.settings (key, value, description, is_sensitive) values
    'Active delivery provider: smtp | resend | sendgrid.', false)
 on conflict (key) do nothing;
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803090600_dashboard_views.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803090600_dashboard_views.sql
 -- ---------------------------------------------------------------------------
 -- 0007 Dashboard views (the viewer role's ONLY window onto the data).
 --
@@ -861,11 +822,7 @@ begin
 end
 $$;
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803090700_rls_policies.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803090700_rls_policies.sql
 -- ---------------------------------------------------------------------------
 -- 0008 Row Level Security.
 --
@@ -995,11 +952,7 @@ $$;
 comment on table public.leads is
   'Cold-outreach prospects. RLS: admin-only. Viewers read public.dashboard_* views.';
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803100000_restrict_viewer_dashboards.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803100000_restrict_viewer_dashboards.sql
 -- ---------------------------------------------------------------------------
 -- 0009 Restrict the dashboard views to admins.
 --
@@ -1185,11 +1138,7 @@ where public.is_admin();
 comment on view public.dashboard_overview is
   'Admin-only KPI counters. Viewer-facing views will be added separately when their scope is defined.';
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803100100_integrations.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803100100_integrations.sql
 -- ---------------------------------------------------------------------------
 -- 0010 Integration plumbing: n8n, Google Sheets ingestion, email providers.
 --
@@ -1353,11 +1302,7 @@ insert into public.settings (key, value, description, is_sensitive) values
    'Default recipient for Send Test Email.', false)
 on conflict (key) do nothing;
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803110000_remove_n8n_add_sheet_writeback.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803110000_remove_n8n_add_sheet_writeback.sql
 -- ---------------------------------------------------------------------------
 -- 0011 Drop the n8n integration; add Google Sheets write-back.
 --
@@ -1398,11 +1343,7 @@ insert into public.settings (key, value, description, is_sensitive) values
    false)
 on conflict (key) do nothing;
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803120000_review_pipeline_and_versions.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803120000_review_pipeline_and_versions.sql
 -- ---------------------------------------------------------------------------
 -- 0012 Admin review workflow: email versioning, outreach lifecycle, activity.
 --
@@ -2194,11 +2135,7 @@ select
 from public.leads l
 on conflict (lead_id) do nothing;
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803120100_public_stats_views.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803120100_public_stats_views.sql
 -- ---------------------------------------------------------------------------
 -- 0013 Public statistics: the ONLY objects in this schema readable by anon.
 --
@@ -2425,11 +2362,7 @@ begin
 end
 $$;
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260803120200_analytics_views.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260803120200_analytics_views.sql
 -- ---------------------------------------------------------------------------
 -- 0014 Admin analytics views.
 --
@@ -2718,11 +2651,7 @@ begin
 end
 $$;
 
-
--- ---------------------------------------------------------------------------
--- source: supabase/migrations/20260804120000_verification_versions_and_public_leads.sql
--- ---------------------------------------------------------------------------
-
+-- --- source: supabase/migrations/20260804120000_verification_versions_and_public_leads.sql
 -- ---------------------------------------------------------------------------
 -- 0015 Email verification, draft-version repair, and opt-in public leads.
 --
@@ -3107,4 +3036,642 @@ update public.lead_pipeline p
 -- Force every row through set_pipeline_stage() so current_stage reflects the
 -- new rules and the backfilled timestamps.
 update public.lead_pipeline set updated_at = updated_at;
+
+-- --- source: supabase/migrations/20260804140000_inbound_messages.sql
+-- ---------------------------------------------------------------------------
+-- 0016 — Inbound mail: staging, matching, and the auto-reply trigger fix.
+--
+-- Two things here.
+--
+-- FIRST, a latent bug that would have bitten the moment inbound mail started
+-- arriving. sync_pipeline_from_reply() sets lead_pipeline.replied on ANY row
+-- inserted into public.replies. Out-of-office notices are the single most
+-- common thing that comes back from cold outreach, so ingesting them as replies
+-- would mark those leads as having answered and permanently stop their
+-- follow-up sequence. The trigger now ignores 'auto_reply'.
+--
+-- SECOND, public.inbound_messages: everything that arrives, whether or not we
+-- can attribute it.
+--
+-- Why a staging table instead of relaxing replies.lead_id to nullable:
+--
+--   * public.replies drives lead_pipeline.replied, reply rate, average response
+--     time and follow-up conversion. It has to mean "a real person at a known
+--     lead answered us". Bounces and autoresponders in there would corrupt
+--     every one of those figures.
+--   * An unattributable message still needs to be seen, kept and assignable by
+--     hand. That is a different lifecycle from a reply and deserves its own row.
+--
+-- So: inbound_messages is the log of what arrived; public.replies stays the
+-- record of genuine replies, created when a message is matched.
+-- ---------------------------------------------------------------------------
+
+-- What kind of thing arrived. Decided by the classifier, not by the sender.
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'inbound_kind') then
+    create type public.inbound_kind as enum (
+      'reply',       -- a human answering
+      'auto_reply',  -- out of office, ticket autoresponder
+      'bounce',      -- delivery status notification
+      'other'        -- unrelated mail that reached the address
+    );
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'inbound_match_status') then
+    create type public.inbound_match_status as enum (
+      'matched',    -- attributed to a lead
+      'unmatched',  -- arrived, nobody knows whose it is
+      'ignored'     -- deliberately set aside
+    );
+  end if;
+end
+$$;
+
+-- How the attribution was made. Worth recording: if From-address matching turns
+-- out to be producing wrong answers, this is the column that proves it.
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'inbound_match_method') then
+    create type public.inbound_match_method as enum (
+      'threading',     -- In-Reply-To / References hit an email_logs.message_id
+      'from_address',  -- sender's address matched leads.email
+      'manual'         -- an admin picked the lead
+    );
+  end if;
+end
+$$;
+
+create table if not exists public.inbound_messages (
+  id uuid primary key default gen_random_uuid(),
+
+  -- Envelope and headers -----------------------------------------------------
+  from_address text not null,
+  from_name    text,
+  to_address   text,
+  subject      text,
+  body_text    text,
+
+  -- Threading. message_id is the sender's own Message-ID; in_reply_to and
+  -- references_header are what let us attribute this to something we sent.
+  message_id        text,
+  in_reply_to       text,
+  references_header text,
+
+  received_at timestamptz not null default now(),
+
+  -- Classification and attribution -------------------------------------------
+  kind         public.inbound_kind not null default 'other',
+  match_status public.inbound_match_status not null default 'unmatched',
+  match_method public.inbound_match_method,
+
+  lead_id      uuid references public.leads (id) on delete set null,
+  email_log_id uuid references public.email_logs (id) on delete set null,
+  -- The reply row this produced, when it produced one.
+  reply_id     uuid references public.replies (id) on delete set null,
+
+  sentiment  public.reply_sentiment,
+  confidence numeric(4, 3),
+
+  matched_at      timestamptz,
+  matched_by      uuid references auth.users (id) on delete set null,
+  is_handled      boolean not null default false,
+
+  created_at timestamptz not null default now(),
+
+  constraint inbound_messages_from_not_blank check (length(btrim(from_address)) > 0),
+  constraint inbound_messages_confidence_range
+    check (confidence is null or confidence between 0 and 1)
+);
+
+comment on table public.inbound_messages is
+  'Everything that arrives at the outreach address. public.replies holds only the genuine, attributed ones.';
+
+-- Idempotency. The Worker will retry on any non-2xx, and a duplicate POST must
+-- not create a second row or a second reply. Partial because a message with no
+-- Message-ID header is malformed but should still be stored.
+create unique index if not exists inbound_messages_message_id_key
+  on public.inbound_messages (message_id)
+  where message_id is not null;
+
+create index if not exists inbound_messages_received_idx on public.inbound_messages (received_at desc);
+create index if not exists inbound_messages_lead_idx     on public.inbound_messages (lead_id);
+create index if not exists inbound_messages_unmatched_idx
+  on public.inbound_messages (received_at desc)
+  where match_status = 'unmatched';
+
+alter table public.inbound_messages enable row level security;
+
+revoke all on public.inbound_messages from anon;
+grant select, insert, update, delete on public.inbound_messages to authenticated;
+
+drop policy if exists inbound_messages_select_admin on public.inbound_messages;
+drop policy if exists inbound_messages_insert_admin on public.inbound_messages;
+drop policy if exists inbound_messages_update_admin on public.inbound_messages;
+drop policy if exists inbound_messages_delete_admin on public.inbound_messages;
+
+create policy inbound_messages_select_admin on public.inbound_messages
+  for select to authenticated using (public.is_admin());
+create policy inbound_messages_insert_admin on public.inbound_messages
+  for insert to authenticated with check (public.is_admin());
+create policy inbound_messages_update_admin on public.inbound_messages
+  for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy inbound_messages_delete_admin on public.inbound_messages
+  for delete to authenticated using (public.is_admin());
+
+-- ---------------------------------------------------------------------------
+-- THE TRIGGER FIX.
+--
+-- An out-of-office is not an answer. Marking the lead as replied would stop the
+-- sequence for someone who has not read a word, and every rate that counts
+-- replies would include a robot.
+--
+-- Under the design above an auto-reply never reaches public.replies at all, so
+-- this is belt and braces — but the trigger is what enforces it, and a rule
+-- enforced only by the code that happens to call it is not enforced.
+-- ---------------------------------------------------------------------------
+create or replace function public.sync_pipeline_from_reply()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if new.sentiment = 'auto_reply' then
+    return null;
+  end if;
+
+  insert into public.lead_pipeline as p (lead_id, replied)
+  values (new.lead_id, new.received_at)
+  on conflict (lead_id) do update
+    -- Keep the FIRST reply's timestamp; a later message does not reset it.
+    set replied = coalesce(p.replied, excluded.replied);
+  return null;
+end;
+$$;
+
+comment on function public.sync_pipeline_from_reply() is
+  'Marks the lead as replied. Ignores auto_reply: an out-of-office must not stop a follow-up sequence.';
+
+-- ---------------------------------------------------------------------------
+-- Undo the damage if any auto-replies were already recorded.
+--
+-- Clears lead_pipeline.replied for leads whose ONLY replies are automatic. A
+-- lead with both a real reply and an autoresponder keeps its replied stamp.
+-- ---------------------------------------------------------------------------
+update public.lead_pipeline p
+   set replied = null
+ where p.replied is not null
+   and exists (
+     select 1 from public.replies r where r.lead_id = p.lead_id and r.sentiment = 'auto_reply'
+   )
+   and not exists (
+     select 1 from public.replies r
+      where r.lead_id = p.lead_id
+        and (r.sentiment is distinct from 'auto_reply')
+   );
+
+-- ---------------------------------------------------------------------------
+-- Admin-facing view: an inbound message plus the lead it belongs to.
+--
+-- Columns listed explicitly, never p.* — a view built with * captures its
+-- column list at creation and silently goes stale after an ALTER TABLE.
+-- ---------------------------------------------------------------------------
+create or replace view public.inbound_inbox
+with (security_invoker = false) as
+select
+  m.id,
+  m.from_address,
+  m.from_name,
+  m.subject,
+  m.body_text,
+  m.received_at,
+  m.kind,
+  m.match_status,
+  m.match_method,
+  m.sentiment,
+  m.is_handled,
+  m.lead_id,
+  m.reply_id,
+  l.business_name,
+  l.city,
+  l.country
+from public.inbound_messages m
+left join public.leads l on l.id = m.lead_id
+where public.is_admin();
+
+comment on view public.inbound_inbox is
+  'Admin-only. Inbound mail joined to its lead. Contains sender addresses and message bodies — never grant to anon.';
+
+revoke all on public.inbound_inbox from anon;
+grant select on public.inbound_inbox to authenticated;
+
+-- --- source: supabase/migrations/20260804160000_verify_on_send_and_board.sql
+-- ---------------------------------------------------------------------------
+-- 0017 — A delivered email verifies the address; expose that on the board.
+--
+-- Three parts.
+--
+-- 1. A successful send is evidence. The relay accepted the address and no
+--    bounce came back, which is stronger proof than any verifier offers,
+--    because it is a real delivery rather than a probe. Those leads are now
+--    marked verified automatically.
+--
+--    The self-correcting half matters: migration 0016 makes a hard bounce set
+--    'invalid'. So "accepted, therefore valid" is a claim the system revises
+--    the moment reality disagrees, which is what makes it safe to assert.
+--
+--    An existing 'invalid' is never overwritten. A verifier that says the
+--    address is dead outranks a relay that merely agreed to try.
+--
+-- 2. Backfill the leads already sent to.
+--
+-- 3. pipeline_board gains the verification columns so the leads list can show
+--    and filter on them. Appended at the END of the view — CREATE OR REPLACE
+--    can only append, and inserting mid-list raises 42P16.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 1. Verify on a successful send.
+-- ---------------------------------------------------------------------------
+create or replace function public.sync_pipeline_from_email_log()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  sent_at timestamptz := coalesce(new.sent_at, now());
+  d1 integer := public.setting_int('outreach.followup1_delay_days', 7);
+  d2 integer := public.setting_int('outreach.followup2_delay_days', 3);
+begin
+  if new.status not in ('sent', 'delivered', 'opened', 'clicked') then
+    return null;
+  end if;
+
+  insert into public.lead_pipeline (lead_id) values (new.lead_id)
+  on conflict (lead_id) do nothing;
+
+  if new.email_type = 'initial' then
+    update public.lead_pipeline
+       set first_email_sent = coalesce(first_email_sent, sent_at),
+           followup1_due    = coalesce(followup1_due, sent_at + make_interval(days => d1))
+     where lead_id = new.lead_id;
+
+  elsif new.email_type = 'followup1' then
+    update public.lead_pipeline
+       set followup1_sent = coalesce(followup1_sent, sent_at),
+           followup2_due  = coalesce(followup2_due, sent_at + make_interval(days => d2))
+     where lead_id = new.lead_id;
+
+  elsif new.email_type = 'followup2' then
+    update public.lead_pipeline
+       set followup2_sent = coalesce(followup2_sent, sent_at)
+     where lead_id = new.lead_id;
+  end if;
+
+  -- The address accepted a real message. Upgrade unverified / unknown /
+  -- accept_all, but never contradict a verifier that returned 'invalid'.
+  update public.lead_pipeline
+     set email_verification_status = 'valid',
+         email_verification_source = 'delivered',
+         email_checked_at          = coalesce(email_checked_at, sent_at)
+   where lead_id = new.lead_id
+     and email_verification_status <> 'invalid'
+     and email_verification_status <> 'valid';
+
+  return null;
+end;
+$$;
+
+comment on function public.sync_pipeline_from_email_log() is
+  'Advances the sequence on a recorded send and treats acceptance as proof the address works. A later hard bounce (0016) revises that to invalid.';
+
+-- ---------------------------------------------------------------------------
+-- 2. Backfill: everything already sent to counts as verified.
+--
+-- Covers sends made upstream too, since those land on
+-- lead_pipeline.first_email_sent rather than in email_logs.
+-- ---------------------------------------------------------------------------
+update public.lead_pipeline p
+   set email_verification_status = 'valid',
+       email_verification_source = 'delivered',
+       email_checked_at          = coalesce(p.email_checked_at, p.first_email_sent, now())
+ where p.first_email_sent is not null
+   and p.email_verification_status not in ('valid', 'invalid');
+
+-- A recorded bounce is the opposite evidence; make sure it wins regardless of
+-- the order these migrations ran in.
+update public.lead_pipeline p
+   set email_verification_status = 'invalid',
+       email_verification_source = coalesce(p.email_verification_source, 'bounce')
+  from public.leads l
+ where l.id = p.lead_id
+   and l.status = 'bounced'
+   and p.email_verification_status <> 'invalid';
+
+-- ---------------------------------------------------------------------------
+-- 3. pipeline_board: append the verification columns.
+--
+-- Columns are listed explicitly, never p.* — a view built with * captures its
+-- column list at creation time and silently goes stale after an ALTER TABLE.
+-- ---------------------------------------------------------------------------
+create or replace view public.pipeline_board
+with (security_invoker = false) as
+select
+  p.lead_id,
+  l.business_name,
+  l.email,
+  l.city,
+  l.country,
+  l.niche,
+  l.status                       as lead_status,
+  l.campaign_id,
+  p.current_stage,
+  public.compute_next_step(p)    as next_step,
+  p.email_found,
+  p.email_verified,
+  p.research_complete,
+  p.draft_ready,
+  p.approved,
+  p.approved_at,
+  p.draft_ready_at,
+  p.first_email_sent,
+  p.followup1_due,
+  p.followup1_sent,
+  p.followup2_due,
+  p.followup2_sent,
+  p.replied,
+  p.closed,
+  p.closed_reason,
+  p.auto_followups,
+  p.updated_at,
+  -- Appended. Anything new goes here, at the end, for the reason in the header.
+  p.email_verification_status,
+  p.email_verification_source,
+  p.email_checked_at
+from public.lead_pipeline p
+join public.leads l on l.id = p.lead_id
+where public.is_admin();
+
+comment on view public.pipeline_board is
+  'Admin-only pipeline rows with the derived next_step and verification state. Contains contact data — never grant to anon.';
+
+-- --- source: supabase/migrations/20260804180000_schedule_followups_for_backfilled_sends.sql
+-- ---------------------------------------------------------------------------
+-- 0018 — Two faults that between them meant the sender could never send.
+--
+-- FAULT 1: sends recorded from the sheet never scheduled a follow-up.
+--
+--   followup1_due is set by the email_logs trigger. The 58 leads sent by the
+--   upstream n8n pipeline have no email_logs rows at all — migration 0015 wrote
+--   first_email_sent directly — so their followup1_due stayed NULL.
+--
+--   compute_next_step() then reads "sent, but no due date" as await_followup1,
+--   forever. The scheduler looks for `followup1_due <= now()` and finds
+--   nothing. Those leads would have sat in Awaiting Follow-up 1 permanently
+--   while the cron ran happily every hour reporting nothing to do.
+--
+-- FAULT 2: two different definitions of "approved".
+--
+--   lead_pipeline.approved comes from leads.status via sync_pipeline_from_lead.
+--   The scheduler, before sending an initial email, instead requires the ACTIVE
+--   email_versions row to have status = 'approved'.
+--
+--   Those can disagree, and they did: 58 leads had pipeline.approved = true
+--   while 0 active initial versions were approved. The dashboard would have
+--   said "Ready to Send: N" and the sender would have skipped every one of them
+--   with "waiting for approval".
+--
+--   Approving must set both. Fixed here for existing rows, and in
+--   lib/actions/leads.ts for the bulk-approve path that only set the status.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- FAULT 1a — a sheet-reported send now schedules follow-up 1 as well.
+-- ---------------------------------------------------------------------------
+create or replace function public.sync_pipeline_from_lead()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  has_email    boolean := new.email is not null and length(btrim(new.email)) > 0;
+  has_research boolean := new.research_summary is not null and length(btrim(new.research_summary)) > 0;
+  has_draft    boolean := new.draft_email is not null and length(btrim(new.draft_email)) > 0;
+  is_approved  boolean := new.status in ('approved', 'sending', 'sent', 'replied');
+  was_sent     boolean := new.status in ('sent', 'replied');
+  sent_at      timestamptz := coalesce(new.last_contacted_at, new.imported_at, now());
+  d1           integer := public.setting_int('outreach.followup1_delay_days', 7);
+begin
+  insert into public.lead_pipeline as p (
+    lead_id, email_found, research_complete, draft_ready, approved,
+    first_email_sent, followup1_due
+  )
+  values (
+    new.id, has_email, has_research, has_draft, is_approved,
+    case when was_sent then sent_at else null end,
+    -- Without this the lead reaches 'initial_sent' with no due date, and
+    -- compute_next_step() parks it on await_followup1 for good.
+    case when was_sent then sent_at + make_interval(days => d1) else null end
+  )
+  on conflict (lead_id) do update
+    set email_found       = p.email_found       or excluded.email_found,
+        research_complete = p.research_complete or excluded.research_complete,
+        draft_ready       = p.draft_ready       or excluded.draft_ready,
+        approved          = p.approved          or excluded.approved,
+        first_email_sent  = coalesce(p.first_email_sent, excluded.first_email_sent),
+        followup1_due     = coalesce(p.followup1_due, excluded.followup1_due);
+
+  return null;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- FAULT 1b — backfill the leads already stuck.
+--
+-- Dated from the send, not from now(), so a lead sent three weeks ago is
+-- immediately due rather than waiting another week from today.
+-- ---------------------------------------------------------------------------
+update public.lead_pipeline p
+   set followup1_due = p.first_email_sent
+                       + make_interval(days => public.setting_int('outreach.followup1_delay_days', 7))
+ where p.first_email_sent is not null
+   and p.followup1_due is null
+   and p.followup1_sent is null
+   and p.replied is null
+   and p.closed is null;
+
+-- Same for the second step, where the first has gone but nothing scheduled the
+-- second.
+update public.lead_pipeline p
+   set followup2_due = p.followup1_sent
+                       + make_interval(days => public.setting_int('outreach.followup2_delay_days', 3))
+ where p.followup1_sent is not null
+   and p.followup2_due is null
+   and p.followup2_sent is null
+   and p.replied is null
+   and p.closed is null;
+
+-- ---------------------------------------------------------------------------
+-- FAULT 2 — make the two definitions of "approved" agree.
+--
+-- Only for leads already sent: the message went out, so it was approved
+-- upstream whatever this database recorded. Drafts still awaiting review are
+-- left strictly alone — auto-approving 270 unreviewed drafts because a status
+-- column implied it would be exactly the accident this system exists to
+-- prevent.
+-- ---------------------------------------------------------------------------
+update public.email_versions v
+   set status = 'approved'
+  from public.lead_pipeline p
+ where p.lead_id = v.lead_id
+   and v.type = 'initial'
+   and v.active
+   and v.status = 'draft'
+   and p.first_email_sent is not null;
+
+comment on function public.sync_pipeline_from_lead() is
+  'Projects lead columns onto the pipeline. A sheet-reported send also schedules follow-up 1, otherwise the lead parks on await_followup1 forever.';
+
+-- --- source: supabase/migrations/20260804200000_sheet_date_sent_is_authoritative.sql
+-- ---------------------------------------------------------------------------
+-- 0019 — The sheet's "Date Sent" is authoritative for upstream sends.
+--
+-- Migration 0015 backfilled first_email_sent from imported_at, because the
+-- sheet's Date Sent column was empty at the time. It has since been filled in
+-- with the real dates, but the sync could not use them: the ON CONFLICT clause
+-- in sync_pipeline_from_lead() used
+--
+--     first_email_sent = coalesce(p.first_email_sent, excluded.first_email_sent)
+--
+-- which never overwrites. So the schedule stayed anchored to the import date,
+-- and every follow-up would have fired a week after we happened to import the
+-- lead rather than a week after the prospect was actually emailed.
+--
+-- The rule this establishes:
+--
+--   * A send THIS CRM made (an email_logs row with a sent_at) is authoritative.
+--     Nothing from the sheet may move it.
+--   * Otherwise the sheet's Date Sent wins, because for upstream sends it is
+--     the only record that exists.
+--
+-- followup1_due is re-derived alongside it, or correcting the send date would
+-- leave the schedule pointing at the old one.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.sync_pipeline_from_lead()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  has_email    boolean := new.email is not null and length(btrim(new.email)) > 0;
+  has_research boolean := new.research_summary is not null and length(btrim(new.research_summary)) > 0;
+  has_draft    boolean := new.draft_email is not null and length(btrim(new.draft_email)) > 0;
+  is_approved  boolean := new.status in ('approved', 'sending', 'sent', 'replied');
+  was_sent     boolean := new.status in ('sent', 'replied');
+  d1           integer := public.setting_int('outreach.followup1_delay_days', 7);
+
+  -- The sheet's Date Sent, when it has one.
+  sheet_sent   timestamptz := new.last_contacted_at;
+
+  -- Used when inserting a fresh row: a date is better than nothing, and
+  -- imported_at at least bounds when the send must have happened.
+  assumed_sent timestamptz := coalesce(new.last_contacted_at, new.imported_at, now());
+
+  -- Did WE send this? If so the sheet does not get to move the date.
+  crm_sent boolean := exists (
+    select 1 from public.email_logs el
+     where el.lead_id = new.id and el.sent_at is not null
+  );
+
+  -- Only then may the sheet overwrite an existing value.
+  sheet_wins boolean := was_sent and sheet_sent is not null and not crm_sent;
+begin
+  insert into public.lead_pipeline as p (
+    lead_id, email_found, research_complete, draft_ready, approved,
+    first_email_sent, followup1_due
+  )
+  values (
+    new.id, has_email, has_research, has_draft, is_approved,
+    case when was_sent then assumed_sent else null end,
+    case when was_sent then assumed_sent + make_interval(days => d1) else null end
+  )
+  on conflict (lead_id) do update
+    set email_found       = p.email_found       or excluded.email_found,
+        research_complete = p.research_complete or excluded.research_complete,
+        draft_ready       = p.draft_ready       or excluded.draft_ready,
+        approved          = p.approved          or excluded.approved,
+
+        first_email_sent =
+          case when sheet_wins then sheet_sent
+               else coalesce(p.first_email_sent, excluded.first_email_sent) end,
+
+        -- Re-derived from whichever date won, and never moved once the
+        -- follow-up has actually gone out.
+        followup1_due =
+          case when sheet_wins and p.followup1_sent is null
+               then sheet_sent + make_interval(days => d1)
+               else coalesce(p.followup1_due, excluded.followup1_due) end;
+
+  return null;
+end;
+$$;
+
+comment on function public.sync_pipeline_from_lead() is
+  'Projects lead columns onto the pipeline. The sheet Date Sent is authoritative for upstream sends; a send this CRM recorded is never overwritten.';
+
+-- ---------------------------------------------------------------------------
+-- Re-anchor the leads already carrying a guessed date.
+--
+-- Only where the CRM has no send of its own, and only where the sheet actually
+-- disagrees, so this is a no-op on a second run.
+-- ---------------------------------------------------------------------------
+update public.lead_pipeline p
+   set first_email_sent = l.last_contacted_at,
+       followup1_due = case
+         when p.followup1_sent is null
+         then l.last_contacted_at
+              + make_interval(days => public.setting_int('outreach.followup1_delay_days', 7))
+         else p.followup1_due
+       end
+  from public.leads l
+ where l.id = p.lead_id
+   and l.last_contacted_at is not null
+   and p.first_email_sent is distinct from l.last_contacted_at
+   and not exists (
+     select 1 from public.email_logs el
+      where el.lead_id = l.id and el.sent_at is not null
+   );
+
+-- --- source: supabase/migrations/20260804220000_outreach_run_budget.sql
+-- ---------------------------------------------------------------------------
+-- 0020 — How long one scheduled run may take.
+--
+-- The sender waits out `sending.min_gap_seconds` between emails, and that wait
+-- happens inside the HTTP request the cron service made. The ceiling is
+-- therefore the hosting platform's function timeout, not ours: Vercel Hobby
+-- kills a function at 60s, Pro allows up to 300.
+--
+-- 50s is the safe default. With a 90s gap that means exactly one email per run,
+-- which is fine — the CRON FREQUENCY is what paces bulk sending, not the length
+-- of any single run. Raise this towards 280 on Pro to fit several gap waits
+-- into one invocation.
+--
+-- Made a setting rather than a constant because getting it wrong has two very
+-- different symptoms (runs killed mid-send, or a queue that drains far too
+-- slowly) and the right value depends entirely on the plan you are on.
+-- ---------------------------------------------------------------------------
+insert into public.settings (key, value, description, is_sensitive) values
+  ('outreach.max_runtime_seconds', '50'::jsonb,
+   'Wall-clock ceiling for one scheduled send run, including time spent waiting out the minimum gap. Keep below your platform function timeout (Vercel Hobby 60s, Pro 300s).',
+   false)
+on conflict (key) do nothing;
 

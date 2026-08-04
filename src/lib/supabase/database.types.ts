@@ -89,6 +89,17 @@ export type EmailVerificationStatus =
   | 'accept_all'
   | 'unknown';
 
+/** What arrived. Decided by the classifier, never taken from the sender. */
+export type InboundKind = 'reply' | 'auto_reply' | 'bounce' | 'other';
+
+export type InboundMatchStatus = 'matched' | 'unmatched' | 'ignored';
+
+/**
+ * How a message was attributed. Recorded so that if From-address matching
+ * starts producing wrong answers, there is a column that proves it.
+ */
+export type InboundMatchMethod = 'threading' | 'from_address' | 'manual';
+
 export type ActivityKind =
   | 'research_edited'
   | 'personalization_edited'
@@ -418,6 +429,63 @@ export interface Database {
         Relationships: [];
       };
 
+      /**
+       * Everything that arrives at the outreach address, attributed or not.
+       * `replies` holds only the genuine, matched ones.
+       */
+      inbound_messages: {
+        Row: {
+          id: string;
+          from_address: string;
+          from_name: string | null;
+          to_address: string | null;
+          subject: string | null;
+          body_text: string | null;
+          message_id: string | null;
+          in_reply_to: string | null;
+          references_header: string | null;
+          received_at: string;
+          kind: InboundKind;
+          match_status: InboundMatchStatus;
+          match_method: InboundMatchMethod | null;
+          lead_id: string | null;
+          email_log_id: string | null;
+          reply_id: string | null;
+          sentiment: ReplySentiment | null;
+          confidence: number | null;
+          matched_at: string | null;
+          matched_by: string | null;
+          is_handled: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          from_address: string;
+          from_name?: string | null;
+          to_address?: string | null;
+          subject?: string | null;
+          body_text?: string | null;
+          message_id?: string | null;
+          in_reply_to?: string | null;
+          references_header?: string | null;
+          received_at?: string;
+          kind?: InboundKind;
+          match_status?: InboundMatchStatus;
+          match_method?: InboundMatchMethod | null;
+          lead_id?: string | null;
+          email_log_id?: string | null;
+          reply_id?: string | null;
+          sentiment?: ReplySentiment | null;
+          confidence?: number | null;
+          matched_at?: string | null;
+          matched_by?: string | null;
+          is_handled?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['inbound_messages']['Insert']>;
+        Relationships: [];
+      };
+
       lead_activity: {
         Row: {
           id: string;
@@ -689,6 +757,31 @@ export interface Database {
           closed_reason: string | null;
           auto_followups: boolean;
           updated_at: string;
+          email_verification_status: EmailVerificationStatus;
+          email_verification_source: string | null;
+          email_checked_at: string | null;
+        };
+        Relationships: [];
+      };
+
+      inbound_inbox: {
+        Row: {
+          id: string;
+          from_address: string;
+          from_name: string | null;
+          subject: string | null;
+          body_text: string | null;
+          received_at: string;
+          kind: InboundKind;
+          match_status: InboundMatchStatus;
+          match_method: InboundMatchMethod | null;
+          sentiment: ReplySentiment | null;
+          is_handled: boolean;
+          lead_id: string | null;
+          reply_id: string | null;
+          business_name: string | null;
+          city: string | null;
+          country: string | null;
         };
         Relationships: [];
       };
@@ -860,6 +953,9 @@ export interface Database {
       email_type: EmailType;
       email_version_status: EmailVersionStatus;
       email_verification_status: EmailVerificationStatus;
+      inbound_kind: InboundKind;
+      inbound_match_status: InboundMatchStatus;
+      inbound_match_method: InboundMatchMethod;
       pipeline_stage: PipelineStage;
       pipeline_next_step: PipelineNextStep;
       activity_kind: ActivityKind;
@@ -894,6 +990,8 @@ export type EmailVersionInsert = TablesInsert<'email_versions'>;
 export type LeadPipeline = Tables<'lead_pipeline'>;
 export type LeadPipelineUpdate = TablesUpdate<'lead_pipeline'>;
 export type LeadActivity = Tables<'lead_activity'>;
+export type InboundMessage = Tables<'inbound_messages'>;
+export type InboundInboxRow = Views<'inbound_inbox'>;
 export type PipelineBoardRow = Views<'pipeline_board'>;
 
 export const LEAD_STATUSES: readonly LeadStatus[] = [
@@ -913,6 +1011,14 @@ export const APP_ROLES: readonly AppRole[] = ['admin', 'viewer'] as const;
 
 /** Sequence order. Used for tab order and for resolving "what comes next". */
 export const EMAIL_TYPES: readonly EmailType[] = ['initial', 'followup1', 'followup2'] as const;
+
+export const EMAIL_VERIFICATION_STATUSES: readonly EmailVerificationStatus[] = [
+  'unverified',
+  'valid',
+  'accept_all',
+  'unknown',
+  'invalid',
+] as const;
 
 /** Earliest to latest. Ordering a board by this array matches the SQL enum order. */
 export const PIPELINE_STAGES: readonly PipelineStage[] = [

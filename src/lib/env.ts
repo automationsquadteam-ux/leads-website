@@ -58,3 +58,22 @@ export function getCronSecret(): string | null {
   const value = process.env.CRON_SECRET;
   return value && value.trim() !== '' ? value : null;
 }
+
+/**
+ * Shared secret for `/api/inbound`, which the Cloudflare Email Worker calls.
+ *
+ * Falls back to CRON_SECRET so there is one less thing to configure, but can be
+ * set separately — and should be, because this one lives in a Worker deployed
+ * outside this repo. Rotating a leaked Worker secret should not also mean
+ * reconfiguring the scheduler.
+ *
+ * Null when neither is set, and the route then answers 503. Fails closed.
+ */
+export function getInboundSecret(): string | null {
+  if (typeof window !== 'undefined') {
+    throw new Error('INBOUND_SECRET must never be read in the browser.');
+  }
+  const value = process.env.INBOUND_SECRET;
+  if (value && value.trim() !== '') return value;
+  return getCronSecret();
+}

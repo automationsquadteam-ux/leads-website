@@ -13,6 +13,11 @@ const eslintConfig = [
       '.claude/**',
       '.Claude/**',
       '.vscode/**',
+      // Cloudflare Worker source. A different runtime with different globals
+      // and its own module conventions (an Email Worker's default export is an
+      // object literal, which the Next config flags). Linting it against the
+      // Next.js rules reports style problems that do not apply.
+      'cloudflare/**',
     ],
   },
   ...coreWebVitals,
