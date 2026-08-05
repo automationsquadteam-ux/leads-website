@@ -54,6 +54,58 @@ function stripCodeFence(value: string): string {
   return fenced?.[1] ?? value;
 }
 
+const KEY_NAMES = 'header|subject|subject_line|title|email_header|body|content|email|email_body|message|text';
+
+/**
+ * Peel JSON wreckage off the ends of a draft.
+ *
+ * The sheet splits one JSON object across two columns, so the Body cell gets
+ * the tail and nothing else:
+ *
+ *     Hi,
+ *     ...
+ *     Best regards,
+ *     Team Automation"
+ *     }
+ *
+ * There is no leading `{`, so every structural parser skips it, and a
+ * strip-quotes rule that requires BOTH ends to match does nothing either. The
+ * result reached the approval queue with a brace on the last line and stayed
+ * there forever.
+ *
+ * Loops until stable, because the debris nests: `"` then `}` then a stray
+ * comma.
+ *
+ * The trailing quote is only removed when the quote count is ODD. An email
+ * ending `...he called it "the good one"` has balanced quotes and is left
+ * alone; a body ending in a single unmatched `"` is the tail of a JSON string.
+ * That test is what makes this safe to run over every draft unattended.
+ */
+function stripJsonDebris(value: string): string {
+  let text = value.trim();
+  let previous = '';
+
+  while (text !== previous && text !== '') {
+    previous = text;
+
+    text = text.replace(/^[{[]\s*/, '');
+    text = text.replace(new RegExp(`^"?(?:${KEY_NAMES})"?\\s*:\\s*"?`, 'i'), '');
+    text = text.replace(/[\s,]*[}\]]\s*$/, '');
+
+    const quotes = (text.match(/"/g) ?? []).length;
+    if (quotes % 2 === 1) {
+      text = text.replace(/\s*"\s*$/, '');
+      // A leading quote is debris only if stripping the trailing one did not
+      // already balance them.
+      if ((text.match(/"/g) ?? []).length % 2 === 1) text = text.replace(/^\s*"/, '');
+    }
+
+    text = text.trim();
+  }
+
+  return text;
+}
+
 function pick(record: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const direct = record[key];
@@ -135,8 +187,9 @@ export function normaliseDraft(raw: string | null | undefined, fallbackSubject?:
     if (body !== null) {
       const subject = grab(SUBJECT_KEYS);
       return {
-        subject: subject ? unescapeJsonText(subject).trim() : (fallbackSubject ?? null),
-        content: unescapeJsonText(body).trim(),
+        subject: subject ? stripJsonDebris(unescapeJsonText(subject)) : (fallbackSubject ?? null),
+        // Debris survives a tolerant extraction, so peel it here too.
+        content: stripJsonDebris(unescapeJsonText(body)),
         wasStructured: true,
       };
     }
@@ -160,17 +213,24 @@ export function normaliseDraft(raw: string | null | undefined, fallbackSubject?:
   if (fragment?.[2] !== undefined && fragment[2].trim() !== '') {
     return {
       subject: fallbackSubject ?? null,
-      content: unescapeJsonText(fragment[2]).trim(),
+      content: stripJsonDebris(unescapeJsonText(fragment[2])),
       wasStructured: true,
     };
   }
 
-  // Pass 4: prose. Still unescape and unwrap, because a draft can carry literal
-  // \n or a stray pair of quotes without ever having been JSON.
+  /*
+   * Pass 4: prose, plus whatever JSON wreckage is stuck to the ends.
+   *
+   * This is the common case and the one that was failing: a body that reads as
+   * an ordinary email but finishes with a dangling `"` and `}` from the object
+   * it was cut out of.
+   */
   let content = /\\n|\\"/.test(unfenced) ? unescapeJsonText(unfenced) : unfenced;
-  content = content.trim().replace(/^"([\s\S]*)"$/, '$1').trim();
+  const cleaned = stripJsonDebris(content);
+  const hadDebris = cleaned !== content.trim();
+  content = cleaned;
 
-  return { subject: fallbackSubject ?? null, content, wasStructured: false };
+  return { subject: fallbackSubject ?? null, content, wasStructured: hadDebris };
 }
 
 /**

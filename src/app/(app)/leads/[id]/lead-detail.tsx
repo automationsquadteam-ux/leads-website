@@ -172,10 +172,6 @@ export function LeadDetail({ lead }: { lead: Lead }) {
               <Input id="niche" name="niche" defaultValue={lead.niche ?? ''} readOnly={!editing} />
             </Field>
 
-            <Field label="Category" htmlFor="category">
-              <Input id="category" name="category" defaultValue={lead.category ?? ''} readOnly={!editing} />
-            </Field>
-
             <Field
               label="Status"
               htmlFor="status"

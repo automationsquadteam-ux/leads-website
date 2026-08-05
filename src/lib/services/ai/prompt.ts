@@ -83,7 +83,6 @@ export function buildUserPrompt(context: GenerationContext): string {
         lead.website ? `Website: ${lead.website}` : null,
         [lead.city, lead.country].filter(Boolean).join(', ') || null,
         lead.niche ? `Industry: ${lead.niche}` : null,
-        lead.category ? `Qualification: ${lead.category}` : null,
       ]
         .filter(Boolean)
         .join('\n'),

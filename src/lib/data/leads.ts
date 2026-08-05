@@ -15,7 +15,7 @@ export const SORTABLE_COLUMNS = [
   'business_name',
   'city',
   'country',
-  'category',
+  'niche',
   'status',
   'last_contacted_at',
   'created_at',
@@ -36,7 +36,6 @@ const SEARCH_COLUMNS = [
   'phone',
   'city',
   'country',
-  'category',
   'niche',
 ] as const;
 

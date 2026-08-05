@@ -28,7 +28,6 @@ interface Row {
   city: string | null;
   country: string | null;
   niche: string | null;
-  category: string | null;
   social_links: unknown;
 }
 
@@ -72,7 +71,7 @@ export async function GET() {
   for (let i = 0; i < ids.length; i += 300) {
     const { data } = await admin
       .from('leads')
-      .select('business_name, website, phone, city, country, niche, category, social_links, status')
+      .select('business_name, website, phone, city, country, niche, social_links, status')
       .in('id', ids.slice(i, i + 300));
 
     for (const lead of data ?? []) {
@@ -89,7 +88,7 @@ export async function GET() {
   });
 
   const csv = toCsv(
-    ['business_name', 'website', 'phone', 'city', 'country', 'niche', 'category', 'social', 'email'],
+    ['business_name', 'website', 'phone', 'city', 'country', 'niche', 'social', 'email'],
     rows.map((r) => [
       r.business_name,
       r.website,
@@ -97,7 +96,6 @@ export async function GET() {
       r.city,
       r.country,
       r.niche,
-      r.category,
       firstSocial(r.social_links),
       // Left blank on purpose: fill it in and hand the file back.
       '',

@@ -174,11 +174,11 @@ export function LeadsTable({
         ),
       },
       {
-        key: 'category',
-        header: 'Category',
+        key: 'niche',
+        header: 'Niche',
         sortable: true,
         width: 150,
-        render: (lead) => <span className="text-muted-foreground">{lead.category ?? DASH}</span>,
+        render: (lead) => <span className="text-muted-foreground">{lead.niche ?? DASH}</span>,
       },
       {
         key: 'status',

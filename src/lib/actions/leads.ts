@@ -58,7 +58,6 @@ const leadUpdateSchema = z.object({
   city: optionalText,
   country: optionalText,
   niche: optionalText,
-  category: optionalText,
   status: z.enum([
     'new', 'researching', 'ready', 'approved', 'sending',
     'sent', 'replied', 'bounced', 'invalid', 'archived',

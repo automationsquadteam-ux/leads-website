@@ -31,7 +31,6 @@ const HEADER_MAP: Record<string, string> = {
   website: 'website',
   email: 'email',
   phone: 'phone',
-  category: 'category',
 
   'date added': 'date_added',
   'date sent': 'date_sent',
@@ -152,18 +151,37 @@ export function mapRow(row: SheetRow, options: MapOptions): MapResult {
   const draftEmail = normalised.content.trim() === '' ? null : normalised.content;
   const subjectLine = normaliseSubjectLine(rawSubject) ?? normalised.subject;
 
-  const hasResearch = researchSummary !== null;
+  /*
+   * The sheet's "research status" column is the upstream pipeline's own verdict
+   * on whether it finished, so it beats guessing from which fields happen to be
+   * populated. It rides into the database on `researched_at`, which
+   * sync_pipeline_from_lead() treats as authoritative.
+   *
+   * The timestamp is when we LEARNED the research was done, not when it
+   * happened — the sheet does not record that. Date Added is used when
+   * available because it is at least bounded by reality; otherwise the import
+   * time. An approximate date that makes the flag work beats an exact NULL that
+   * leaves 260 finished leads sitting in the research queue.
+   */
+  const createdAt = normalizeDate(pick(row, 'date_added'));
+  const dateSent = normalizeDate(pick(row, 'date_sent'));
+
+  const researchDone =
+    isAffirmative(pick(row, 'research_status')) ||
+    researchSummary !== null ||
+    cleanMultiline(pick(row, 'website_observations')) !== null ||
+    cleanMultiline(pick(row, 'automation_opportunities')) !== null ||
+    cleanMultiline(pick(row, 'ai_chatbot_opportunities')) !== null;
+
+  const researchedAt = researchDone ? (createdAt ?? options.importedAt) : null;
+
+  const hasResearch = researchDone;
   const hasDraft = draftEmail !== null;
 
   const dedupeKey = buildDedupeKey(
     { email, website, businessName: businessName as string, city },
     options.keyMode,
   );
-
-  // "Date Added" is when the lead was sourced; using it as created_at keeps the
-  // intake charts meaningful instead of showing one spike on import day.
-  const createdAt = normalizeDate(pick(row, 'date_added'));
-  const dateSent = normalizeDate(pick(row, 'date_sent'));
 
   const lead: LeadInsert = {
     business_name: businessName as string,
@@ -173,7 +191,9 @@ export function mapRow(row: SheetRow, options: MapOptions): MapResult {
     city,
     country: cleanText(pick(row, 'country')),
     niche: cleanText(pick(row, 'niche')),
-    category: cleanText(pick(row, 'category')),
+    // `category` was removed from the sheet on 2026-08-05 and is no longer
+    // imported. The column survives in the database holding its old
+    // qualification marks; see migration 0024.
     source: options.source,
     status: deriveStatus(row, hasDraft, hasResearch),
 
@@ -189,8 +209,13 @@ export function mapRow(row: SheetRow, options: MapOptions): MapResult {
     outreach_angle: cleanMultiline(pick(row, 'outreach_angle')),
     social_links: normalizeSocialLinks(pick(row, 'social_links')),
 
-    // researched_at / drafted_at stay null: the workbook records that the work
-    // happened, not when, and inventing a timestamp would be worse than a gap.
+    /*
+     * researched_at carries the sheet's "research status" verdict into the
+     * pipeline. drafted_at stays null: nothing depends on WHEN a draft was
+     * written, so a guessed timestamp there would be invention with no payoff.
+     * Here the flag genuinely depends on it, which is what changes the trade.
+     */
+    researched_at: researchedAt,
     subject_line: subjectLine,
     draft_email: draftEmail,
 
@@ -225,7 +250,6 @@ export const REFRESHABLE_FIELDS = [
   'city',
   'country',
   'niche',
-  'category',
   'research_summary',
   'website_observations',
   'automation_opportunities',

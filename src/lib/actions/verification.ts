@@ -97,6 +97,14 @@ export interface DraftSweepResult extends ActionResult {
   blocked: number;
   /** Why the blocked ones were left, most common first. */
   reasons: Array<{ kind: string; count: number; example: string }>;
+  /**
+   * The leads that were left behind, so the report is actionable rather than a
+   * number. Capped, because a list of 400 links is not a report either.
+   */
+  blockedLeads: Array<{ leadId: string; businessName: string; reasons: string[] }>;
+  /** A few that went through, so a run that approved nothing is distinguishable
+   *  from one that approved silently. */
+  approvedLeads: Array<{ leadId: string; businessName: string }>;
   remaining: number;
 }
 
@@ -129,7 +137,8 @@ export async function repairAndApproveDrafts(limit = 400): Promise<DraftSweepRes
     return {
       ok: false,
       message: 'You do not have permission to do that.',
-      examined: 0, repaired: 0, approved: 0, blocked: 0, reasons: [], remaining: 0,
+      examined: 0, repaired: 0, approved: 0, blocked: 0,
+      reasons: [], blockedLeads: [], approvedLeads: [], remaining: 0,
     };
   }
 
@@ -146,9 +155,23 @@ export async function repairAndApproveDrafts(limit = 400): Promise<DraftSweepRes
     .limit(limit);
 
   const drafts = pending ?? [];
+
+  // Business names up front, so the report can name leads rather than list
+  // UUIDs. One query for the batch, not one per draft.
+  const nameById = new Map<string, string>();
+  for (let i = 0; i < drafts.length; i += 300) {
+    const { data } = await admin
+      .from('leads')
+      .select('id, business_name')
+      .in('id', drafts.slice(i, i + 300).map((d) => d.lead_id));
+    for (const lead of data ?? []) nameById.set(lead.id, lead.business_name);
+  }
+
   let repaired = 0;
   let approved = 0;
   const blockedBy = new Map<string, { count: number; example: string }>();
+  const blockedLeads: DraftSweepResult['blockedLeads'] = [];
+  const approvedLeads: DraftSweepResult['approvedLeads'] = [];
   const started = Date.now();
   let examined = 0;
 
@@ -214,12 +237,27 @@ export async function repairAndApproveDrafts(limit = 400): Promise<DraftSweepRes
           .eq('id', active.id);
         await admin.from('leads').update({ status: 'approved' }).eq('id', draft.lead_id);
         approved += 1;
+
+        if (approvedLeads.length < 20) {
+          approvedLeads.push({
+            leadId: draft.lead_id,
+            businessName: nameById.get(draft.lead_id) ?? 'Unknown lead',
+          });
+        }
       }
     } else {
       const first = blocking[0]!;
       const entry = blockedBy.get(first.kind) ?? { count: 0, example: first.message };
       entry.count += 1;
       blockedBy.set(first.kind, entry);
+
+      if (blockedLeads.length < 100) {
+        blockedLeads.push({
+          leadId: draft.lead_id,
+          businessName: nameById.get(draft.lead_id) ?? 'Unknown lead',
+          reasons: blocking.map((issue) => issue.message),
+        });
+      }
     }
   }
 
@@ -241,7 +279,18 @@ export async function repairAndApproveDrafts(limit = 400): Promise<DraftSweepRes
   revalidatePath('/dashboard');
   revalidatePath('/settings');
 
-  return { ok: true, message, examined, repaired, approved, blocked, reasons, remaining };
+  return {
+    ok: true,
+    message,
+    examined,
+    repaired,
+    approved,
+    blocked,
+    reasons,
+    blockedLeads,
+    approvedLeads,
+    remaining,
+  };
 }
 
 /* -------------------------------------------------------------------------- */

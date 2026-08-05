@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useActionState } from 'react';
 import { Download, ListChecks, Upload, Wand2 } from 'lucide-react';
 
@@ -10,12 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Field, Input, Select } from '@/components/ui/input';
 import { EMPTY_ACTION_RESULT, PanelError, useActionFeedback, useAsyncAction } from '@/components/action-form';
+import { useToast } from '@/components/ui/toast';
 import {
   generateMissingFollowups, repairAndApproveDrafts, uploadVerificationCsv,
+  type DraftSweepResult,
 } from '@/lib/actions/verification';
 import { VERIFICATION_META } from '@/lib/pipeline/labels';
 import { EMAIL_VERIFICATION_STATUSES } from '@/lib/supabase/database.types';
-import { formatNumber } from '@/lib/utils';
+import { cn, formatNumber } from '@/lib/utils';
 
 /**
  * The verification round trip, without the terminal.
@@ -44,6 +47,28 @@ export function VerificationPanel({
   const [fileName, setFileName] = React.useState<string | null>(null);
 
   useActionFeedback(state);
+
+  /*
+   * The sweep keeps its full result rather than going through useAsyncAction,
+   * which only surfaces ok/message. A run that reports "0 approved, 400 left"
+   * and nothing else is indistinguishable from one that did nothing at all.
+   */
+  const { toast } = useToast();
+  const router = useRouter();
+  const [sweep, setSweep] = React.useState<DraftSweepResult | null>(null);
+  const [sweeping, setSweeping] = React.useState(false);
+
+  async function runSweep() {
+    setSweeping(true);
+    try {
+      const result = await repairAndApproveDrafts();
+      setSweep(result);
+      toast(result.message, result.ok ? 'success' : 'error');
+      router.refresh();
+    } finally {
+      setSweeping(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -221,30 +246,120 @@ export function VerificationPanel({
           <Button
             type="button"
             variant="primary"
-            loading={busy === 'sweep'}
-            onClick={() => run('sweep', () => repairAndApproveDrafts())}
+            loading={sweeping}
+            onClick={runSweep}
           >
             <Wand2 className="size-4" aria-hidden="true" />
             Clean and approve drafts
           </Button>
 
+          {/*
+            The counts alone were useless: "400 checked, 0 approved, 400 left"
+            three runs running, with no way to tell whether it was working. The
+            report names the leads and links to them.
+          */}
+          {sweep ? (
+            <div className="space-y-3 rounded-md border border-border bg-muted p-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  ['Checked', sweep.examined, 'text-foreground'],
+                  ['Cleaned', sweep.repaired, 'text-foreground'],
+                  ['Approved', sweep.approved, sweep.approved > 0 ? 'text-success' : 'text-foreground'],
+                  ['Left for review', sweep.blocked, sweep.blocked > 0 ? 'text-warning' : 'text-foreground'],
+                ].map(([label, value, tone]) => (
+                  <div key={String(label)}>
+                    <span className="block text-xs text-muted-foreground">{label}</span>
+                    <span className={cn('tabular block text-lg font-semibold', tone as string)}>
+                      {formatNumber(value as number)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {sweep.reasons.length > 0 ? (
+                <div>
+                  <p className="mb-1 text-xs font-medium">Why the rest were left</p>
+                  <ul className="space-y-0.5 text-xs text-muted-foreground">
+                    {sweep.reasons.map((reason) => (
+                      <li key={reason.kind}>
+                        <span className="tabular font-medium text-foreground">{reason.count}</span>{' '}
+                        {reason.example}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {sweep.approvedLeads.length > 0 ? (
+                <details className="text-xs">
+                  <summary className="cursor-pointer font-medium text-success">
+                    {formatNumber(sweep.approved)} approved — show a sample
+                  </summary>
+                  <ul className="mt-1 space-y-0.5">
+                    {sweep.approvedLeads.map((lead) => (
+                      <li key={lead.leadId}>
+                        <Link href={`/leads/${lead.leadId}`} className="text-primary hover:underline">
+                          {lead.businessName}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+
+              {sweep.blockedLeads.length > 0 ? (
+                <details className="text-xs" open>
+                  <summary className="cursor-pointer font-medium text-warning">
+                    {formatNumber(sweep.blocked)} need a look — open the list
+                  </summary>
+                  <ul className="mt-1 max-h-72 space-y-1 overflow-y-auto pr-1">
+                    {sweep.blockedLeads.map((lead) => (
+                      <li key={lead.leadId} className="border-b border-border/60 pb-1 last:border-0">
+                        <Link
+                          href={`/leads/${lead.leadId}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {lead.businessName}
+                        </Link>
+                        <span className="block text-muted-foreground">
+                          {lead.reasons.join(' · ')}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {sweep.blocked > sweep.blockedLeads.length ? (
+                    <p className="mt-1 text-muted-foreground">
+                      Showing the first {sweep.blockedLeads.length}. The rest are in{' '}
+                      <Link href="/leads?view=approval_queue" className="text-primary hover:underline">
+                        the approval queue
+                      </Link>
+                      .
+                    </p>
+                  ) : null}
+                </details>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="space-y-2 text-xs text-muted-foreground">
             <p>
-              Two separate steps, and cleaning never implies approving.{' '}
-              <strong>Cleaning</strong> unwraps{' '}
-              <code className="font-mono">{'{"header": …, "body": …}'}</code> into an actual
-              email, turns <code className="font-mono">\n</code> back into line breaks and drops
-              code fences. It saves the result as a new version, so the original stays in the
-              history and a bad clean is one click from being undone.
+              <strong>Cleaning</strong> strips JSON wreckage: a{' '}
+              <code className="font-mono">{'{'}</code> or{' '}
+              <code className="font-mono">{'}'}</code> left on its own line, a dangling{' '}
+              <code className="font-mono">&quot;</code>, a{' '}
+              <code className="font-mono">{'"body": "'}</code> prefix,{' '}
+              <code className="font-mono">\n</code> that should be a line break, and code fences.
+              A quote inside the email is left alone — only an unmatched one is treated as debris.
+              Each clean is saved as a new version, so the original stays in the history.
             </p>
             <p>
-              <strong>Approving</strong> then happens only for drafts with nothing left wrong.
-              Anything still carrying placeholder text, stray braces or a truncated body keeps its
-              place in the queue and says why on the lead page.
+              <strong>Approving</strong> happens only for drafts with nothing left wrong, and
+              never implies the cleaning was right. Anything still carrying placeholder text or a
+              truncated body is listed above with a link.
             </p>
             <p>
-              Works in batches and stops before the request times out, so press it again if the
-              approval queue is still large.
+              Works in batches and stops before the request times out, so press it again while
+              &quot;not reached&quot; is above zero.
             </p>
           </div>
         </CardContent>

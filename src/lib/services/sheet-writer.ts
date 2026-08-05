@@ -43,7 +43,6 @@ const WRITEBACK_COLUMNS: WritebackColumn[] = [
   { key: 'city', headers: ['city'], value: (s) => s.lead.city },
   { key: 'country', headers: ['country'], value: (s) => s.lead.country },
   { key: 'niche', headers: ['niche'], value: (s) => s.lead.niche },
-  { key: 'category', headers: ['category'], value: (s) => s.lead.category },
 
   { key: 'research', headers: ['business summary', 'research summary'], value: (s) => s.lead.research_summary },
   { key: 'personalization', headers: ['personalization notes', 'personalization'], value: (s) => s.lead.personalization },

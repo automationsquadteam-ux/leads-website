@@ -23,29 +23,35 @@ Supabase (Postgres + Auth + RLS) · nodemailer · ExcelJS.
 
 Node 20.9+. Windows dev box; PowerShell is the primary shell.
 
-### Current state (2026-08-03)
+### Current state (2026-08-05)
+
+Migrations 0001 through 0023 are all applied to the live database.
 
 | Area | Status |
 | --- | --- |
 | Schema, RLS, auth, middleware | Done |
-| Workbook importer (`Leads.xlsx`) | Done 698 leads imported |
+| Workbook importer (`Leads.xlsx`) | Done |
 | Full UI (dashboard, leads, campaigns, templates, logs, replies, settings) | Done |
-| Google Sheets sync (read) | Done |
-| Google Sheets write-back (CRM edit → sheet row) | Done off by default, needs service account |
-| Email providers (SMTP, Gmail) + real sending | Done |
+| Google Sheets sync, read and write-back | Done, write-back live |
+| Email providers (SMTP via Brevo) + real sending | Done, sending |
 | Encrypted credential storage | Done |
-| n8n | **Removed** (migration 0011) the user does not want it |
+| n8n | Not run by the website. It feeds the sheet; the CRM reads it |
 | Admin review workflow (research/personalization/3 drafts/notes) | Done |
-| Email versioning (`email_versions`) | Done nothing is ever overwritten |
+| Email versioning (`email_versions`) | Done, nothing is ever overwritten |
 | Outreach lifecycle (`lead_pipeline`, derived stage + next step) | Done |
-| Draft generation (template generator + Ollama) | Done `ai.provider` setting |
-| Automatic follow-ups (`/api/cron/outreach`) | Done needs `CRON_SECRET` |
-| Public statistics page (`/stats`, no login) | Done anon reads 5 aggregate views |
+| Draft generation (template generator + Ollama) | Done, `ai.provider` setting |
+| Draft cleaning (unwraps the JSON n8n produces) | Done, at import and on demand |
+| Automatic follow-ups (`/api/cron/outreach`) | Done, driven by cron-job.org every 3 min |
+| **Reply ingestion** | Done — Cloudflare Email Worker → `/api/inbound/reply` |
+| **Email verification** | Done — verifier CSV round trip, verify-on-send, manual verdicts |
+| Public front page at `/` (no login) | Done, anon reads six aggregate views |
 | Analytics page | Done |
-| Modular outbound sync layer | Done `lib/services/sync/` |
-| What signed-in *viewers* may see | **Still deliberately nothing** `/stats` is the public answer |
-| Reply ingestion (inbound parsing) | Not built `replies` is written by nothing yet |
-| Email verification service | Not built `email_verified` is set by hand |
+| Modular outbound sync layer | Done, `lib/services/sync/` |
+| What signed-in *viewers* may see | **Still deliberately nothing.** `/` is the public answer |
+| Deliverability (SPF/DKIM/DMARC, BIMI) | **Not addressed.** See section 11 |
+
+Live figures at the time of writing: 698 leads, 390 with an address, 199 verified, 17 emails
+sent from the CRM, 1 reply.
 
 ---
 
@@ -69,38 +75,41 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0012 | `20260803120000_review_pipeline_and_versions.sql` | ✅ yes |
 | 0013 | `20260803120100_public_stats_views.sql` | ✅ yes |
 | 0014 | `20260803120200_analytics_views.sql` | ✅ yes |
-| 0015 | `20260804120000_verification_versions_and_public_leads.sql` | ❌ **NOT YET** |
-| 0016 | `20260804140000_inbound_messages.sql` | ❌ **NOT YET** |
-| 0017 | `20260804160000_verify_on_send_and_board.sql` | ❌ **NOT YET** |
-| 0018 | `20260804180000_schedule_followups_for_backfilled_sends.sql` | ❌ **NOT YET** |
-| 0019 | `20260804200000_sheet_date_sent_is_authoritative.sql` | ❌ **NOT YET** |
-| 0020 | `20260804220000_outreach_run_budget.sql` | ❌ **NOT YET** |
-| 0021 | `20260805100000_research_complete_any_field.sql` | ❌ **NOT YET** |
-| 0022 | `20260805120000_reconcile_approved_versions.sql` | ❌ **NOT YET** |
-| 0023 | `20260805140000_manual_verification_is_a_verdict.sql` | ❌ **NOT YET** |
+| 0015 | `20260804120000_verification_versions_and_public_leads.sql` | ✅ yes |
+| 0016 | `20260804140000_inbound_messages.sql` | ✅ yes |
+| 0017 | `20260804160000_verify_on_send_and_board.sql` | ✅ yes |
+| 0018 | `20260804180000_schedule_followups_for_backfilled_sends.sql` | ✅ yes |
+| 0019 | `20260804200000_sheet_date_sent_is_authoritative.sql` | ✅ yes |
+| 0020 | `20260804220000_outreach_run_budget.sql` | ✅ yes |
+| 0021 | `20260805100000_research_complete_any_field.sql` | ✅ yes |
+| 0022 | `20260805120000_reconcile_approved_versions.sql` | ✅ yes |
+| 0023 | `20260805140000_manual_verification_is_a_verdict.sql` | ✅ yes |
+| 0024 | `20260805160000_sheet_research_status_and_drop_category.sql` | ❌ **NOT YET** — paste `schema-update-14-research-status.sql` |
 
-**To apply 0015:** paste `supabase/schema-update-5-verification-and-public-leads.sql` into
-the Supabase SQL editor and Run. Idempotent, includes both backfills.
+**Everything through 0023 is applied.** Verified against the live database on 2026-08-05 by
+probing for each migration's marker rather than trusting the file list — `inbound_messages`
+exists, `pipeline_board` carries the verification columns, `outreach.max_runtime_seconds` is
+present, a research-but-no-summary lead reads `research_complete = true`, and no row is left
+with `email_verified` set while its status still says `unverified` (which is what 0023 fixed).
 
-**To apply 0016:** then paste `supabase/schema-update-6-inbound-mail.sql`. Without it the
-Replies page errors, `/api/inbound/reply` cannot store anything, and the auto-reply trigger
-bug below is still live.
+**The next migration is 0025.** Add the file, regenerate `schema.sql` and a
+`schema-update-15-*.sql` bundle, and leave its row as NOT YET until it has actually run.
 
-**To apply 0017:** then paste `supabase/schema-update-7-verify-on-send.sql`. Without it the
-Verified column and filter on the leads list are empty, and leads already emailed still
-read as unverified.
+### Applying a new one
 
-**To apply 0018:** then paste `supabase/schema-update-8-schedule-followups.sql`.
+There is no CLI on this machine (`supabase` and `psql` are both absent), so it is a
+paste-into-the-SQL-editor job:
 
-**To apply 0019:** then paste `supabase/schema-update-9-date-sent-authoritative.sql`.
+1. Write `supabase/migrations/<timestamp>_<name>.sql`.
+2. Generate `supabase/schema-update-<n>-<name>.sql` containing just that migration, plus
+   regenerate `supabase/schema.sql` from every migration in filename order.
+3. Paste the update bundle into the Supabase SQL editor and Run.
+4. Flip its row in the table above.
 
-**To apply 0020:** then paste `supabase/schema-update-10-run-budget.sql`.
-
-**To apply 0021:** then paste `supabase/schema-update-11-research-any-field.sql`.
-
-**To apply 0022:** then paste `supabase/schema-update-12-reconcile-approved.sql`.
-
-**To apply 0023:** then paste `supabase/schema-update-13-manual-verification.sql`.
+Bundles 5 through 13 correspond to migrations 0015 through 0023 and have all been run. Keep
+every migration re-runnable — `create or replace`, `add column if not exists`,
+`on conflict do nothing`, guarded backfills — because a partially applied or rolled-back
+attempt is normal and the fix should always be "run it again".
 
 ### The flag and the status move together, in both directions
 
@@ -185,7 +194,7 @@ on the theory that a re-run might resolve them, which re-bills every one of thos
 on every export — and a catch-all domain returns catch-all every single time. Re-checking is
 now an explicit `?recheck=1` button.
 
-Apply them in order. 0017 rewrites `pipeline_board`, which 0015 created.
+Order matters between migrations: 0017 rewrites `pipeline_board`, which 0015 created.
 
 ### Two definitions of "approved" — do not add a third
 
@@ -233,13 +242,6 @@ which is a fact rather than a label someone has to remember to update.
 row — 0015 writes `first_email_sent` directly — so their due date stayed NULL and
 `compute_next_step()` parked them on `await_followup1` permanently while the cron reported
 nothing to do. 0018 makes `sync_pipeline_from_lead()` schedule it too, and backfills.
-
-Until then: `email_verification_status` does not exist, so `npm run emails:import` fails,
-the dashboard's "Dead Addresses" card and the `awaiting_verification` view error, and the
-public lead list and industry analytics keep their old behaviour.
-
-There is no CLI on this machine (`supabase` and `psql` are both absent), so applying
-migrations is a paste-into-the-SQL-editor job. That is the established workflow here.
 
 ### Applied migrations are immutable
 
@@ -477,6 +479,45 @@ Clearing a gate flag must also clear its `_at` stamp `gateFlagPatch()` in
 without it, un-approving and re-approving would keep the original `approved_at` and
 "average approval time" would measure the wrong interval.
 
+### What decides that research is done
+
+Three answers over time, each replacing a worse guess:
+
+| | Rule | Problem |
+| --- | --- | --- |
+| 0012 | `research_summary` is not null | 239 leads had full research and no summary |
+| 0021 | any of seven research fields | still guessing about someone else's process |
+| **0024** | the sheet's **research status** column, OR any research field | — |
+
+The sheet column is the upstream pipeline's own verdict, so it wins. It reaches the database
+on `leads.researched_at`, stamped by the importer, and the trigger treats a non-null value as
+authoritative.
+
+Field presence is **kept as a fallback rather than replaced**. A lead with a page of website
+observations has plainly been researched whatever a status column says, and requiring both
+signals would push hundreds of finished leads back into the queue the moment a column went
+blank. Either signal being true is enough.
+
+`researched_at` records when we LEARNED the research was done, not when it happened — the
+sheet does not carry that. Date Added is preferred over import time because it is at least
+bounded by reality. `drafted_at` is deliberately still left null: nothing depends on when a
+draft was written, so a guessed timestamp there would be invention with no payoff.
+
+`personalization` is excluded from the field check. It is the hook line used in the draft
+rather than research, and 691 of 698 leads have it, so including it would make the flag true
+for everything and mean nothing.
+
+### `category` is deprecated, not dropped
+
+Removed from the sheet on 2026-08-05 and from every CRM code path: import mapping, Sheets
+write-back, leads table, lead form, the AI prompt and the missing-address export. The leads
+list shows **Niche** in its place, which is the field actually used for segmenting.
+
+**The database column survives on purpose.** It still holds a real qualification signal —
+348 `Skip`, 241 `Needs Automation`, 112 `No Website` — and dropping it destroys that with no
+way back. The exact statements to run, once those marks are confirmed unnecessary, are in the
+column's own `COMMENT`. `dashboard_leads_by_category` selects it and has to be dropped first.
+
 ### Email verification (migration 0015)
 
 `lead_pipeline.email_verification_status` is an enum, not a boolean, because that is what a
@@ -565,6 +606,29 @@ That never starts with `{`, so the JSON passes skip it entirely and the key name
 would reach the recipient. `normaliseDraft()` has a dedicated fragment pass for it, and
 `normaliseSubjectLine()` applies the same treatment to the header column — stricter, since a
 newline surviving into a subject is a parse failure rather than a formatting choice.
+
+**The tail-only case is the common one and it broke the whole feature.** The Body column
+frequently holds an ordinary-looking email that simply ends with the debris it was cut out
+of:
+
+```
+Best regards,
+Team Automation"
+}
+```
+
+No leading `{`, so every structural pass skips it, and a strip-quotes rule requiring BOTH
+ends to match does nothing either. Result: three sweeps in a row reporting
+`400 checked, 0 approved, 400 left for review`.
+
+`stripJsonDebris()` peels this from both ends and loops until stable, because the debris
+nests. The trailing quote is removed **only when the quote count is odd** — an email ending
+`he called it "the good one"` has balanced quotes and is left alone, whereas a lone
+unmatched `"` is the tail of a JSON string. That test is what makes the sweep safe to run
+unattended over every draft.
+
+It is idempotent, verified: running it two and three times over the same body changes
+nothing, so re-pressing the button does not spawn versions.
 
 `inspectDraft()` returns what is still wrong: JSON wrapper, literal `\n`, code fences, stray
 braces, wrapping quotes, unfilled placeholders, no subject, suspiciously short. Round
@@ -1165,7 +1229,37 @@ back (and it sets no `sheet_row_number`, so those leads cannot write back to the
 
 ---
 
-## 11. Changelog
+## 11. Deliverability and sender identity (NOT code)
+
+The blank "T" avatar Gmail shows next to outbound mail is not something this codebase can
+change. Recording it here because it comes up, and because the prerequisites are worth doing
+for reasons that matter far more than the icon.
+
+**Gmail will not show a logo without BIMI plus a VMC.** BIMI is a DNS record pointing at a
+logo; Gmail only renders it when the domain also presents a **Verified Mark Certificate**,
+which requires a *registered trademark* and costs roughly $1,000–1,500 a year from DigiCert
+or Entrust. Without the VMC the record is still valid and some clients (Yahoo, Fastmail, La
+Poste) will display it, but Gmail will not.
+
+**An animated GIF is impossible.** BIMI requires SVG Tiny 1.2 in the SVG-P/S profile:
+square, static, no scripts, no animation, no external references. No major client supports
+an animated sender avatar. `public/logo-mark.png` would need converting to conformant SVG.
+
+**A Google Workspace profile photo does not apply here.** That works when the sending
+address is a Workspace mailbox. `send@team-automationsolutions.me` is a Cloudflare Email
+Routing address that forwards to Gmail, so there is no account to attach a photo to.
+
+**The prerequisites are the real prize.** BIMI requires DMARC at enforcement
+(`p=quarantine` or `p=reject`) with SPF and DKIM aligned and passing. For cold outreach that
+alone does more for inbox placement than any avatar: without DMARC enforcement, anyone can
+spoof the domain and every provider treats it as lower trust. Brevo's docs cover the SPF and
+DKIM records; DMARC is a single TXT record at `_dmarc.team-automationsolutions.me`, and it
+should start at `p=none` with reporting until the reports come back clean.
+
+Order of value for a cold-outreach sender: SPF and DKIM aligned → DMARC at `p=none` →
+DMARC at enforcement → BIMI → VMC. The avatar is the last and least of these.
+
+## 12. Changelog
 
 | Date | Change |
 | --- | --- |
@@ -1176,6 +1270,9 @@ back (and it sets no `sheet_row_number`, so those leads cannot write back to the
 | 2026-08-03 | This guide created |
 | 2026-08-03 | n8n removed (0011); Sheets write-back added; nested-`<form>` hydration bug fixed in `secret-field.tsx` |
 | 2026-08-03 | 0011 confirmed applied to the live DB (the guide had it as pending) |
+| 2026-08-05 | **0024**: the sheet's "research status" column decides whether research is done, carried on `researched_at`, with field presence kept as a fallback. `category` retired from every code path but the column deliberately kept, since it still holds 348 Skip / 241 Needs Automation / 112 No Website marks |
+| 2026-08-05 | Draft cleaner now strips tail-only JSON debris (a trailing `"` and `}` with no leading brace), which is the shape most drafts actually have and the reason three sweeps approved nothing; trailing quotes are only stripped when unmatched, so quotes inside an email survive. The sweep now reports which leads it approved and which it left, with reasons and links, instead of three bare numbers |
+| 2026-08-05 | Migrations 0015–0023 confirmed applied to the live DB, verified by probing each one's marker rather than trusting the file list. Section 11 added on deliverability and why the Gmail sender avatar is not a code problem |
 | 2026-08-05 | **0023**: ticking "Email verified" now records a real verdict instead of only setting the flag (the lead kept saying "Never checked" and stayed in the paid export); permanent delete added for duplicates and junk; archived leads dropped from the default list, so archiving finally does what it says |
 | 2026-08-05 | Draft cleaner handles the sheet's SEPARATE header/body columns (bare `"body": "..."` fragments, which the JSON passes skipped); verification tiles link to views that match their counts; leads table says "No email" vs "Never checked"; CSV export of leads with no address; settings sections collapsed by default via `<details>`, so a collapsed section still submits its fields |
 | 2026-08-05 | Draft quality: `drafts/quality.ts` unwraps the JSON the upstream Ollama pipeline produces (tolerantly, since a multi-line body makes the JSON invalid), runs at import so nothing downstream sees a payload, and backs a "Clean and approve drafts" sweep that repairs into a new version and approves only what comes out spotless |
