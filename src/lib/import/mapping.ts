@@ -1,4 +1,5 @@
 import type { LeadInsert, LeadStatus } from '@/lib/supabase/database.types';
+import { normaliseDraft } from '@/lib/services/drafts/quality';
 import { buildDedupeKey, type KeyMode } from './dedupe';
 import {
   cleanMultiline,
@@ -126,8 +127,27 @@ export function mapRow(row: SheetRow, options: MapOptions): MapResult {
 
   const city = cleanText(pick(row, 'city'));
   const researchSummary = cleanMultiline(pick(row, 'research_summary'));
-  const draftEmail = cleanMultiline(pick(row, 'draft_email'));
-  const subjectLine = cleanText(pick(row, 'subject_line'));
+
+  /*
+   * Drafts arrive from the upstream Ollama pipeline as a JSON payload:
+   *
+   *     {"header": "Quick idea", "body": "Hi,\n\nI came across..."}
+   *
+   * Unwrapping it here means the CRM stores an email rather than a payload, and
+   * every downstream consumer — the review screen, the sender, the Sheets
+   * write-back — deals in prose. Cleaning it later, per feature, would mean
+   * remembering to do it in each one.
+   *
+   * A draft that is already plain prose passes through untouched, and anything
+   * that cannot be parsed is kept verbatim rather than discarded: an unreadable
+   * draft is still a draft someone can fix, and inspectDraft() will flag it.
+   */
+  const rawDraft = cleanMultiline(pick(row, 'draft_email'));
+  const rawSubject = cleanText(pick(row, 'subject_line'));
+  const normalised = normaliseDraft(rawDraft, rawSubject);
+
+  const draftEmail = normalised.content.trim() === '' ? null : normalised.content;
+  const subjectLine = normalised.subject?.trim() || rawSubject;
 
   const hasResearch = researchSummary !== null;
   const hasDraft = draftEmail !== null;

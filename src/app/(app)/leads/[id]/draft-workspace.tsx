@@ -26,7 +26,7 @@ import {
 } from '@/lib/actions/review';
 import { sendEmail } from '@/lib/actions/leads';
 import { EMAIL_TYPE_LABELS } from '@/lib/pipeline/labels';
-import { findUnresolvedPlaceholders } from '@/lib/services/email/render';
+import { inspectDraft } from '@/lib/services/drafts/quality';
 import { cn, formatDateTime, formatRelative } from '@/lib/utils';
 import { EMAIL_TYPES, type EmailType, type EmailVersion } from '@/lib/supabase/database.types';
 
@@ -140,40 +140,62 @@ export function DraftWorkspace({ leadId, versions, hasEmail, sentTypes }: Props)
  * and friends do show up here. That is the right trade: over-reporting in a
  * warning costs a glance, under-reporting costs a prospect.
  */
-function usePlaceholders(subject: string | null, content: string): string[] {
+/** Blocking issues, used to disable Send and explain why. */
+function useBlockingIssues(subject: string | null, content: string) {
   return React.useMemo(
-    () => [...new Set([...findUnresolvedPlaceholders(subject ?? ''), ...findUnresolvedPlaceholders(content)])],
+    () => inspectDraft({ subject, content }).filter((issue) => issue.blocking),
     [subject, content],
   );
 }
 
-function PlaceholderWarning({ subject, content }: { subject: string | null; content: string }) {
-  const found = usePlaceholders(subject, content);
-  if (found.length === 0) return null;
+/**
+ * Everything wrong with the draft on screen.
+ *
+ * Runs the same checks as the bulk sweep, so "why was this one left behind"
+ * is answered right here instead of being a mystery. Blocking issues also
+ * disable Send, matching what the send path enforces anyway.
+ */
+function DraftIssues({ subject, content }: { subject: string | null; content: string }) {
+  const issues = React.useMemo(() => inspectDraft({ subject, content }), [subject, content]);
+  if (issues.length === 0) return null;
+
+  const blocking = issues.filter((issue) => issue.blocking);
+  const severe = blocking.length > 0;
 
   return (
     <div
       role="alert"
-      className="flex items-start gap-2.5 rounded-md border border-warning/40 bg-warning-subtle px-3 py-2.5"
+      className={cn(
+        'flex items-start gap-2.5 rounded-md border px-3 py-2.5',
+        severe ? 'border-warning/40 bg-warning-subtle' : 'border-border bg-muted',
+      )}
     >
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
-      <div className="min-w-0 text-xs">
-        <p className="font-medium text-warning">
-          This draft contains placeholder text and cannot be sent
+      <AlertTriangle
+        className={cn('mt-0.5 size-4 shrink-0', severe ? 'text-warning' : 'text-muted-foreground')}
+        aria-hidden="true"
+      />
+      <div className="min-w-0 space-y-1 text-xs">
+        <p className={cn('font-medium', severe ? 'text-warning' : 'text-foreground')}>
+          {severe ? 'This draft cannot be sent yet' : 'Worth a look before sending'}
         </p>
-        <p className="mt-0.5 text-muted-foreground">
-          {found.slice(0, 6).map((token) => (
-            <code key={token} className="mr-1.5 rounded bg-surface px-1 py-0.5 font-mono">
-              {token}
-            </code>
+        <ul className="space-y-0.5 text-muted-foreground">
+          {issues.map((issue) => (
+            <li key={issue.kind}>
+              {issue.message}
+              {issue.sample ? (
+                <code className="ml-1.5 rounded bg-surface px-1 py-0.5 font-mono">
+                  {issue.sample.slice(0, 60)}
+                </code>
+              ) : null}
+            </li>
           ))}
-          {found.length > 6 ? `and ${found.length - 6} more` : null}
-        </p>
-        <p className="mt-1 text-muted-foreground">
-          These would reach the recipient exactly as written. Edit the draft or regenerate it.
-          Only <code className="font-mono">{'{{token}}'}</code> placeholders from the template list
-          are substituted square brackets are treated as ordinary prose.
-        </p>
+        </ul>
+        {blocking.some((i) => i.kind === 'structured' || i.kind === 'escaped_newlines') ? (
+          <p className="text-muted-foreground">
+            Settings → Draft quality → <strong>Clean and approve drafts</strong> unwraps this
+            automatically and keeps the original as a version.
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -224,7 +246,7 @@ function DraftEditor({
   const active = versions.find((v) => v.active) ?? versions[0] ?? null;
   // Hooks cannot sit behind the early return below, so this runs for the
   // empty-state case too hence the null-safe arguments.
-  const placeholders = usePlaceholders(active?.subject ?? null, active?.content ?? '');
+  const blocking = useBlockingIssues(active?.subject ?? null, active?.content ?? '');
 
   if (!active) {
     return (
@@ -302,7 +324,7 @@ function DraftEditor({
         </p>
       ) : null}
 
-      <PlaceholderWarning subject={active.subject} content={active.content} />
+      <DraftIssues subject={active.subject} content={active.content} />
 
       <DraftForm
         key={active.id}
@@ -355,7 +377,7 @@ function DraftEditor({
           type="button"
           variant="primary"
           loading={busy === 'send'}
-          disabled={!hasEmail || alreadySent || active.status === 'rejected' || placeholders.length > 0}
+          disabled={!hasEmail || alreadySent || active.status === 'rejected' || blocking.length > 0}
           title={
             !hasEmail
               ? 'This lead has no email address'
@@ -363,8 +385,8 @@ function DraftEditor({
                 ? `${EMAIL_TYPE_LABELS[type]} has already been sent`
                 : active.status === 'rejected'
                   ? 'This version was rejected'
-                  : placeholders.length > 0
-                    ? `Contains placeholder text: ${placeholders.slice(0, 3).join(', ')}`
+                  : blocking.length > 0
+                    ? blocking.map((i) => i.message).join(' ')
                     : `Send ${EMAIL_TYPE_LABELS[type].toLowerCase()} now`
           }
           onClick={() => run('send', () => sendEmail(leadId, type))}

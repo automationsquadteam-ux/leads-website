@@ -483,6 +483,40 @@ service the operator picked, the same import works. Export includes `unknown` an
 `accept_all` alongside `unverified`: a re-run often resolves them, and it de-duplicates by
 address because verifiers bill per address, not per lead.
 
+### Drafts arrive as JSON, and have to be unwrapped
+
+The upstream Ollama pipeline is prompted for structured output, so what lands in the sheet
+(and therefore in `leads.draft_email`) is a payload, not an email:
+
+```
+{"header": "Elevate Your Budapest Goulash Experience",
+ "body": "Hi,\n\nI came across Budapest Goulash..."}
+```
+
+`lib/services/drafts/quality.ts` handles this, and it is pure — no database, no network, no
+`server-only` — so a script, a server action and a client component all share one definition.
+
+`normaliseDraft()` tries three passes, most reliable first: strict `JSON.parse`, then
+tolerant key extraction, then treat it as prose. **The tolerant pass is the one that earns
+its keep**: a model writing a multi-line email into a JSON string emits raw newlines, which
+makes the document invalid JSON, and that is the common case rather than the exception. It
+salvages the text instead of discarding a perfectly usable draft.
+
+It runs at **import** (`lib/import/mapping.ts`), so the CRM stores an email rather than a
+payload and every downstream consumer deals in prose. Cleaning per-feature would mean
+remembering to do it in each one.
+
+`inspectDraft()` returns what is still wrong: JSON wrapper, literal `\n`, code fences, stray
+braces, wrapping quotes, unfilled placeholders, no subject, suspiciously short. Round
+brackets are deliberately fine — "(and yes, really)" is ordinary prose; braces and square
+brackets are not.
+
+**Repairing and approving are separate, on purpose.** `repairAndApproveDrafts()` cleans
+every pending draft — saving each repair as a NEW VERSION, so the original stays in the
+history and a bad clean is one click from undone — and only then approves the ones with zero
+blocking issues. Anything still carrying a placeholder or a truncated body keeps its place in
+the queue. A cleaner that also approved would defeat the point of having an approval step.
+
 ### Drafts are never overwritten
 
 `email_versions` is append-only in practice. Editing a draft **inserts** a version;
@@ -1082,6 +1116,7 @@ back (and it sets no `sheet_row_number`, so those leads cannot write back to the
 | 2026-08-03 | This guide created |
 | 2026-08-03 | n8n removed (0011); Sheets write-back added; nested-`<form>` hydration bug fixed in `secret-field.tsx` |
 | 2026-08-03 | 0011 confirmed applied to the live DB (the guide had it as pending) |
+| 2026-08-05 | Draft quality: `drafts/quality.ts` unwraps the JSON the upstream Ollama pipeline produces (tolerantly, since a multi-line body makes the JSON invalid), runs at import so nothing downstream sees a payload, and backs a "Clean and approve drafts" sweep that repairs into a new version and approves only what comes out spotless |
 | 2026-08-05 | **0022**: the sender had been picking the same 6 leads every 3 minutes and refusing all 6, because `lead_pipeline.approved` (from `leads.status`) and the version status disagreed. Reconciled, and `findDueWork()` now requires the approved version so the queue cannot offer work it will reject. Added `leads:duplicates` after finding two businesses present twice |
 | 2026-08-05 | All displayed timestamps pinned to `Asia/Karachi` and labelled PKT; storage and the sending window stay UTC; Settings shows the window translated into local time |
 | 2026-08-05 | **0021**: research counts as done when any of the seven research fields is filled, not just the summary (239 leads were parked at "Researching" with real research); verification tiles split "no address" from "never checked"; the verifier export stopped re-billing catch-all and unknown by default; follow-up badge counts leads rather than drafts |

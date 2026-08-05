@@ -3,14 +3,16 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useActionState } from 'react';
-import { Download, ListChecks, Upload } from 'lucide-react';
+import { Download, ListChecks, Upload, Wand2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Field, Input, Select } from '@/components/ui/input';
 import { EMPTY_ACTION_RESULT, PanelError, useActionFeedback, useAsyncAction } from '@/components/action-form';
-import { generateMissingFollowups, uploadVerificationCsv } from '@/lib/actions/verification';
+import {
+  generateMissingFollowups, repairAndApproveDrafts, uploadVerificationCsv,
+} from '@/lib/actions/verification';
 import { VERIFICATION_META } from '@/lib/pipeline/labels';
 import { EMAIL_VERIFICATION_STATUSES } from '@/lib/supabase/database.types';
 import { formatNumber } from '@/lib/utils';
@@ -173,6 +175,49 @@ export function VerificationPanel({
               auto-verified, because those checks proved nothing.
             </p>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Draft quality</CardTitle>
+            <CardDescription>
+              Unwrap drafts the generator returned as JSON, then approve the ones that come out
+              clean.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button
+            type="button"
+            variant="primary"
+            loading={busy === 'sweep'}
+            onClick={() => run('sweep', () => repairAndApproveDrafts())}
+          >
+            <Wand2 className="size-4" aria-hidden="true" />
+            Clean and approve drafts
+          </Button>
+
+          <div className="space-y-2 text-xs text-muted-foreground">
+            <p>
+              Two separate steps, and cleaning never implies approving.{' '}
+              <strong>Cleaning</strong> unwraps{' '}
+              <code className="font-mono">{'{"header": …, "body": …}'}</code> into an actual
+              email, turns <code className="font-mono">\n</code> back into line breaks and drops
+              code fences. It saves the result as a new version, so the original stays in the
+              history and a bad clean is one click from being undone.
+            </p>
+            <p>
+              <strong>Approving</strong> then happens only for drafts with nothing left wrong.
+              Anything still carrying placeholder text, stray braces or a truncated body keeps its
+              place in the queue and says why on the lead page.
+            </p>
+            <p>
+              Works in batches and stops before the request times out, so press it again if the
+              approval queue is still large.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
