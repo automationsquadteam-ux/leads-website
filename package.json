@@ -18,6 +18,7 @@
     "import:leads": "tsx scripts/import-leads.ts",
     "import:leads:dry": "tsx scripts/import-leads.ts --dry-run",
     "leads:purge": "tsx scripts/purge-leads.ts",
+    "leads:duplicates": "tsx scripts/find-duplicates.ts",
     "emails:export": "tsx scripts/verify-emails.ts export",
     "emails:import": "tsx scripts/verify-emails.ts import",
     "emails:status": "tsx scripts/verify-emails.ts status"

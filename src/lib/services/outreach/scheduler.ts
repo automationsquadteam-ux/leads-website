@@ -197,7 +197,34 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
     if (config.outreach.requireVerifiedEmail) query = query.eq('email_verified', true);
 
     const { data } = await query;
-    for (const row of data ?? []) work.push({ lead_id: row.lead_id, type: 'initial' });
+    const candidates = (data ?? []).map((row) => row.lead_id);
+
+    /*
+     * An initial email also needs its ACTIVE VERSION approved, which is the
+     * condition checked immediately before sending. Filtering on
+     * lead_pipeline.approved alone put leads in the queue that the very next
+     * step then rejected, producing runs that read "6 due, 6 skipped" forever
+     * with no clue as to why.
+     *
+     * The two flags can disagree because lead_pipeline.approved is derived from
+     * leads.status, which older bulk actions set on its own. Requiring both
+     * here makes the queue mean what it says.
+     */
+    if (candidates.length > 0) {
+      const admin = createServiceClient();
+      const { data: versions } = await admin
+        .from('email_versions')
+        .select('lead_id')
+        .in('lead_id', candidates)
+        .eq('type', 'initial')
+        .eq('active', true)
+        .eq('status', 'approved');
+
+      const signedOff = new Set((versions ?? []).map((v) => v.lead_id));
+      for (const leadId of candidates) {
+        if (signedOff.has(leadId)) work.push({ lead_id: leadId, type: 'initial' });
+      }
+    }
   }
 
   return work.slice(0, limit);

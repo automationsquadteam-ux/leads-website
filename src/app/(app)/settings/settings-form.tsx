@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
+import { convertWallClock, DISPLAY_TIME_ZONE, DISPLAY_TIME_ZONE_LABEL } from '@/lib/utils';
 import { updateSettings } from '@/lib/actions/misc';
 import { STAGE_META } from '@/lib/pipeline/labels';
 import { PIPELINE_STAGES } from '@/lib/supabase/database.types';
@@ -52,6 +53,18 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
     end?: string;
   };
 
+  const whStart = workingHours.start ?? '09:00';
+  const whEnd = workingHours.end ?? '17:00';
+  const whZone = workingHours.timezone ?? 'UTC';
+
+  const localStart = convertWallClock(whStart, whZone);
+  const localEnd = convertWallClock(whEnd, whZone);
+  // Only worth showing when the two zones actually differ.
+  const localWindow =
+    localStart && localEnd && whZone !== DISPLAY_TIME_ZONE
+      ? { start: localStart, end: localEnd }
+      : null;
+
   return (
     <form action={formAction} className="space-y-4">
       <Card>
@@ -94,16 +107,38 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
           </Field>
 
           <Field label="Working hours start" htmlFor="hours-start">
-            <Input id="hours-start" name="wh-start" type="time" defaultValue={workingHours.start ?? '09:00'} />
+            <Input id="hours-start" name="wh-start" type="time" defaultValue={whStart} />
           </Field>
 
           <Field label="Working hours end" htmlFor="hours-end">
-            <Input id="hours-end" name="wh-end" type="time" defaultValue={workingHours.end ?? '17:00'} />
+            <Input id="hours-end" name="wh-end" type="time" defaultValue={whEnd} />
           </Field>
 
-          <Field label="Timezone" htmlFor="hours-tz" className="sm:col-span-2">
-            <Input id="hours-tz" name="wh-tz" defaultValue={workingHours.timezone ?? 'UTC'} placeholder="UTC" />
+          <Field
+            label="Timezone"
+            htmlFor="hours-tz"
+            className="sm:col-span-2"
+            hint="The window the sender may run in. Independent of how times are displayed."
+          >
+            <Input id="hours-tz" name="wh-tz" defaultValue={whZone} placeholder="UTC" />
           </Field>
+
+          {/*
+            The window is stored in its own timezone while every timestamp on
+            screen is shown in DISPLAY_TIME_ZONE. Seeing "09:00-17:00 UTC" beside
+            a log line reading "14:32 PKT" is the pair that gets misread, so the
+            translation is spelled out rather than left as mental arithmetic.
+          */}
+          {localWindow ? (
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              {whStart}–{whEnd} {whZone} is{' '}
+              <strong>
+                {localWindow.start}–{localWindow.end} {DISPLAY_TIME_ZONE_LABEL}
+              </strong>
+              , which is when you will actually see email going out. Times everywhere else in
+              the app are shown in {DISPLAY_TIME_ZONE_LABEL}.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

@@ -76,6 +76,7 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0019 | `20260804200000_sheet_date_sent_is_authoritative.sql` | ❌ **NOT YET** |
 | 0020 | `20260804220000_outreach_run_budget.sql` | ❌ **NOT YET** |
 | 0021 | `20260805100000_research_complete_any_field.sql` | ❌ **NOT YET** |
+| 0022 | `20260805120000_reconcile_approved_versions.sql` | ❌ **NOT YET** |
 
 **To apply 0015:** paste `supabase/schema-update-5-verification-and-public-leads.sql` into
 the Supabase SQL editor and Run. Idempotent, includes both backfills.
@@ -95,6 +96,31 @@ read as unverified.
 **To apply 0020:** then paste `supabase/schema-update-10-run-budget.sql`.
 
 **To apply 0021:** then paste `supabase/schema-update-11-research-any-field.sql`.
+
+**To apply 0022:** then paste `supabase/schema-update-12-reconcile-approved.sql`.
+
+### Duplicate leads sharing one address, despite a UNIQUE dedupe_key
+
+`dedupe_key` is computed ONCE, at import, from what the row had then:
+`email:<address>` when there was a usable one, otherwise `site:<host>` or
+`name:<name>|<city>`. It is not in `REFRESHABLE_FIELDS` and nothing recomputes it.
+
+So a sheet row imported without an address gets `site:example.com`, and if the address is
+filled in later the key stays `site:`. A second row for the same business imported WITH the
+address gets `email:info@example.com`. Two different keys, one address, and the UNIQUE index
+is perfectly satisfied.
+
+Observed live: `info@vacationsrilanka.com` and `info@lankasafetours.com`, each present twice.
+The symptom is confusing rather than obviously broken — you send from one row and open the
+other, which shows no email log and still reads unverified.
+
+`npm run leads:duplicates` reports them; `-- --merge` moves logs, replies, activity and
+inbound messages onto the survivor and **archives** the others (never deletes). The survivor
+is chosen by evidence first — logs, a reply, a confirmed verification — because content can
+be copied across but a conversation cannot.
+
+Recomputing keys automatically would be worse: it would collide with the surviving row and
+fail the whole sync.
 
 ### "Unverified" is not "has no address"
 
@@ -702,6 +728,22 @@ commit as the migration. It declares `Relationships: []`, so **PostgREST embedde
 `border-border`). Never a raw hex in a component. Both themes are defined in
 `globals.css`; `@theme inline` maps them into Tailwind.
 
+**Times are displayed in one pinned zone.** `DISPLAY_TIME_ZONE` in `lib/utils.ts`
+(`NEXT_PUBLIC_DISPLAY_TIMEZONE`, default `Asia/Karachi`) is passed to every Intl formatter.
+Without an explicit `timeZone`, Intl uses whatever clock the code runs on: UTC on Vercel for
+a server component, the visitor's own zone for a client one, so one page could show the same
+instant two ways.
+
+This is **display only**. Storage is UTC (`timestamptz`) and `sending.working_hours` keeps
+its own timezone, deliberately separate: when the sender may run is a policy about the
+recipients, not about who is reading the screen. Because both appear in the UI,
+`formatDateTime()` appends the zone label by default (`{ zone: false }` opts out), and the
+Settings screen translates the window into display time so "09:00–17:00 UTC" next to
+"14:32 PKT" cannot be misread.
+
+Chart axes still use the raw `YYYY-MM-DD` buckets from `date_trunc` in Postgres, which are
+UTC days. Converting a pre-aggregated day label would be meaningless, so they are left alone.
+
 **Branding.** The logo is `public/logo.png` (full lockup) and `public/logo-mark.png` (gear
 mark only). Render it through `components/brand.tsx` `BrandMark` / `BrandLockup` never
 with a bare `<Image>`: the source PNG **has no alpha channel**, so its background is solid
@@ -958,6 +1000,9 @@ npm run leads:purge -- --yes           # delete, writing a backup first
 npm run leads:purge -- --source="google-sheets:Sheet1" --yes
 npm run leads:purge -- --restore=backups/leads-<stamp>.json
 
+npm run leads:duplicates                 # leads sharing an email address
+npm run leads:duplicates -- --merge      # keep the richest, archive the rest
+
 npm run emails:export                            # unverified addresses -> CSV
 npm run emails:import -- --file=result.csv --dry-run
 npm run emails:import -- --file=result.csv       # apply a verifier's results
@@ -1037,6 +1082,8 @@ back (and it sets no `sheet_row_number`, so those leads cannot write back to the
 | 2026-08-03 | This guide created |
 | 2026-08-03 | n8n removed (0011); Sheets write-back added; nested-`<form>` hydration bug fixed in `secret-field.tsx` |
 | 2026-08-03 | 0011 confirmed applied to the live DB (the guide had it as pending) |
+| 2026-08-05 | **0022**: the sender had been picking the same 6 leads every 3 minutes and refusing all 6, because `lead_pipeline.approved` (from `leads.status`) and the version status disagreed. Reconciled, and `findDueWork()` now requires the approved version so the queue cannot offer work it will reject. Added `leads:duplicates` after finding two businesses present twice |
+| 2026-08-05 | All displayed timestamps pinned to `Asia/Karachi` and labelled PKT; storage and the sending window stay UTC; Settings shows the window translated into local time |
 | 2026-08-05 | **0021**: research counts as done when any of the seven research fields is filled, not just the summary (239 leads were parked at "Researching" with real research); verification tiles split "no address" from "never checked"; the verifier export stopped re-billing catch-all and unknown by default; follow-up badge counts leads rather than drafts |
 | 2026-08-04 | **0020**: the minimum send gap was silently capped at 10s, so a 90s setting waited 10. Now honoured in full and measured against the last recorded send, so it holds across runs and manual triggers; run budget became a setting |
 | 2026-08-04 | **0019**: the sheet's Date Sent is authoritative for upstream sends and re-anchors `followup1_due`; `last_contacted_at` added to `REFRESHABLE_FIELDS`; the removed "Email draft Status" column unmapped in both directions; `workers_dev = false` so the Worker deploy stops asking for a subdomain |
