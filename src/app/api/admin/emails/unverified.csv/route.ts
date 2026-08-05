@@ -23,14 +23,19 @@ import { buildUnverifiedCsv } from '@/lib/services/email-verification';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await assertAdmin();
   } catch {
     return NextResponse.json({ ok: false, message: 'Unauthorized.' }, { status: 401 });
   }
 
-  const { csv, count } = await buildUnverifiedCsv();
+  // `?recheck=1` also exports catch-all and unknown addresses. Off by default:
+  // a verifier bills per address, and a catch-all domain returns catch-all
+  // every time, so re-exporting them by default charges again for an answer
+  // that cannot change.
+  const recheck = new URL(request.url).searchParams.get('recheck') === '1';
+  const { csv, count } = await buildUnverifiedCsv({ includeInconclusive: recheck });
 
   if (count === 0) {
     // Still a CSV, so the download behaves predictably rather than erroring.

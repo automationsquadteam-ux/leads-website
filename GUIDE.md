@@ -75,6 +75,7 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0018 | `20260804180000_schedule_followups_for_backfilled_sends.sql` | ❌ **NOT YET** |
 | 0019 | `20260804200000_sheet_date_sent_is_authoritative.sql` | ❌ **NOT YET** |
 | 0020 | `20260804220000_outreach_run_budget.sql` | ❌ **NOT YET** |
+| 0021 | `20260805100000_research_complete_any_field.sql` | ❌ **NOT YET** |
 
 **To apply 0015:** paste `supabase/schema-update-5-verification-and-public-leads.sql` into
 the Supabase SQL editor and Run. Idempotent, includes both backfills.
@@ -92,6 +93,24 @@ read as unverified.
 **To apply 0019:** then paste `supabase/schema-update-9-date-sent-authoritative.sql`.
 
 **To apply 0020:** then paste `supabase/schema-update-10-run-budget.sql`.
+
+**To apply 0021:** then paste `supabase/schema-update-11-research-any-field.sql`.
+
+### "Unverified" is not "has no address"
+
+A lead with no email address counts as `unverified`, because there is nothing to verify. In
+this dataset **every** unverified lead was that case: 308 with no address, 0 with an
+unchecked one. So the Settings tile read 308 while the export produced 184, promising work
+the download could not deliver.
+
+`getVerificationCounts()` now returns them separately — `noAddress`, `exportable` (never
+checked AND has an address) and `inconclusive` (catch-all + unknown). A tile that counts one
+thing and a button that delivers another is worse than no tile.
+
+**The export defaults to never-checked only.** It used to include `unknown` and `accept_all`
+on the theory that a re-run might resolve them, which re-bills every one of those addresses
+on every export — and a catch-all domain returns catch-all every single time. Re-checking is
+now an explicit `?recheck=1` button.
 
 Apply them in order. 0017 rewrites `pipeline_board`, which 0015 created.
 
@@ -1018,6 +1037,7 @@ back (and it sets no `sheet_row_number`, so those leads cannot write back to the
 | 2026-08-03 | This guide created |
 | 2026-08-03 | n8n removed (0011); Sheets write-back added; nested-`<form>` hydration bug fixed in `secret-field.tsx` |
 | 2026-08-03 | 0011 confirmed applied to the live DB (the guide had it as pending) |
+| 2026-08-05 | **0021**: research counts as done when any of the seven research fields is filled, not just the summary (239 leads were parked at "Researching" with real research); verification tiles split "no address" from "never checked"; the verifier export stopped re-billing catch-all and unknown by default; follow-up badge counts leads rather than drafts |
 | 2026-08-04 | **0020**: the minimum send gap was silently capped at 10s, so a 90s setting waited 10. Now honoured in full and measured against the last recorded send, so it holds across runs and manual triggers; run budget became a setting |
 | 2026-08-04 | **0019**: the sheet's Date Sent is authoritative for upstream sends and re-anchors `followup1_due`; `last_contacted_at` added to `REFRESHABLE_FIELDS`; the removed "Email draft Status" column unmapped in both directions; `workers_dev = false` so the Worker deploy stops asking for a subdomain |
 | 2026-08-04 | **0018**: sheet-reported sends now schedule follow-up 1 (they never did, so 58 leads were parked on await_followup1 forever); the two definitions of "approved" reconciled, and `bulkSetStatus('approved')` routed to `bulkApproveDrafts()` so the dashboard cannot promise a send the scheduler will skip |

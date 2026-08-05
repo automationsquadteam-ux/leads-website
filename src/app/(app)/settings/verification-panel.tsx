@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useActionState } from 'react';
 import { Download, ListChecks, Upload } from 'lucide-react';
 
@@ -23,19 +24,24 @@ import { formatNumber } from '@/lib/utils';
  */
 export function VerificationPanel({
   counts,
+  noAddress,
+  exportable,
+  inconclusive,
   sentWithoutFollowups,
+  leadsMissingFollowups,
 }: {
   counts: Record<string, number>;
+  noAddress: number;
+  exportable: number;
+  inconclusive: number;
   sentWithoutFollowups: number;
+  leadsMissingFollowups: number;
 }) {
   const [state, formAction, uploading] = useActionState(uploadVerificationCsv, EMPTY_ACTION_RESULT);
   const { busy, run } = useAsyncAction();
   const [fileName, setFileName] = React.useState<string | null>(null);
 
   useActionFeedback(state);
-
-  const unresolved =
-    (counts.unverified ?? 0) + (counts.unknown ?? 0) + (counts.accept_all ?? 0);
 
   return (
     <div className="space-y-4">
@@ -48,42 +54,78 @@ export function VerificationPanel({
               ZeroBounce, or Bouncer), then upload the result here.
             </CardDescription>
           </div>
-          <Badge tone={unresolved > 0 ? 'warning' : 'success'}>
-            {formatNumber(unresolved)} to check
+          <Badge tone={exportable > 0 ? 'warning' : 'success'}>
+            {formatNumber(exportable)} to check
           </Badge>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {/*
+            "No address" is listed first and separately because it used to be
+            folded into Unverified, where it made the tile promise work the
+            download could not deliver: 308 unverified, 184 in the file. An
+            address you do not have is a sourcing problem, not a verification
+            one.
+          */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <Link
+              href="/leads?view=missing_email"
+              title="No address at all. Nothing to verify — these need one found."
+              className="rounded-md border border-dashed border-border px-2.5 py-2 transition-colors hover:border-primary hover:bg-surface-hover"
+            >
+              <span className="block text-xs text-muted-foreground">No address</span>
+              <span className="tabular block text-lg font-semibold">{formatNumber(noAddress)}</span>
+            </Link>
+
             {EMAIL_VERIFICATION_STATUSES.map((status) => {
               const meta = VERIFICATION_META[status];
+              // Unverified is shown as "addresses never checked", excluding the
+              // no-address rows already counted in the tile above.
+              const value = status === 'unverified' ? exportable : (counts[status] ?? 0);
               return (
-                <a
+                <Link
                   key={status}
                   href={`/leads?verify=${status}`}
                   title={meta.hint}
                   className="rounded-md border border-border px-2.5 py-2 transition-colors hover:border-primary hover:bg-surface-hover"
                 >
-                  <span className="block text-xs text-muted-foreground">{meta.label}</span>
-                  <span className="tabular block text-lg font-semibold">
-                    {formatNumber(counts[status] ?? 0)}
+                  <span className="block text-xs text-muted-foreground">
+                    {status === 'unverified' ? 'Never checked' : meta.label}
                   </span>
-                </a>
+                  <span className="tabular block text-lg font-semibold">{formatNumber(value)}</span>
+                </Link>
               );
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-            <a
-              href="/api/admin/emails/unverified.csv"
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary-hover"
-            >
-              <Download className="size-4" aria-hidden="true" />
-              Download unverified ({formatNumber(unresolved)})
-            </a>
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="/api/admin/emails/unverified.csv"
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary-hover"
+              >
+                <Download className="size-4" aria-hidden="true" />
+                Download never-checked ({formatNumber(exportable)})
+              </a>
+
+              {inconclusive > 0 ? (
+                <a
+                  href="/api/admin/emails/unverified.csv?recheck=1"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover"
+                  title="Also re-checks catch-all and unknown. Costs credits you have already spent once."
+                >
+                  <Download className="size-4" aria-hidden="true" />
+                  Also re-check catch-all &amp; unknown ({formatNumber(exportable + inconclusive)})
+                </a>
+              ) : null}
+            </div>
+
             <p className="text-xs text-muted-foreground">
-              Includes unknown and catch-all as well as never-checked: a re-run often resolves
-              them, and it de-duplicates by address because verifiers bill per address.
+              The main download contains <strong>only addresses never checked before</strong>, so
+              re-running it never spends a credit twice. Leads with no address are excluded — you
+              cannot verify one you do not have. The second button deliberately re-checks the{' '}
+              {formatNumber(inconclusive)} catch-all and unknown results; worth doing occasionally,
+              but a catch-all domain returns catch-all every time, so it usually buys nothing.
             </p>
           </div>
 
@@ -142,11 +184,25 @@ export function VerificationPanel({
               Write follow-up 1 and 2 ahead of time for leads the initial email has gone to.
             </CardDescription>
           </div>
-          <Badge tone={sentWithoutFollowups > 0 ? 'warning' : 'neutral'}>
-            {formatNumber(sentWithoutFollowups)} missing
+          {/*
+            Leads first, drafts second. The badge used to show the draft count
+            alone, so 60 emailed leads produced "118 missing" and read like a
+            contradiction — each lead needs two drafts.
+          */}
+          <Badge tone={leadsMissingFollowups > 0 ? 'warning' : 'neutral'}>
+            {formatNumber(leadsMissingFollowups)} lead{leadsMissingFollowups === 1 ? '' : 's'}
           </Badge>
         </CardHeader>
         <CardContent className="space-y-3">
+          <p className="text-sm">
+            <strong>{formatNumber(leadsMissingFollowups)}</strong> lead
+            {leadsMissingFollowups === 1 ? '' : 's'} you have already emailed{' '}
+            {leadsMissingFollowups === 1 ? 'is' : 'are'} missing a follow-up, which is{' '}
+            <strong>{formatNumber(sentWithoutFollowups)}</strong> draft
+            {sentWithoutFollowups === 1 ? '' : 's'} to write (each lead needs follow-up 1 and
+            follow-up 2).
+          </p>
+
           <Button
             type="button"
             variant="secondary"

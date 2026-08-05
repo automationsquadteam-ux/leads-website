@@ -166,22 +166,42 @@ export interface UnverifiedRow {
 }
 
 /**
- * Every address that has never produced a definite verdict.
+ * Addresses to send to a verifier.
  *
- * Includes `unknown` and `accept_all` alongside `unverified`: a verifier that
- * gave up once may well decide on a re-run, and re-checking costs nothing but a
- * credit. Only `valid` and `invalid` are settled.
+ * **Never-checked only, by default.** The first version also exported
+ * `unknown` and `accept_all` on the theory that a re-run might resolve them.
+ * In practice that re-bills every one of those addresses on every export, and
+ * a catch-all domain returns catch-all every single time — you pay again for
+ * an answer that cannot change.
+ *
+ * `includeInconclusive` re-checks them deliberately, which is worth doing
+ * occasionally (a domain that was misconfigured may since have been fixed) but
+ * should be a decision, not a default.
+ *
+ * Leads with no address are excluded here, which is the whole point of the
+ * export. Note that they also count as `unverified` in the tallies, so the
+ * count on a status tile is NOT the number of rows this returns — see
+ * getVerificationCounts(), which separates the two.
  */
-export async function getUnverifiedEmails(): Promise<UnverifiedRow[]> {
+export async function getUnverifiedEmails(
+  options: { includeInconclusive?: boolean } = {},
+): Promise<UnverifiedRow[]> {
   const admin = createServiceClient();
   const out: UnverifiedRow[] = [];
   const pageSize = 1000;
+
+  const statuses: EmailVerificationStatus[] = options.includeInconclusive
+    ? ['unverified', 'unknown', 'accept_all']
+    : ['unverified'];
 
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await admin
       .from('lead_pipeline')
       .select('lead_id, email_verification_status')
-      .in('email_verification_status', ['unverified', 'unknown', 'accept_all'])
+      .in('email_verification_status', statuses)
+      // Cannot verify an address we do not have. Filtering here as well as on
+      // the lead keeps the paging honest.
+      .eq('email_found', true)
       .is('closed', null)
       .order('lead_id', { ascending: true })
       .range(from, from + pageSize - 1);
@@ -221,8 +241,10 @@ export async function getUnverifiedEmails(): Promise<UnverifiedRow[]> {
   });
 }
 
-export async function buildUnverifiedCsv(): Promise<{ csv: string; count: number }> {
-  const rows = await getUnverifiedEmails();
+export async function buildUnverifiedCsv(
+  options: { includeInconclusive?: boolean } = {},
+): Promise<{ csv: string; count: number }> {
+  const rows = await getUnverifiedEmails(options);
   return {
     // `email` first and named exactly that: every verifier auto-detects it.
     csv: toCsv(

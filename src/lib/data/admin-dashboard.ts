@@ -228,13 +228,30 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
  */
 export async function getVerificationCounts(): Promise<{
   counts: Record<string, number>;
+  /** Leads with no address at all. Cannot be verified, only sourced. */
+  noAddress: number;
+  /** Never-checked addresses that DO exist. What an export actually contains. */
+  exportable: number;
+  /** Catch-all + unknown: already paid for, re-checkable but rarely worth it. */
+  inconclusive: number;
   sentWithoutFollowups: number;
+  /** Leads (not drafts) still missing a follow-up. */
+  leadsMissingFollowups: number;
 }> {
   const supabase = await createClient();
 
   const statuses = ['unverified', 'valid', 'invalid', 'accept_all', 'unknown'] as const;
   const counts: Record<string, number> = {};
 
+  /*
+   * "Unverified" counted leads with NO ADDRESS as well as unchecked ones, and
+   * in this dataset every single unverified lead was the former: 308 with no
+   * address, 0 with an unchecked one. So the tile read 308 while the export
+   * produced 184, and the number promised work the download could not deliver.
+   *
+   * Splitting them is the fix. You cannot verify an address you do not have;
+   * that is a sourcing problem, and it belongs under Leads Missing Email.
+   */
   await Promise.all(
     statuses.map(async (status) => {
       const { count } = await supabase
@@ -244,6 +261,33 @@ export async function getVerificationCounts(): Promise<{
       counts[status] = count ?? 0;
     }),
   );
+
+  const countWhere = async (build: PromiseLike<{ count: number | null }>) => (await build).count ?? 0;
+
+  const [noAddress, exportable, inconclusive] = await Promise.all([
+    countWhere(
+      supabase
+        .from('lead_pipeline')
+        .select('*', { count: 'exact', head: true })
+        .eq('email_found', false),
+    ),
+    countWhere(
+      supabase
+        .from('lead_pipeline')
+        .select('*', { count: 'exact', head: true })
+        .eq('email_verification_status', 'unverified')
+        .eq('email_found', true)
+        .is('closed', null),
+    ),
+    countWhere(
+      supabase
+        .from('lead_pipeline')
+        .select('*', { count: 'exact', head: true })
+        .in('email_verification_status', ['accept_all', 'unknown'])
+        .eq('email_found', true)
+        .is('closed', null),
+    ),
+  ]);
 
   // Leads that have been emailed and are still in play.
   const { data: sent } = await supabase
@@ -256,6 +300,7 @@ export async function getVerificationCounts(): Promise<{
 
   const sentIds = (sent ?? []).map((row) => row.lead_id);
   let sentWithoutFollowups = 0;
+  let leadsMissingFollowups = 0;
 
   if (sentIds.length > 0) {
     const { data: versions } = await supabase
@@ -266,15 +311,26 @@ export async function getVerificationCounts(): Promise<{
       .in('type', ['followup1', 'followup2']);
 
     const have = new Set((versions ?? []).map((row) => `${row.lead_id}:${row.type}`));
-    // Counts missing DRAFTS, not leads: a lead with neither follow-up is two
-    // pieces of work, and the button generates both.
+
+    /*
+     * Both figures, because they answer different questions and the difference
+     * is roughly a factor of two.
+     *
+     * A single badge reading "118 missing" against 60 emailed leads reads like
+     * a contradiction. It was counting DRAFTS: 59 leads each missing follow-up
+     * 1 and follow-up 2. The UI now leads with the lead count and mentions the
+     * draft count as the work involved.
+     */
     for (const id of sentIds) {
-      if (!have.has(`${id}:followup1`)) sentWithoutFollowups += 1;
-      if (!have.has(`${id}:followup2`)) sentWithoutFollowups += 1;
+      const missing1 = !have.has(`${id}:followup1`);
+      const missing2 = !have.has(`${id}:followup2`);
+      if (missing1) sentWithoutFollowups += 1;
+      if (missing2) sentWithoutFollowups += 1;
+      if (missing1 || missing2) leadsMissingFollowups += 1;
     }
   }
 
-  return { counts, sentWithoutFollowups };
+  return { counts, noAddress, exportable, inconclusive, sentWithoutFollowups, leadsMissingFollowups };
 }
 
 export interface ActivityRow extends LeadActivity {

@@ -70,7 +70,11 @@ export default async function SettingsPage() {
           <h2 className="mb-3 text-sm font-semibold">Email verification &amp; follow-ups</h2>
           <VerificationPanel
             counts={verification.counts}
+            noAddress={verification.noAddress}
+            exportable={verification.exportable}
+            inconclusive={verification.inconclusive}
             sentWithoutFollowups={verification.sentWithoutFollowups}
+            leadsMissingFollowups={verification.leadsMissingFollowups}
           />
         </section>
 
