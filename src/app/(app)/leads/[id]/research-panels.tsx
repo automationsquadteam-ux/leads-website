@@ -134,7 +134,7 @@ export function PersonalizationPanel({ lead }: { lead: Lead }) {
             Personalization
           </CardTitle>
           <CardDescription>
-            The specific detail that proves this is not a mass mail. Available to templates as{' '}
+            The specific detail that proves this is not a mass mail. Available to drafts as{' '}
             <code className="font-mono text-[11px]">{'{{personalization}}'}</code>.
           </CardDescription>
         </div>

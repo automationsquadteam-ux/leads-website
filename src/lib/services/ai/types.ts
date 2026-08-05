@@ -1,4 +1,4 @@
-import type { EmailType, Lead, Template } from '@/lib/supabase/database.types';
+import type { EmailType, Lead } from '@/lib/supabase/database.types';
 
 /**
  * The generation contract.
@@ -12,8 +12,6 @@ import type { EmailType, Lead, Template } from '@/lib/supabase/database.types';
 export interface GenerationContext {
   lead: Lead;
   type: EmailType;
-  /** The template selected for this lead's campaign, when there is one. */
-  template: Template | null;
   /** Signature from settings, so a draft ends the way a sent email will. */
   signature: string;
   /** Sender identity, so the model can write in the first person credibly. */

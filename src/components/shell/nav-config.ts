@@ -1,6 +1,5 @@
 import {
-  LayoutDashboard, Users, Megaphone, FileText, Mail, MessageSquare, Settings,
-  BarChart3, Globe,
+  LayoutDashboard, Users, Mail, MessageSquare, Settings, BarChart3, Globe,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -25,8 +24,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'viewer'] },
   { href: '/leads', label: 'Leads', icon: Users, roles: ['admin'] },
   { href: '/analytics', label: 'Analytics', icon: BarChart3, roles: ['admin'] },
-  { href: '/campaigns', label: 'Campaigns', icon: Megaphone, roles: ['admin'] },
-  { href: '/templates', label: 'Templates', icon: FileText, roles: ['admin'] },
   { href: '/email-logs', label: 'Email Logs', icon: Mail, roles: ['admin'] },
   { href: '/replies', label: 'Replies', icon: MessageSquare, roles: ['admin'] },
   // The public front page. Shown to both roles because it is the one

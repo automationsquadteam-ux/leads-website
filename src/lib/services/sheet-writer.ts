@@ -135,7 +135,14 @@ const WRITEBACK_COLUMNS: WritebackColumn[] = [
     value: (s) => (s.pipeline?.replied ? 'Yes' : undefined),
   },
 
-  { key: 'status', headers: ['status', 'crm status', 'lead status'], value: (s) => s.lead.status },
+  /*
+   * `leads.status` used to be pushed here under 'status' / 'crm status' /
+   * 'lead status'. The sheet has none of those columns, so it wrote nowhere —
+   * and everything the sheet DOES receive (Email sent status, research status,
+   * Date Sent, Reply) is derived from the pipeline just below, which is the
+   * record that is actually true. The mapping is gone rather than repointed:
+   * the stage is already published on its own line.
+   */
   {
     key: 'stage',
     headers: ['stage', 'pipeline stage', 'crm stage'],

@@ -26,6 +26,17 @@ export interface SendLeadEmailResult {
 }
 
 /**
+ * Why a send was refused, phrased for the person reading the toast rather than
+ * as the enum value. 'valid' and 'invalid' are absent: one is never refused and
+ * the other has its own, blunter message.
+ */
+const VERIFICATION_REASON: Record<string, string> = {
+  unverified: 'has never been checked',
+  accept_all: 'is on a catch-all domain, so the check proved nothing either way',
+  unknown: 'came back unresolved the verifier could not decide',
+};
+
+/**
  * Send one step of the sequence.
  *
  * The copy comes from the ACTIVE version in email_versions, which is the whole
@@ -59,6 +70,59 @@ export async function sendLeadEmail(
     return { ok: false, message: 'This lead has no email address.', messageId: null, logId: null };
   }
 
+  const config = await getIntegrationConfig();
+
+  /*
+   * The verification gate, in the ONE function every send path goes through.
+   *
+   * It used to live only in findDueWork(), which protected the scheduled sender
+   * and nothing else the Send button on a lead page would happily mail an
+   * address a verifier had already proved dead, and so would the API route. A
+   * rule enforced only by the callers that happen to remember it is not
+   * enforced, which is the same argument as the placeholder check below.
+   *
+   * Checked BEFORE the draft, because "this address is dead" is the more useful
+   * answer when both are wrong: writing a draft for it would be wasted work.
+   *
+   * Fails closed. A lead with no pipeline row reads as unverified, so a missing
+   * projection blocks a send rather than waving it through.
+   */
+  const { data: pipeline } = await admin
+    .from('lead_pipeline')
+    .select('email_verified, email_verification_status')
+    .eq('lead_id', leadId)
+    .maybeSingle();
+
+  const verification = pipeline?.email_verification_status ?? 'unverified';
+
+  /*
+   * 'invalid' is refused whatever the settings say. require_verified_email is
+   * about how much proof we insist on before a first contact; a hard bounce is
+   * not a lack of proof, it is proof of the opposite, and no setting should let
+   * the system keep mailing an address it knows is dead.
+   */
+  if (verification === 'invalid') {
+    return {
+      ok: false,
+      message:
+        `${lead.email} was proved undeliverable, so sending to it would bounce. ` +
+        'Find a new address for this lead first.',
+      messageId: null,
+      logId: null,
+    };
+  }
+
+  if (config.outreach.requireVerifiedEmail && !pipeline?.email_verified) {
+    return {
+      ok: false,
+      message:
+        `${lead.email} ${VERIFICATION_REASON[verification] ?? 'is not verified'}. ` +
+        'Verify the address, or turn off "Require a verified email" in Settings, then send.',
+      messageId: null,
+      logId: null,
+    };
+  }
+
   const { data: version } = await admin
     .from('email_versions')
     .select('id, subject, content')
@@ -89,8 +153,6 @@ export async function sendLeadEmail(
       logId: null,
     };
   }
-
-  const config = await getIntegrationConfig();
 
   let provider;
   try {
@@ -139,7 +201,6 @@ export async function sendLeadEmail(
     .from('email_logs')
     .insert({
       lead_id: lead.id,
-      campaign_id: lead.campaign_id,
       status: 'queued',
       provider: provider.id,
       subject,

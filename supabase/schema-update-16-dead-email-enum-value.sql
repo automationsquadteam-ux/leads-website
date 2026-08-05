@@ -1,0 +1,35 @@
+-- ===========================================================================
+-- Schema update 16 - add the `dead_email` stage value. ONE STATEMENT.
+--
+-- GENERATED FILE. Regenerate from supabase/migrations/, do not hand-edit.
+-- Apply updates 1-15 first.
+--
+-- ***** PASTE AND RUN THIS ON ITS OWN, BEFORE UPDATE 17. *****
+--
+-- Postgres refuses to let a new enum value be used in the transaction that
+-- created it ("unsafe use of new value"), so the function that returns
+-- 'dead_email' and the backfill that stores it live in update 17.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 0026 — Add the `dead_email` stage value. NOTHING ELSE.
+--
+-- This migration is one statement on purpose. Postgres will not let a new enum
+-- value be USED in the same transaction that added it:
+--
+--     ERROR: unsafe use of new value "dead_email" of enum type pipeline_stage
+--     HINT:  New enum values must be committed before they can be used.
+--
+-- so the function that returns it and the backfill that stores it have to be a
+-- separate script. 0027 is that script. Run this one first, on its own, and let
+-- it commit.
+--
+-- Why the split is worth it: `need_email` was answering two questions at once.
+-- 307 leads never had an address; 19 had one a verifier proved dead. Both need
+-- an address FOUND, so both landed on the same stage — and the dashboard, which
+-- splits them because the work is different, then disagreed with the stage
+-- filter: tiles reading 307 and 19 against a filter reading 326.
+--
+-- One stage per tile, no arithmetic.
+-- ---------------------------------------------------------------------------
+alter type public.pipeline_stage add value if not exists 'dead_email' after 'need_email';

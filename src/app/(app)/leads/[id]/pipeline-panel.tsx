@@ -4,6 +4,7 @@ import * as React from 'react';
 import { CheckCircle2, Circle, PauseCircle, PlayCircle, RotateCcw, XCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useAsyncAction } from '@/components/action-form';
@@ -12,26 +13,33 @@ import {
   reopenLeadWorkflow,
   setAutoFollowups,
   setPipelineGate,
+  setVerificationStatus,
   type PipelineGate,
 } from '@/lib/actions/review';
+import { VERIFICATION_META } from '@/lib/pipeline/labels';
 import { formatDateTime, formatRelative } from '@/lib/utils';
-import type { PipelineBoardRow } from '@/lib/supabase/database.types';
+import {
+  EMAIL_VERIFICATION_STATUSES,
+  type EmailVerificationStatus,
+  type PipelineBoardRow,
+} from '@/lib/supabase/database.types';
 
 /**
  * Stage controls.
  *
- * The four gates are the only pipeline state a human can assert. The stage
- * itself is derived from them in Postgres, so this panel deliberately offers no
- * way to "set the stage" that would be a second source of truth, and the
- * losing one.
+ * The gates are the only pipeline state a human can assert. The stage itself is
+ * derived from them in Postgres, so this panel deliberately offers no way to
+ * "set the stage" that would be a second source of truth, and the losing one.
+ *
+ * The email gate is a DROPDOWN, not a tick box, because the thing it records has
+ * five values and a tick box can show two. Catch-all and unknown rendered as an
+ * empty circle indistinguishable from "nobody has checked", so 173 addresses
+ * that a verifier had already answered on read as unchecked — on this panel and
+ * on the dashboard. It is first because it is the first gate: nothing below it
+ * matters until there is an address worth writing to.
  */
 
 const GATES: Array<{ key: PipelineGate; label: string; hint: string }> = [
-  {
-    key: 'email_verified',
-    label: 'Email verified',
-    hint: 'Confirmed deliverable. The scheduled sender skips unverified addresses.',
-  },
   { key: 'research_complete', label: 'Research complete', hint: 'Enough is known to write a draft.' },
   { key: 'draft_ready', label: 'Draft ready', hint: 'An initial email exists and is worth reviewing.' },
   { key: 'approved', label: 'Approved', hint: 'Signed off and eligible to send.' },
@@ -42,6 +50,7 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
   const [confirmClose, setConfirmClose] = React.useState(false);
 
   const closed = pipeline.closed !== null;
+  const verification = pipeline.email_verification_status;
 
   const stamps: Array<[string, string | null]> = [
     ['Initial sent', pipeline.first_email_sent],
@@ -62,6 +71,42 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="space-y-1 rounded-md px-2 py-1.5">
+          <label htmlFor="verification-status" className="block text-sm">
+            Email address
+          </label>
+          <Select
+            id="verification-status"
+            value={verification}
+            disabled={busy === 'verification' || !pipeline.email}
+            onChange={(event) =>
+              run('verification', () =>
+                setVerificationStatus(
+                  pipeline.lead_id,
+                  event.target.value as EmailVerificationStatus,
+                ),
+              )
+            }
+          >
+            {EMAIL_VERIFICATION_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status === 'unverified' ? 'Never checked' : VERIFICATION_META[status].label}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {!pipeline.email
+              ? 'No address on file yet. Nothing to verify until one is found.'
+              : VERIFICATION_META[verification].hint}
+          </p>
+          {pipeline.email_checked_at ? (
+            <p className="text-xs text-muted-foreground">
+              {pipeline.email_verification_source ?? 'checked'} ·{' '}
+              {formatRelative(pipeline.email_checked_at)}
+            </p>
+          ) : null}
+        </div>
+
         <ul className="space-y-1">
           {GATES.map((gate) => {
             const done = pipeline[gate.key];

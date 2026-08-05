@@ -1,11 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
 
 import { assertAdmin } from '@/lib/auth/session';
 import { createClient } from '@/lib/supabase/server';
-import { TEMPLATE_PLACEHOLDERS } from '@/lib/templates/placeholders';
 import { PIPELINE_STAGES } from '@/lib/supabase/database.types';
 import type { ActionResult } from './leads';
 
@@ -14,169 +12,13 @@ import type { ActionResult } from './leads';
  *
  * Exporting anything else an array, an object, a plain constant makes Next
  * refuse to evaluate the module, which takes down every action in it and
- * surfaces to the user as a 500 on an unrelated-looking POST. That is exactly
- * what TEMPLATE_PLACEHOLDERS did before it moved to lib/templates/placeholders.
+ * surfaces to the user as a 500 on an unrelated-looking POST.
+ *
+ * The template and campaign CRUD that used to live above the settings actions is
+ * gone with those tables: every lead had campaign_id = NULL, so the draft
+ * generator never once found a template and fell through to its built-in default
+ * on all 701 leads.
  */
-
-/* -------------------------------------------------------------------------- */
-/* Templates full CRUD                                                       */
-/* -------------------------------------------------------------------------- */
-
-const templateSchema = z.object({
-  id: z.uuid().optional(),
-  name: z.string().trim().min(1, 'Name is required.').max(120),
-  subject: z.string().trim().min(1, 'Subject is required.').max(300),
-  body: z.string().trim().min(1, 'Body is required.').max(20000),
-});
-
-export async function saveTemplate(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  try {
-    await assertAdmin();
-  } catch {
-    return { ok: false, message: 'You do not have permission to manage templates.' };
-  }
-
-  const raw = Object.fromEntries(formData);
-  const parsed = templateSchema.safeParse({ ...raw, id: raw.id || undefined });
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid input.' };
-  }
-
-  const { id, ...values } = parsed.data;
-  // Record which placeholders the body actually uses, so a future renderer can
-  // validate a lead has the data before sending.
-  const variables = TEMPLATE_PLACEHOLDERS.filter(
-    (token) => values.body.includes(token) || values.subject.includes(token),
-  ).map((token) => token.replace(/[{}]/g, ''));
-
-  const supabase = await createClient();
-  const { error } = id
-    ? await supabase.from('templates').update({ ...values, variables }).eq('id', id)
-    : await supabase.from('templates').insert({ ...values, variables });
-
-  if (error) {
-    const duplicate = error.code === '23505';
-    return {
-      ok: false,
-      message: duplicate ? 'A template with that name already exists.' : error.message,
-    };
-  }
-
-  revalidatePath('/templates');
-  return { ok: true, message: id ? 'Template updated.' : 'Template created.' };
-}
-
-export async function deleteTemplate(id: string): Promise<ActionResult> {
-  try {
-    await assertAdmin();
-  } catch {
-    return { ok: false, message: 'You do not have permission to manage templates.' };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.from('templates').delete().eq('id', id);
-  if (error) return { ok: false, message: error.message };
-
-  revalidatePath('/templates');
-  return { ok: true, message: 'Template deleted.' };
-}
-
-/* -------------------------------------------------------------------------- */
-/* Campaigns                                                                    */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Start / pause / resume flip `campaigns.active`, which is real state the
- * future sending worker will read. Nothing is dispatched here no worker
- * exists yet.
- */
-export async function setCampaignActive(id: string, active: boolean): Promise<ActionResult> {
-  try {
-    await assertAdmin();
-  } catch {
-    return { ok: false, message: 'You do not have permission to manage campaigns.' };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.from('campaigns').update({ active }).eq('id', id);
-  if (error) return { ok: false, message: error.message };
-
-  revalidatePath('/campaigns');
-  revalidatePath('/dashboard');
-  return {
-    ok: true,
-    message: active
-      ? 'Campaign marked active. No email will be sent until the sending worker is connected.'
-      : 'Campaign paused.',
-  };
-}
-
-/** Stop = deactivate and clear the schedule window. */
-export async function stopCampaign(id: string): Promise<ActionResult> {
-  try {
-    await assertAdmin();
-  } catch {
-    return { ok: false, message: 'You do not have permission to manage campaigns.' };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('campaigns')
-    .update({ active: false, ends_at: new Date().toISOString() })
-    .eq('id', id);
-  if (error) return { ok: false, message: error.message };
-
-  revalidatePath('/campaigns');
-  return { ok: true, message: 'Campaign stopped.' };
-}
-
-const campaignSchema = z.object({
-  id: z.uuid().optional(),
-  name: z.string().trim().min(1, 'Name is required.').max(120),
-  description: z
-    .string()
-    .trim()
-    .max(2000)
-    .transform((v) => (v === '' ? null : v))
-    .nullable(),
-  daily_limit: z.coerce.number().int().min(0).max(10000),
-  template_id: z
-    .string()
-    .trim()
-    .transform((v) => (v === '' ? null : v))
-    .nullable(),
-});
-
-export async function saveCampaign(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  try {
-    await assertAdmin();
-  } catch {
-    return { ok: false, message: 'You do not have permission to manage campaigns.' };
-  }
-
-  const raw = Object.fromEntries(formData);
-  const parsed = campaignSchema.safeParse({ ...raw, id: raw.id || undefined });
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Invalid input.' };
-  }
-
-  const { id, ...values } = parsed.data;
-  const supabase = await createClient();
-  const { error } = id
-    ? await supabase.from('campaigns').update(values).eq('id', id)
-    : await supabase.from('campaigns').insert(values);
-
-  if (error) {
-    return {
-      ok: false,
-      message: error.code === '23505' ? 'A campaign with that name already exists.' : error.message,
-    };
-  }
-
-  revalidatePath('/campaigns');
-  return { ok: true, message: id ? 'Campaign updated.' : 'Campaign created.' };
-}
-
 /* -------------------------------------------------------------------------- */
 /* Settings                                                                     */
 /* -------------------------------------------------------------------------- */

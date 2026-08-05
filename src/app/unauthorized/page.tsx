@@ -17,7 +17,7 @@ export default function UnauthorizedPage() {
         <h1 className="text-xl font-semibold tracking-tight">Not authorised</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Your account has read-only access. Lead details, email addresses, research, drafts,
-          templates and settings are restricted to administrators.
+          drafts and settings are restricted to administrators.
         </p>
 
         <div className="mt-6 flex items-center justify-center gap-2">

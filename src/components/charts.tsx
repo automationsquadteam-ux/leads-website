@@ -306,15 +306,3 @@ export function ChartLegend({ items }: { items: Array<{ label: string; color: st
   );
 }
 
-export const STATUS_CHART_COLORS: Record<string, string> = {
-  New: 'var(--muted-foreground)',
-  Researching: 'var(--info)',
-  Ready: 'var(--violet)',
-  Approved: 'var(--success)',
-  Sending: 'var(--warning)',
-  Sent: 'var(--primary)',
-  Replied: 'var(--success)',
-  Bounced: 'var(--warning)',
-  Invalid: 'var(--danger)',
-  Archived: 'var(--border-strong)',
-};

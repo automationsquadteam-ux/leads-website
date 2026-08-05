@@ -3,26 +3,25 @@
 import * as React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Users, ExternalLink, Archive, CheckCircle2, Ban, Download, Trash2 } from 'lucide-react';
+import { Users, ExternalLink, Archive, CheckCircle2, Download, Trash2 } from 'lucide-react';
 
 import { DataTable, type Column } from '@/components/data-table';
 import { SearchBar } from '@/components/search-bar';
 import { FilterPanel, ActiveFilters } from '@/components/filter-panel';
 import { Pagination } from '@/components/pagination';
 import { EmptyState } from '@/components/empty-state';
-import { StatusBadge } from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import { NextStepBadge, StageBadge } from '@/components/pipeline-badge';
-import { bulkSetStatus, deleteLeads } from '@/lib/actions/leads';
+import { archiveLeads, bulkApproveDrafts, deleteLeads } from '@/lib/actions/leads';
 import { VERIFICATION_META } from '@/lib/pipeline/labels';
 import type { LeadRow } from '@/lib/data/leads';
 import {
   EMAIL_VERIFICATION_STATUSES,
   type EmailVerificationStatus,
-  type LeadStatus,
+  type PipelineStage,
 } from '@/lib/supabase/database.types';
 import { cn, displayUrl, formatDate, formatNumber } from '@/lib/utils';
 
@@ -32,8 +31,9 @@ interface Props {
   page: number;
   pageSize: number;
   search: string;
-  statuses: LeadStatus[];
+  stages: PipelineStage[];
   verification: EmailVerificationStatus[];
+  showArchived: boolean;
   /** Active named view, so the chips can show which one is on. */
   view?: string;
   sort: string;
@@ -51,7 +51,7 @@ const DASH = '—';
  * cache to invalidate.
  */
 export function LeadsTable({
-  rows, total, page, pageSize, search, statuses, verification, view, sort, direction, facets,
+  rows, total, page, pageSize, search, stages, verification, showArchived, view, sort, direction, facets,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -180,17 +180,16 @@ export function LeadsTable({
         width: 150,
         render: (lead) => <span className="text-muted-foreground">{lead.niche ?? DASH}</span>,
       },
-      {
-        key: 'status',
-        header: 'Status',
-        sortable: true,
-        width: 130,
-        render: (lead) => <StatusBadge status={lead.status} />,
-      },
-      // Stage and next step are the two figures that decide what to do with a
-      // lead, so they belong in the list, not only on the detail page. Both are
-      // derived in Postgres; a null means the pipeline row has not been created
-      // yet, which happens only for rows written before migration 0012.
+      /*
+       * Stage and Next Step are the two figures that decide what to do with a
+       * lead. Both are derived in Postgres; a null means the pipeline row has
+       * not been created yet, which happens only for rows written before
+       * migration 0012.
+       *
+       * A `Status` column used to sit here showing leads.status. It was a label
+       * someone set rather than a fact, it disagreed with the stage on hundreds
+       * of rows, and having both on screen invited you to trust the wrong one.
+       */
       {
         key: 'stage',
         header: 'Stage',
@@ -222,8 +221,8 @@ export function LeadsTable({
     [],
   );
 
-  async function runBulk(status: LeadStatus): Promise<void> {
-    const result = await bulkSetStatus([...selected], status);
+  async function runBulk(action: () => Promise<{ ok: boolean; message: string }>): Promise<void> {
+    const result = await action();
     toast(result.message, result.ok ? 'success' : 'error');
     if (result.ok) {
       setSelected(new Set());
@@ -231,7 +230,7 @@ export function LeadsTable({
     }
   }
 
-  const hasFilters = search !== '' || statuses.length > 0;
+  const hasFilters = search !== '' || stages.length > 0 || verification.length > 0;
 
   return (
     <div className="space-y-3">
@@ -244,9 +243,9 @@ export function LeadsTable({
           className="min-w-60"
         />
         <FilterPanel
-          selected={statuses}
+          selected={stages}
           facets={facets}
-          onChange={(next) => update({ status: next.length > 0 ? next.join(',') : null })}
+          onChange={(next) => update({ stage: next.length > 0 ? next.join(',') : null })}
         />
 
         {/*
@@ -280,13 +279,16 @@ export function LeadsTable({
 
           <button
             type="button"
-            aria-pressed={view === 'never_checked'}
+            aria-pressed={view === 'awaiting_verification'}
             onClick={() =>
-              update({ view: view === 'never_checked' ? null : 'never_checked', verify: null })
+              update({
+                view: view === 'awaiting_verification' ? null : 'awaiting_verification',
+                verify: null,
+              })
             }
             className={cn(
               'cursor-pointer rounded-md border px-2 py-1 text-xs font-medium transition-colors',
-              view === 'never_checked'
+              view === 'awaiting_verification'
                 ? 'border-primary bg-primary-subtle text-primary'
                 : 'border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground',
             )}
@@ -322,6 +324,27 @@ export function LeadsTable({
           })}
         </div>
 
+        {/*
+          Archived is a toggle rather than a twelfth entry in the stage filter,
+          because it is a visibility choice and not a position in the pipeline:
+          an archived lead still has a stage, and putting it away does not make
+          that stage untrue.
+        */}
+        <button
+          type="button"
+          aria-pressed={showArchived}
+          onClick={() => update({ archived: showArchived ? null : '1' })}
+          className={cn(
+            'cursor-pointer rounded-md border px-2 py-1 text-xs font-medium transition-colors',
+            showArchived
+              ? 'border-primary bg-primary-subtle text-primary'
+              : 'border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground',
+          )}
+          title="Archived leads are hidden from the working list by default."
+        >
+          Show archived
+        </button>
+
         <div className="flex-1" />
 
         {/*
@@ -340,12 +363,12 @@ export function LeadsTable({
       </div>
 
       <ActiveFilters
-        statuses={statuses}
-        onRemove={(status) => {
-          const next = statuses.filter((s) => s !== status);
-          update({ status: next.length > 0 ? next.join(',') : null });
+        stages={stages}
+        onRemove={(stage) => {
+          const next = stages.filter((s) => s !== stage);
+          update({ stage: next.length > 0 ? next.join(',') : null });
         }}
-        onClear={() => update({ status: null, q: null })}
+        onClear={() => update({ stage: null, q: null })}
       />
 
       {/* Bulk action bar appears only with a selection, so it never adds noise. */}
@@ -355,13 +378,20 @@ export function LeadsTable({
             {formatNumber(selected.size)} selected
           </span>
           <div className="flex-1" />
-          <Button size="sm" variant="secondary" onClick={() => runBulk('approved')}>
+          {/*
+            "Mark invalid" used to sit here setting leads.status = 'invalid'.
+            That status meant nothing to the pipeline — whether an address is
+            dead is `email_verification_status`, which the verification control
+            on the lead page sets — so the button changed a label and no
+            behaviour. It is gone rather than reimplemented in bulk.
+          */}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => runBulk(() => bulkApproveDrafts([...selected]))}
+          >
             <CheckCircle2 className="size-3.5" aria-hidden="true" />
             Approve
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => runBulk('invalid')}>
-            <Ban className="size-3.5" aria-hidden="true" />
-            Mark invalid
           </Button>
           <Button size="sm" variant="secondary" onClick={() => setConfirmArchive(true)}>
             <Archive className="size-3.5" aria-hidden="true" />
@@ -401,12 +431,12 @@ export function LeadsTable({
               title={hasFilters ? 'No leads match those filters' : 'No leads yet'}
               description={
                 hasFilters
-                  ? 'Try a different search term, or clear the status filters.'
+                  ? 'Try a different search term, or clear the stage filters.'
                   : 'Import your workbook with npm run import:leads to populate this table.'
               }
               action={
                 hasFilters ? (
-                  <Button variant="secondary" onClick={() => update({ q: null, status: null })}>
+                  <Button variant="secondary" onClick={() => update({ q: null, stage: null })}>
                     Clear filters
                   </Button>
                 ) : null
@@ -430,9 +460,9 @@ export function LeadsTable({
         open={confirmArchive}
         onOpenChange={setConfirmArchive}
         title={`Archive ${formatNumber(selected.size)} lead${selected.size === 1 ? '' : 's'}?`}
-        description="Archived leads are hidden from the working list but not deleted. You can restore them from the lead page, or find them with the Archived status filter."
+        description="Archived leads are hidden from the working list but not deleted. You can restore them from the lead page, or bring them back into view with Show archived."
         confirmLabel="Archive"
-        onConfirm={() => runBulk('archived')}
+        onConfirm={() => runBulk(() => archiveLeads([...selected]))}
       />
 
       <ConfirmDialog

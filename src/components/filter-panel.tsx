@@ -5,20 +5,26 @@ import { Check, Filter, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn, formatNumber } from '@/lib/utils';
-import { LEAD_STATUS_LABELS } from '@/components/status-badge';
-import { LEAD_STATUSES, type LeadStatus } from '@/lib/supabase/database.types';
+import { STAGE_META } from '@/lib/pipeline/labels';
+import { PIPELINE_STAGES, type PipelineStage } from '@/lib/supabase/database.types';
 
 /**
- * Status filter. Multi-select, with each option showing how many leads it
- * holds so an empty result is predictable before you click.
+ * Stage filter. Multi-select, with each option showing how many leads it holds
+ * so an empty result is predictable before you click.
+ *
+ * This used to filter `leads.status`, a label somebody sets. It disagreed with
+ * the pipeline constantly — 472 leads read `status = 'researching'` while 695
+ * had research complete — so filtering by it found the wrong leads. The stage is
+ * derived from what is actually true, and it is what every dashboard tile counts,
+ * so the filter and the tiles now describe the same thing.
  */
 export function FilterPanel({
   selected,
   onChange,
   facets = {},
 }: {
-  selected: LeadStatus[];
-  onChange: (next: LeadStatus[]) => void;
+  selected: PipelineStage[];
+  onChange: (next: PipelineStage[]) => void;
   facets?: Record<string, number>;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -39,10 +45,8 @@ export function FilterPanel({
     };
   }, []);
 
-  function toggle(status: LeadStatus) {
-    onChange(
-      selected.includes(status) ? selected.filter((s) => s !== status) : [...selected, status],
-    );
+  function toggle(stage: PipelineStage) {
+    onChange(selected.includes(stage) ? selected.filter((s) => s !== stage) : [...selected, stage]);
   }
 
   return (
@@ -54,7 +58,7 @@ export function FilterPanel({
         aria-haspopup="true"
       >
         <Filter className="size-4" aria-hidden="true" />
-        Status
+        Stage
         {selected.length > 0 ? (
           <span className="tabular ml-0.5 rounded bg-white/20 px-1 text-xs">{selected.length}</span>
         ) : null}
@@ -63,20 +67,21 @@ export function FilterPanel({
       {open ? (
         <div
           role="group"
-          aria-label="Filter by status"
-          className="absolute right-0 top-full z-50 mt-1 w-60 overflow-hidden rounded-lg border border-border bg-surface-raised shadow-lg"
+          aria-label="Filter by stage"
+          className="absolute right-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-lg border border-border bg-surface-raised shadow-lg"
         >
           <div className="max-h-80 overflow-y-auto p-1">
-            {LEAD_STATUSES.map((status) => {
-              const active = selected.includes(status);
-              const count = facets[status];
+            {PIPELINE_STAGES.map((stage) => {
+              const active = selected.includes(stage);
+              const count = facets[stage];
               return (
                 <button
-                  key={status}
+                  key={stage}
                   type="button"
                   role="checkbox"
                   aria-checked={active}
-                  onClick={() => toggle(status)}
+                  onClick={() => toggle(stage)}
+                  title={STAGE_META[stage].description}
                   className={cn(
                     'flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors',
                     active ? 'bg-primary-subtle text-primary' : 'hover:bg-surface-hover',
@@ -91,7 +96,7 @@ export function FilterPanel({
                   >
                     {active ? <Check className="size-3" /> : null}
                   </span>
-                  <span className="flex-1">{LEAD_STATUS_LABELS[status]}</span>
+                  <span className="flex-1">{STAGE_META[stage].label}</span>
                   {count !== undefined ? (
                     <span className="tabular text-xs text-muted-foreground">{formatNumber(count)}</span>
                   ) : null}
@@ -120,26 +125,26 @@ export function FilterPanel({
 
 /** Removable chips showing the active filters below the toolbar. */
 export function ActiveFilters({
-  statuses,
+  stages,
   onRemove,
   onClear,
 }: {
-  statuses: LeadStatus[];
-  onRemove: (status: LeadStatus) => void;
+  stages: PipelineStage[];
+  onRemove: (stage: PipelineStage) => void;
   onClear: () => void;
 }) {
-  if (statuses.length === 0) return null;
+  if (stages.length === 0) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {statuses.map((status) => (
+      {stages.map((stage) => (
         <button
-          key={status}
+          key={stage}
           type="button"
-          onClick={() => onRemove(status)}
+          onClick={() => onRemove(stage)}
           className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          {LEAD_STATUS_LABELS[status]}
+          {STAGE_META[stage].label}
           <X className="size-3" aria-hidden="true" />
           <span className="sr-only">Remove filter</span>
         </button>

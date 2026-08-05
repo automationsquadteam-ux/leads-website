@@ -2,9 +2,8 @@ import { Clock, Hourglass, PenLine, Timer } from 'lucide-react';
 
 import { PageHeader } from '@/components/shell/app-shell';
 import { MetricCard } from '@/components/metric-card';
-import { BarList, MultiLineChart, STATUS_CHART_COLORS, type SeriesPoint } from '@/components/charts';
+import { BarList, MultiLineChart, type SeriesPoint } from '@/components/charts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { LEAD_STATUS_LABELS } from '@/components/status-badge';
 import { requireAdmin } from '@/lib/auth/session';
 import { getAnalytics } from '@/lib/data/analytics';
 import { EMAIL_TYPE_LABELS, STAGE_META } from '@/lib/pipeline/labels';
@@ -57,11 +56,6 @@ export default async function AnalyticsPage() {
 
   const stagePoints: SeriesPoint[] = data.stages.map((row) => ({
     label: STAGE_META[row.stage]?.label ?? row.stage,
-    value: row.lead_count,
-  }));
-
-  const statusPoints: SeriesPoint[] = data.statuses.map((row) => ({
-    label: LEAD_STATUS_LABELS[row.status] ?? row.status,
     value: row.lead_count,
   }));
 
@@ -199,76 +193,9 @@ export default async function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <div>
-                <CardTitle>Status distribution</CardTitle>
-                <CardDescription>The lead status enum</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <BarList
-                points={statusPoints}
-                caption="Leads by status"
-                colorFor={(label) => STATUS_CHART_COLORS[label] ?? 'var(--primary)'}
-                emptyMessage="No leads yet."
-              />
-            </CardContent>
-          </Card>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <div>
-                <CardTitle>Top performing templates</CardTitle>
-                <CardDescription>Ranked by reply rate</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="scrollbar-thin overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs text-muted-foreground">
-                      <th className="px-4 py-2 text-left font-medium">Template</th>
-                      <th className="px-4 py-2 text-right font-medium">Sent</th>
-                      <th className="px-4 py-2 text-right font-medium">Replies</th>
-                      <th className="px-4 py-2 text-right font-medium">Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.templates.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-6 text-center text-xs text-muted-foreground">
-                          No templates yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      data.templates.map((row) => (
-                        <tr key={row.template_id} className="border-b border-border last:border-0">
-                          <td className="px-4 py-2.5 font-medium">
-                            {row.template_name}
-                            {!row.is_active ? (
-                              <span className="ml-1.5 text-xs text-muted-foreground">(inactive)</span>
-                            ) : null}
-                          </td>
-                          <td className="tabular px-4 py-2.5 text-right">
-                            {formatNumber(row.emails_sent)}
-                          </td>
-                          <td className="tabular px-4 py-2.5 text-right">
-                            {formatNumber(row.replies_received)}
-                          </td>
-                          <td className="tabular px-4 py-2.5 text-right">
-                            {formatPercent(row.reply_rate_pct)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>
@@ -317,64 +244,6 @@ export default async function AnalyticsPage() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div>
-                <CardTitle>Campaign performance</CardTitle>
-                <CardDescription>Counts and rates per campaign</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="scrollbar-thin overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs text-muted-foreground">
-                      <th className="px-4 py-2 text-left font-medium">Campaign</th>
-                      <th className="px-4 py-2 text-left font-medium">Status</th>
-                      <th className="px-4 py-2 text-right font-medium">Leads</th>
-                      <th className="px-4 py-2 text-right font-medium">Sent</th>
-                      <th className="px-4 py-2 text-right font-medium">Replies</th>
-                      <th className="px-4 py-2 text-right font-medium">Reply rate</th>
-                      <th className="px-4 py-2 text-right font-medium">Bounce rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.campaigns.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-6 text-center text-xs text-muted-foreground">
-                          No campaigns yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      data.campaigns.map((row) => (
-                        <tr key={row.campaign_id} className="border-b border-border last:border-0">
-                          <td className="px-4 py-2.5 font-medium">{row.campaign_name}</td>
-                          <td className="px-4 py-2.5 text-muted-foreground">
-                            {row.active ? 'Running' : 'Paused'}
-                          </td>
-                          <td className="tabular px-4 py-2.5 text-right">
-                            {formatNumber(row.leads_assigned)}
-                          </td>
-                          <td className="tabular px-4 py-2.5 text-right">
-                            {formatNumber(row.emails_sent)}
-                          </td>
-                          <td className="tabular px-4 py-2.5 text-right">
-                            {formatNumber(row.replies_received)}
-                          </td>
-                          <td className="tabular px-4 py-2.5 text-right">
-                            {formatPercent(row.reply_rate_pct)}
-                          </td>
-                          <td className="tabular px-4 py-2.5 text-right">
-                            {formatPercent(row.bounce_rate_pct)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>

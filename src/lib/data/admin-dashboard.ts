@@ -30,15 +30,26 @@ function endOfToday(): string {
   return date.toISOString();
 }
 
+/**
+ * Every pipeline figure below is a `current_stage` count.
+ *
+ * Since the stage is the first unmet gate, "how many leads are blocked on X"
+ * and "how many leads are at stage X" are the same question, so a tile and the
+ * ?view= it links to resolve through the same derivation and cannot drift. They
+ * used to be assembled here from flags and again in lib/data/leads.ts from a
+ * slightly different pile of flags, which is how a card reading 111 came to open
+ * a page where only 15 leads were actually sendable.
+ */
 export interface DashboardWidgets {
   emailsToday: number;
   repliesToday: number;
   approvalQueue: number;
-  awaitingReview: number;
   followup1DueToday: number;
   followup2DueToday: number;
   missingEmail: number;
   awaitingVerification: number;
+  /** Checked, and the verifier could not prove it either way. */
+  inconclusive: number;
   overdueFollowups: number;
   needsResearch: number;
   needsDraft: number;
@@ -51,7 +62,6 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
   const supabase = await createClient();
   const dayStart = startOfToday();
   const dayEnd = endOfToday();
-  const now = new Date().toISOString();
 
   const countOf = async (build: () => PromiseLike<{ count: number | null; error: unknown }>) => {
     const { count } = await build();
@@ -62,11 +72,11 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     emailsToday,
     repliesToday,
     approvalQueue,
-    awaitingReview,
     followup1DueToday,
     followup2DueToday,
     missingEmail,
     awaitingVerification,
+    inconclusive,
     overdueFollowups,
     needsResearch,
     needsDraft,
@@ -88,22 +98,20 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
         .gte('received_at', dayStart)
         .lte('received_at', dayEnd),
     ),
-    // Approval queue: a draft exists and nobody has signed it off.
+    /*
+     * A draft exists and nobody has signed it off.
+     *
+     * There used to be a second card beside this one, "Emails Waiting Review",
+     * counting active email_versions still marked draft. They were the same 351
+     * leads plus 24 follow-up drafts one queue counted twice, and neither
+     * number said which. Follow-up drafts are reviewed from the lead page,
+     * where the thread they belong to is visible.
+     */
     countOf(() =>
       supabase
         .from('lead_pipeline')
         .select('*', { count: 'exact', head: true })
-        .eq('draft_ready', true)
-        .eq('approved', false)
-        .is('closed', null),
-    ),
-    // Emails waiting review: draft versions nobody has approved or rejected.
-    countOf(() =>
-      supabase
-        .from('email_versions')
-        .select('*', { count: 'exact', head: true })
-        .eq('active', true)
-        .eq('status', 'draft'),
+        .eq('current_stage', 'review'),
     ),
     countOf(() =>
       supabase
@@ -125,26 +133,48 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
         .gte('followup2_due', dayStart)
         .lte('followup2_due', dayEnd),
     ),
+    // No address at all. A dead address is its own stage since 0027, so this
+    // is a plain stage count and the tile matches the stage filter exactly.
     countOf(() =>
       supabase
         .from('lead_pipeline')
         .select('*', { count: 'exact', head: true })
-        .eq('email_found', false)
-        .is('closed', null),
+        .eq('current_stage', 'need_email'),
     ),
+    // Genuinely never checked. Today this is 0 every address in the database
+    // has already been through a verifier.
     countOf(() =>
       supabase
         .from('lead_pipeline')
         .select('*', { count: 'exact', head: true })
-        .eq('email_found', true)
-        .eq('email_verified', false)
-        // A dead address is a different problem with a different fix, and it
-        // has its own card. Counting it here would double-report it.
-        .neq('email_verification_status', 'invalid')
-        .is('closed', null),
+        .eq('current_stage', 'need_verification')
+        .eq('email_verification_status', 'unverified'),
     ),
-    // Due before today and still unsent the queue the scheduled sender is
-    // behind on, which is the number worth alarming about.
+    /*
+     * Checked, and the verifier could not prove it either way.
+     *
+     * These 173 used to be counted as "awaiting verification", which is the
+     * report that verification had not happened when it had. Re-running them
+     * resolves nothing a catch-all domain returns catch-all every time so
+     * they need a human decision rather than another export.
+     */
+    countOf(() =>
+      supabase
+        .from('lead_pipeline')
+        .select('*', { count: 'exact', head: true })
+        .eq('current_stage', 'need_verification')
+        .in('email_verification_status', ['accept_all', 'unknown']),
+    ),
+    /*
+     * Due BEFORE TODAY and still unsent the queue the scheduled sender is
+     * behind on, which is the number worth alarming about.
+     *
+     * Measured against the start of today, not against now(). With now() a
+     * follow-up due at 09:00 was "overdue" by 09:01 while still being due
+     * today, so it was counted by this card AND by the Due Today card, and the
+     * two cards summed to more work than exists. The hint on this card has
+     * always said "Due before today"; the query now agrees with it.
+     */
     countOf(() =>
       supabase
         .from('lead_pipeline')
@@ -152,29 +182,26 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
         .is('replied', null)
         .is('closed', null)
         .or(
-          `and(followup1_sent.is.null,followup1_due.lt.${now}),and(followup2_sent.is.null,followup2_due.lt.${now})`,
+          `and(followup1_sent.is.null,followup1_due.lt.${dayStart}),and(followup2_sent.is.null,followup2_due.lt.${dayStart})`,
         ),
     ),
     countOf(() =>
       supabase
         .from('lead_pipeline')
         .select('*', { count: 'exact', head: true })
-        .eq('email_verified', true)
-        .eq('research_complete', false)
-        .is('closed', null),
+        .eq('current_stage', 'research'),
     ),
     countOf(() =>
       supabase
         .from('lead_pipeline')
         .select('*', { count: 'exact', head: true })
-        .eq('research_complete', true)
-        .eq('draft_ready', false)
-        .is('closed', null),
+        .eq('current_stage', 'draft'),
     ),
-    // Counts what the SENDER requires, not just the pipeline flag: an initial
-    // email also needs its active version approved. Counting the flag alone
-    // produced a card reading N while the sender skipped all N. See the
-    // ready_to_send view in lib/data/leads.ts.
+    /*
+     * Stage 'approved' IS all four gates cleared with nothing sent yet. The
+     * active-version check on top is explained in the ready_to_send view in
+     * lib/data/leads.ts the two must stay identical.
+     */
     (async () => {
       const [{ data: approvedVersions }, { data: pipelineReady }] = await Promise.all([
         supabase
@@ -186,9 +213,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
         supabase
           .from('lead_pipeline')
           .select('lead_id')
-          .eq('approved', true)
-          .is('first_email_sent', null)
-          .is('closed', null)
+          .eq('current_stage', 'approved')
           .limit(5000),
       ]);
 
@@ -199,8 +224,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
       supabase
         .from('lead_pipeline')
         .select('*', { count: 'exact', head: true })
-        .eq('email_verification_status', 'invalid')
-        .is('closed', null),
+        .eq('current_stage', 'dead_email'),
     ),
   ]);
 
@@ -208,11 +232,11 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     emailsToday,
     repliesToday,
     approvalQueue,
-    awaitingReview,
     followup1DueToday,
     followup2DueToday,
     missingEmail,
     awaitingVerification,
+    inconclusive,
     overdueFollowups,
     needsResearch,
     needsDraft,
@@ -375,7 +399,6 @@ async function attachNames<T extends { lead_id: string }>(
 
 export async function getDashboardFeeds(limit = 8): Promise<DashboardFeeds> {
   const supabase = await createClient();
-  const dayEnd = endOfToday();
 
   const [activity, replies, regenerations, queue, due] = await Promise.all([
     supabase.from('lead_activity').select('*').order('created_at', { ascending: false }).limit(limit),
@@ -392,19 +415,23 @@ export async function getDashboardFeeds(limit = 8): Promise<DashboardFeeds> {
     supabase
       .from('pipeline_board')
       .select('*')
-      .eq('draft_ready', true)
-      .eq('approved', false)
-      .is('closed', null)
+      .eq('current_stage', 'review')
       .order('draft_ready_at', { ascending: true })
       .limit(limit),
+    /*
+     * Anything the sender could act on right now.
+     *
+     * The `updated_at <= end of today` filter that used to be here was true for
+     * essentially every row and answered nothing, and the card disagreed with
+     * the Ready to Send tile beside it. next_step is the derived answer to
+     * "what would happen to this lead next", so asking it for the three
+     * send steps is the same question the sender asks.
+     */
     supabase
       .from('pipeline_board')
       .select('*')
-      .is('replied', null)
-      .is('closed', null)
-      .in('next_step', ['send_followup1', 'send_followup2', 'send_initial_email'])
-      .lte('updated_at', dayEnd)
-      .order('updated_at', { ascending: true })
+      .in('next_step', ['send_initial_email', 'send_followup1', 'send_followup2'])
+      .order('approved_at', { ascending: true, nullsFirst: false })
       .limit(limit),
   ]);
 

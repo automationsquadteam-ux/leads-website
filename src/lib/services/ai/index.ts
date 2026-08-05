@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { createServiceClient } from '@/lib/supabase/service-client';
-import type { EmailType, Lead, Template } from '@/lib/supabase/database.types';
+import type { EmailType, Lead } from '@/lib/supabase/database.types';
 import { getIntegrationConfig } from '../config';
 import { OllamaGenerator } from './ollama';
 import { TemplateGenerator } from './template-generator';
@@ -39,7 +39,7 @@ export async function getActiveGenerator(): Promise<EmailGenerator> {
 }
 
 /**
- * Assemble everything a generator needs: the lead, the template its campaign
+ * Assemble everything a generator needs: the lead
  * points at, the sender identity, and the drafts already written.
  *
  * Split out from generateEmail() so the regenerate endpoint can build the exact
@@ -55,37 +55,6 @@ export async function buildGenerationContext(
   const { data: lead } = await admin.from('leads').select('*').eq('id', leadId).maybeSingle();
   if (!lead) return { ok: false, message: 'Lead not found.' };
 
-  // The campaign's template, when the lead is in one. Falls back to the single
-  // active template so a lead with no campaign still gets house style rather
-  // than the bare built-in shape.
-  let template: Template | null = null;
-  if (lead.campaign_id) {
-    const { data: campaign } = await admin
-      .from('campaigns')
-      .select('template_id')
-      .eq('id', lead.campaign_id)
-      .maybeSingle();
-
-    if (campaign?.template_id) {
-      const { data } = await admin
-        .from('templates')
-        .select('*')
-        .eq('id', campaign.template_id)
-        .maybeSingle();
-      template = data ?? null;
-    }
-  }
-  if (!template) {
-    const { data } = await admin
-      .from('templates')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    template = data ?? null;
-  }
-
   // Only the ACTIVE version of each other step: a follow-up needs to avoid
   // repeating what will actually be sent, not every draft ever discarded.
   const { data: previous } = await admin
@@ -100,7 +69,6 @@ export async function buildGenerationContext(
     context: {
       lead: lead as Lead,
       type,
-      template,
       signature: config.email.signature,
       fromName: config.email.fromName,
       previousDrafts: previous ?? [],

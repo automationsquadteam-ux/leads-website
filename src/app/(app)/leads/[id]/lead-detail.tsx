@@ -3,13 +3,13 @@
 import * as React from 'react';
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, ArchiveRestore, Ban, Mail, Pencil, Save, Trash2, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Mail, Pencil, Save, Trash2, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Field, Input, Select } from '@/components/ui/input';
+import { Field, Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { StatusBadge, LEAD_STATUS_LABELS } from '@/components/status-badge';
+import { StageBadge } from '@/components/pipeline-badge';
 import {
   EMPTY_ACTION_RESULT,
   PanelError,
@@ -17,8 +17,8 @@ import {
   useAsyncAction,
 } from '@/components/action-form';
 import { useToast } from '@/components/ui/toast';
-import { archiveLead, deleteLeads, markInvalid, unarchiveLead, updateLead } from '@/lib/actions/leads';
-import { LEAD_STATUSES, type Lead } from '@/lib/supabase/database.types';
+import { archiveLead, deleteLeads, unarchiveLead, updateLead } from '@/lib/actions/leads';
+import type { Lead, PipelineStage } from '@/lib/supabase/database.types';
 
 /**
  * Business information and the lead-level actions.
@@ -29,7 +29,7 @@ import { LEAD_STATUSES, type Lead } from '@/lib/supabase/database.types';
  * reads far more often than they change, and a page of live inputs invites
  * accidental edits.
  */
-export function LeadDetail({ lead }: { lead: Lead }) {
+export function LeadDetail({ lead, stage }: { lead: Lead; stage: PipelineStage | null }) {
   const [editing, setEditing] = React.useState(false);
   const [confirmArchive, setConfirmArchive] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -56,7 +56,13 @@ export function LeadDetail({ lead }: { lead: Lead }) {
       <CardHeader className="flex-wrap gap-2">
         <CardTitle className="flex items-center gap-2">
           Business information
-          <StatusBadge status={lead.status} />
+          {/*
+            The DERIVED stage, not leads.status.
+            This badge used to read "Researching" on 472 leads while 695 of them
+            had research complete, because leads.status is a label the sheet sets
+            and nobody updates. The stage is computed from what is actually true.
+          */}
+          {stage ? <StageBadge stage={stage} /> : null}
         </CardTitle>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -73,17 +79,12 @@ export function LeadDetail({ lead }: { lead: Lead }) {
             </Button>
           ) : (
             <>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                loading={busy === 'invalid'}
-                onClick={() => run('invalid', () => markInvalid(lead.id))}
-                title="Unusable record bad address, closed business"
-              >
-                <Ban className="size-3.5" aria-hidden="true" />
-                Mark invalid
-              </Button>
+              {/*
+                "Mark invalid" used to sit here setting leads.status = 'invalid'.
+                Whether an address is dead is the verification verdict, which the
+                Pipeline panel's Email address dropdown sets — and unlike a status
+                that meant nothing to anything, that verdict stops the sender.
+              */}
               <Button type="button" size="sm" variant="ghost" onClick={() => setConfirmArchive(true)}>
                 <Archive className="size-3.5" aria-hidden="true" />
                 Archive
@@ -172,20 +173,19 @@ export function LeadDetail({ lead }: { lead: Lead }) {
               <Input id="niche" name="niche" defaultValue={lead.niche ?? ''} readOnly={!editing} />
             </Field>
 
-            <Field
-              label="Status"
-              htmlFor="status"
-              hint="Set automatically as the lead moves through the pipeline."
-            >
-              <Select id="status" name="status" defaultValue={lead.status} disabled={!editing}>
-                {LEAD_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {LEAD_STATUS_LABELS[status]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
           </div>
+
+          {/*
+            No Status field. It was editable and it was a lie: setting it changed
+            a label the pipeline stopped reading in 0025, so the badge above and
+            the dropdown here could say "Researching" about a lead that had been
+            researched, drafted and approved. What a lead needs next is the
+            Pipeline panel's business, and it is derived rather than typed.
+
+            The column still travels with the form so a save cannot blank the
+            value the sheet sync depends on.
+          */}
+          <input type="hidden" name="status" value={lead.status} />
 
           {/*
             The research fields this form still owns are edited in their own

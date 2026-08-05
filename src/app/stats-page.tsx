@@ -6,11 +6,10 @@ import {
 
 import { BrandMark } from '@/components/brand';
 import { MetricCard } from '@/components/metric-card';
-import { BarList, MultiLineChart, STATUS_CHART_COLORS, type SeriesPoint } from '@/components/charts';
+import { BarList, MultiLineChart, type SeriesPoint } from '@/components/charts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { LEAD_STATUS_LABELS } from '@/components/status-badge';
 import { getPublicStats } from '@/lib/data/public-stats';
 import { STAGE_META } from '@/lib/pipeline/labels';
 import { formatNumber, formatPercent } from '@/lib/utils';
@@ -51,11 +50,6 @@ export async function PublicStatsPage() {
 
   const stagePoints: SeriesPoint[] = data.stages.map((row) => ({
     label: STAGE_META[row.stage]?.label ?? row.stage,
-    value: row.lead_count,
-  }));
-
-  const statusPoints: SeriesPoint[] = data.statuses.map((row) => ({
-    label: LEAD_STATUS_LABELS[row.status] ?? row.status,
     value: row.lead_count,
   }));
 
@@ -275,22 +269,6 @@ export async function PublicStatsPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>Status distribution</CardTitle>
-                  <CardDescription>Lead status across the whole list</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <BarList
-                  points={statusPoints}
-                  caption="Leads by status"
-                  colorFor={(label) => STATUS_CHART_COLORS[label] ?? 'var(--primary)'}
-                  emptyMessage="No leads yet."
-                />
-              </CardContent>
-            </Card>
           </section>
 
           {/*
@@ -353,64 +331,6 @@ export async function PublicStatsPage() {
             </section>
           ) : null}
 
-          <section>
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>Campaign performance</CardTitle>
-                  <CardDescription>Counts and rates per campaign</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {data.campaigns.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    No campaigns have run yet.
-                  </p>
-                ) : (
-                  <div className="scrollbar-thin overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border text-xs text-muted-foreground">
-                          <th className="px-4 py-2 text-left font-medium">Campaign</th>
-                          <th className="px-4 py-2 text-left font-medium">Status</th>
-                          <th className="px-4 py-2 text-right font-medium">Leads</th>
-                          <th className="px-4 py-2 text-right font-medium">Sent</th>
-                          <th className="px-4 py-2 text-right font-medium">Replies</th>
-                          <th className="px-4 py-2 text-right font-medium">Reply rate</th>
-                          <th className="px-4 py-2 text-right font-medium">Bounce rate</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.campaigns.map((row) => (
-                          <tr key={row.campaign_name} className="border-b border-border last:border-0">
-                            <td className="px-4 py-2.5 font-medium">{row.campaign_name}</td>
-                            <td className="px-4 py-2.5 text-muted-foreground">
-                              {row.active ? 'Running' : 'Paused'}
-                            </td>
-                            <td className="tabular px-4 py-2.5 text-right">
-                              {formatNumber(row.leads_assigned)}
-                            </td>
-                            <td className="tabular px-4 py-2.5 text-right">
-                              {formatNumber(row.emails_sent)}
-                            </td>
-                            <td className="tabular px-4 py-2.5 text-right">
-                              {formatNumber(row.replies_received)}
-                            </td>
-                            <td className="tabular px-4 py-2.5 text-right">
-                              {formatPercent(row.reply_rate_pct)}
-                            </td>
-                            <td className="tabular px-4 py-2.5 text-right">
-                              {formatPercent(row.bounce_rate_pct)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </section>
         </div>
       </main>
 

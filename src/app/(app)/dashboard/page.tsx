@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  AlertTriangle, CalendarClock, CheckSquare, FileClock, Lock, Mail, MailQuestion,
+  AlertTriangle, CalendarClock, CheckSquare, Lock, Mail, MailQuestion,
   MailX, PenLine, RefreshCw, Reply, Search, Send, ShieldQuestion, Sparkles,
 } from 'lucide-react';
 
@@ -85,7 +85,7 @@ export default async function DashboardPage() {
           agreement a card reading 114 that opens a page of 97 is worse than
           no card at all.
         */}
-        <section aria-label="Today" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section aria-label="Today" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <MetricCard
             label="Today's Emails"
             value={formatNumber(widgets.emailsToday)}
@@ -99,6 +99,13 @@ export default async function DashboardPage() {
             tone={widgets.repliesToday > 0 ? 'success' : 'default'}
             href="/replies"
           />
+          {/*
+            "Emails Waiting Review" used to sit here counting active draft
+            versions. It was the same leads as the Approval Queue plus the
+            follow-up drafts, so the two cards described one queue and neither
+            said which. Follow-ups are reviewed on the lead page, in the thread
+            they belong to.
+          */}
           <MetricCard
             label="Approval Queue"
             value={formatNumber(widgets.approvalQueue)}
@@ -107,16 +114,9 @@ export default async function DashboardPage() {
             tone={widgets.approvalQueue > 0 ? 'warning' : 'default'}
             href="/leads?view=approval_queue"
           />
-          <MetricCard
-            label="Emails Waiting Review"
-            value={formatNumber(widgets.awaitingReview)}
-            hint="Active versions still marked draft"
-            icon={FileClock}
-            href="/leads?view=awaiting_review"
-          />
         </section>
 
-        <section aria-label="Due and blocked" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <section aria-label="Due and blocked" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <MetricCard
             label="Follow-up 1 Due Today"
             value={formatNumber(widgets.followup1DueToday)}
@@ -137,22 +137,47 @@ export default async function DashboardPage() {
             tone={widgets.overdueFollowups > 0 ? 'danger' : 'default'}
             href="/leads?view=overdue_followups"
           />
+        </section>
+
+        {/*
+          The address gates, in the order a lead has to clear them. Every one of
+          these is a stage count, so the number and the page it opens are the
+          same query.
+        */}
+        <section aria-label="Addresses" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard
             label="Leads Missing Email"
             value={formatNumber(widgets.missingEmail)}
+            hint="No address to send to"
             icon={MailQuestion}
             href="/leads?view=missing_email"
           />
           <MetricCard
+            label="Dead Addresses"
+            value={formatNumber(widgets.invalidEmail)}
+            hint="Verified undeliverable need a new source"
+            icon={MailX}
+            tone={widgets.invalidEmail > 0 ? 'danger' : 'default'}
+            href="/leads?view=invalid_email"
+          />
+          <MetricCard
             label="Awaiting Verification"
             value={formatNumber(widgets.awaitingVerification)}
-            hint="Address on file, not confirmed"
+            hint="Address on file, never checked"
             icon={ShieldQuestion}
             href="/leads?view=awaiting_verification"
           />
+          <MetricCard
+            label="Checked, Inconclusive"
+            value={formatNumber(widgets.inconclusive)}
+            hint="Catch-all or unknown a re-run proves nothing"
+            icon={ShieldQuestion}
+            tone={widgets.inconclusive > 0 ? 'warning' : 'default'}
+            href="/leads?view=inconclusive"
+          />
         </section>
 
-        <section aria-label="Pipeline work" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section aria-label="Pipeline work" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <MetricCard
             label="Needs Research"
             value={formatNumber(widgets.needsResearch)}
@@ -170,18 +195,10 @@ export default async function DashboardPage() {
           <MetricCard
             label="Ready to Send"
             value={formatNumber(widgets.readyToSend)}
-            hint="Approved, not yet sent"
+            hint="Verified and approved, not yet sent"
             icon={Send}
             tone={widgets.readyToSend > 0 ? 'success' : 'default'}
             href="/leads?view=ready_to_send"
-          />
-          <MetricCard
-            label="Dead Addresses"
-            value={formatNumber(widgets.invalidEmail)}
-            hint="Verified undeliverable need a new source"
-            icon={MailX}
-            tone={widgets.invalidEmail > 0 ? 'danger' : 'default'}
-            href="/leads?view=invalid_email"
           />
         </section>
 
@@ -230,7 +247,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <div>
                 <CardTitle>Ready to send</CardTitle>
-                <CardDescription>Approved or due, waiting on delivery</CardDescription>
+                <CardDescription>What the sender would act on next</CardDescription>
               </div>
             </CardHeader>
             <CardContent className="p-0">

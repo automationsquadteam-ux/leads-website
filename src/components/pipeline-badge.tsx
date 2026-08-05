@@ -1,5 +1,5 @@
 import {
-  ArrowRight, Ban, CheckCircle2, Clock, FileText, Mail, MailCheck, PenLine,
+  ArrowRight, Ban, CheckCircle2, Clock, FileText, Mail, MailCheck, MailX, PenLine,
   Search, Send, ShieldCheck, Reply as ReplyIcon, Archive,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -18,6 +18,7 @@ import type { PipelineNextStep, PipelineStage } from '@/lib/supabase/database.ty
 
 const STAGE_ICONS: Record<PipelineStage, LucideIcon> = {
   need_email: Mail,
+  dead_email: MailX,
   need_verification: ShieldCheck,
   research: Search,
   draft: PenLine,

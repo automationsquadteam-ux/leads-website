@@ -1,43 +1,25 @@
-import {
-  Archive, AlertTriangle, Ban, CheckCircle2, Clock, FileText,
-  Inbox, MailCheck, Reply, Search, Send,
-} from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, Clock, MailCheck, Send } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { Badge, type BadgeTone } from '@/components/ui/badge';
-import type { EmailLogStatus, LeadStatus, ReplySentiment } from '@/lib/supabase/database.types';
+import type { EmailLogStatus, ReplySentiment } from '@/lib/supabase/database.types';
 
 /**
  * Status colours are paired with an icon and a text label, never colour alone —
  * the `color-not-only` accessibility rule.
  */
-const LEAD_STATUS: Record<LeadStatus, { label: string; tone: BadgeTone; icon: LucideIcon }> = {
-  new: { label: 'New', tone: 'neutral', icon: Inbox },
-  researching: { label: 'Researching', tone: 'info', icon: Search },
-  ready: { label: 'Ready', tone: 'violet', icon: FileText },
-  approved: { label: 'Approved', tone: 'success', icon: CheckCircle2 },
-  sending: { label: 'Sending', tone: 'warning', icon: Clock },
-  sent: { label: 'Sent', tone: 'primary', icon: Send },
-  replied: { label: 'Replied', tone: 'success', icon: Reply },
-  bounced: { label: 'Bounced', tone: 'warning', icon: AlertTriangle },
-  invalid: { label: 'Invalid', tone: 'danger', icon: Ban },
-  archived: { label: 'Archived', tone: 'neutral', icon: Archive },
-};
-
-export function StatusBadge({ status }: { status: LeadStatus }) {
-  const config = LEAD_STATUS[status] ?? LEAD_STATUS.new;
-  const Icon = config.icon;
-  return (
-    <Badge tone={config.tone}>
-      <Icon className="size-3 shrink-0" aria-hidden="true" />
-      {config.label}
-    </Badge>
-  );
-}
-
-export const LEAD_STATUS_LABELS = Object.fromEntries(
-  Object.entries(LEAD_STATUS).map(([key, value]) => [key, value.label]),
-) as Record<LeadStatus, string>;
+/*
+ * StatusBadge, LEAD_STATUS and LEAD_STATUS_LABELS used to live here.
+ *
+ * They rendered `leads.status`, which since migration 0025 is an inbound label
+ * from the Google Sheet rather than a description of where a lead stands - it
+ * read "Researching" on 472 leads while 695 of them had research complete. The
+ * pipeline STAGE says what is actually true, is derived in Postgres, and has its
+ * own badge in components/pipeline-badge.tsx. Nothing renders lead status now.
+ *
+ * The badges below are unrelated: they describe an individual EMAIL and an
+ * individual REPLY, both of which are facts rather than labels.
+ */
 
 const EMAIL_STATUS: Record<EmailLogStatus, { label: string; tone: BadgeTone; icon: LucideIcon }> = {
   queued: { label: 'Queued', tone: 'neutral', icon: Clock },

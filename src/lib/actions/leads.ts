@@ -117,9 +117,16 @@ async function setStatus(id: string, status: LeadStatus, successMessage: string)
 }
 
 /**
+ * Archiving is the one thing `leads.status` is still used for in the UI.
+ *
  * Approval lives in lib/actions/review.ts (`approveVersion`), because approving
- * is a decision about a specific draft version, not about the lead. The
- * status-only helpers below remain for the list view's bulk actions.
+ * is a decision about a specific draft version, not about the lead, and the
+ * pipeline learns about it from the version. Whether an address is dead is
+ * `email_verification_status`, set by the verification control on the lead page.
+ * Neither is a lead status any more.
+ *
+ * Archiving genuinely is: it is a visibility choice that no derived stage can
+ * express, since an archived lead still sits wherever it sat in the pipeline.
  */
 export async function archiveLead(id: string): Promise<ActionResult> {
   return setStatus(id, 'archived', 'Lead archived.');
@@ -129,8 +136,22 @@ export async function unarchiveLead(id: string): Promise<ActionResult> {
   return setStatus(id, 'ready', 'Lead restored.');
 }
 
-export async function markInvalid(id: string): Promise<ActionResult> {
-  return setStatus(id, 'invalid', 'Lead marked invalid.');
+/** Bulk archive from the leads table selection. */
+export async function archiveLeads(ids: string[]): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+  } catch {
+    return { ok: false, message: 'You do not have permission to perform this action.' };
+  }
+  if (ids.length === 0) return { ok: false, message: 'No leads selected.' };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('leads').update({ status: 'archived' }).in('id', ids);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath('/leads');
+  revalidatePath('/dashboard');
+  return { ok: true, message: `${ids.length} lead${ids.length === 1 ? '' : 's'} archived.` };
 }
 
 /**
@@ -226,46 +247,23 @@ export async function deleteLeads(ids: string[]): Promise<ActionResult> {
   };
 }
 
-/** Bulk status change from the leads table selection. */
-export async function bulkSetStatus(ids: string[], status: LeadStatus): Promise<ActionResult> {
-  try {
-    await assertAdmin();
-  } catch {
-    return { ok: false, message: 'You do not have permission to perform this action.' };
-  }
-  if (ids.length === 0) return { ok: false, message: 'No leads selected.' };
-
-  // Approving is not a status change. Route it to the action that also signs
-  // off the draft version, or the lead looks approved everywhere except the one
-  // place the sender checks.
-  if (status === 'approved') return bulkApproveDrafts(ids);
-
-  const supabase = await createClient();
-  const { error } = await supabase.from('leads').update({ status }).in('id', ids);
-  if (error) return { ok: false, message: error.message };
-
-  revalidatePath('/leads');
-  revalidatePath('/dashboard');
-  return { ok: true, message: `${ids.length} lead${ids.length === 1 ? '' : 's'} updated.` };
-}
-
 /**
  * Approve the active initial draft for each selected lead.
  *
- * There are two records of "approved" and they must move together:
+ * **This changes the draft and the approval, and nothing else.** It does not
+ * touch the address, the verification verdict, the research or the lead status.
+ * Approving is a judgement about the WORDS, and it stays valid whether or not
+ * the lead has a usable address yet — a lead can be approved and still never
+ * reach Ready to Send, because that requires all four pipeline gates.
  *
- *   lead_pipeline.approved   what the dashboard counts and the scheduler
- *                            queries to find work
- *   email_versions.status    what the scheduler checks immediately BEFORE
- *                            sending an initial email
+ * It approves the VERSION rather than setting a status, because
+ * `sync_pipeline_from_version()` is what sets `lead_pipeline.approved` and the
+ * sender re-checks the version immediately before an initial send. It used to
+ * set `leads.status = 'approved'` too, which satisfied the dashboard and not the
+ * sender, so leads were reported Ready to Send while every run skipped them.
  *
- * Setting only the lead status (which is what this used to do) satisfied the
- * first and not the second, so the dashboard would report leads as Ready to
- * Send while the sender skipped every one of them saying "waiting for
- * approval" — with nothing in the UI to explain the contradiction.
- *
- * Approving the VERSION is the right primitive: its trigger sets
- * lead_pipeline.approved, and the lead status follows here.
+ * Rejected versions are left alone. Without that filter this re-approved drafts
+ * a human had explicitly turned down, silently.
  */
 export async function bulkApproveDrafts(ids: string[]): Promise<ActionResult> {
   let session;
@@ -284,13 +282,16 @@ export async function bulkApproveDrafts(ids: string[]): Promise<ActionResult> {
     .select('id, lead_id')
     .in('lead_id', ids)
     .eq('type', 'initial')
-    .eq('active', true);
+    .eq('active', true)
+    .eq('status', 'draft');
 
   const approvable = versions ?? [];
   if (approvable.length === 0) {
     return {
       ok: false,
-      message: 'None of those leads has a draft to approve. Generate one first.',
+      message:
+        'None of those leads has a draft awaiting approval. They are either already approved, ' +
+        'rejected, or have no draft yet.',
     };
   }
 
@@ -301,17 +302,14 @@ export async function bulkApproveDrafts(ids: string[]): Promise<ActionResult> {
 
   if (error) return { ok: false, message: error.message };
 
-  const approvedLeadIds = approvable.map((v) => v.lead_id);
-  await admin.from('leads').update({ status: 'approved' }).in('id', approvedLeadIds);
-
   revalidatePath('/leads');
   revalidatePath('/dashboard');
 
-  const missing = ids.length - approvedLeadIds.length;
+  const skipped = ids.length - approvable.length;
   return {
     ok: true,
     message:
-      `${approvedLeadIds.length} draft${approvedLeadIds.length === 1 ? '' : 's'} approved and ready to send.` +
-      (missing > 0 ? ` ${missing} had no draft and were skipped.` : ''),
+      `${approvable.length} draft${approvable.length === 1 ? '' : 's'} approved.` +
+      (skipped > 0 ? ` ${skipped} had no draft awaiting approval and were skipped.` : ''),
   };
 }

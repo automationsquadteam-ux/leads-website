@@ -5,12 +5,12 @@ import { PageHeader } from '@/components/shell/app-shell';
 import { Badge } from '@/components/ui/badge';
 import { requireAdmin } from '@/lib/auth/session';
 import {
-  getLeads, getStatusFacets, isLeadView, isSortColumn,
+  getLeads, getStageFacets, isLeadView, isSortColumn,
   LEAD_VIEWS, type SortColumn,
 } from '@/lib/data/leads';
 import {
-  EMAIL_VERIFICATION_STATUSES, LEAD_STATUSES,
-  type EmailVerificationStatus, type LeadStatus,
+  EMAIL_VERIFICATION_STATUSES, PIPELINE_STAGES,
+  type EmailVerificationStatus, type PipelineStage,
 } from '@/lib/supabase/database.types';
 import { formatNumber } from '@/lib/utils';
 import { LeadsTable } from './leads-table';
@@ -20,13 +20,13 @@ export const metadata = { title: 'Leads' };
 
 const PAGE_SIZES = [25, 50, 100, 200];
 
-function parseStatuses(raw: string | undefined): LeadStatus[] {
+function parseStages(raw: string | undefined): PipelineStage[] {
   if (!raw) return [];
-  const allowed = new Set<string>(LEAD_STATUSES);
+  const allowed = new Set<string>(PIPELINE_STAGES);
   return raw
     .split(',')
     .map((s) => s.trim())
-    .filter((s): s is LeadStatus => allowed.has(s));
+    .filter((s): s is PipelineStage => allowed.has(s));
 }
 
 function parseVerification(raw: string | undefined): EmailVerificationStatus[] {
@@ -53,7 +53,8 @@ export default async function LeadsPage({
   };
 
   const search = single('q') ?? '';
-  const statuses = parseStatuses(single('status'));
+  const stages = parseStages(single('stage'));
+  const showArchived = single('archived') === '1';
 
   // ?view=<name> is how every dashboard widget drills through. Unknown values
   // are ignored rather than erroring a stale bookmark should show the full
@@ -74,8 +75,8 @@ export default async function LeadsPage({
   const pageSize = PAGE_SIZES.includes(sizeRaw) ? sizeRaw : 50;
 
   const [result, facets] = await Promise.all([
-    getLeads({ search, statuses, view, verification, sort, direction, page, pageSize }),
-    getStatusFacets(),
+    getLeads({ search, stages, view, verification, showArchived, sort, direction, page, pageSize }),
+    getStageFacets(showArchived),
   ]);
 
   return (
@@ -121,8 +122,9 @@ export default async function LeadsPage({
           page={page}
           pageSize={pageSize}
           search={search}
-          statuses={statuses}
+          stages={stages}
           verification={verification}
+          showArchived={showArchived}
           view={view}
           sort={sort}
           direction={direction}

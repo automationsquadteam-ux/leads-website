@@ -62,12 +62,11 @@ export function buildSystemPrompt(): string {
 }
 
 /**
- * The user-turn prompt: business facts, research, personalization, the chosen
- * template as a shape to follow, and any drafts already written so a follow-up
- * does not repeat them.
+ * The user-turn prompt: business facts, research, personalization, and any
+ * drafts already written so a follow-up does not repeat them.
  */
 export function buildUserPrompt(context: GenerationContext): string {
-  const { lead, template, type, signature, fromName } = context;
+  const { lead, type, signature, fromName } = context;
 
   const social = (lead.social_links ?? {}) as Record<string, unknown>;
   const socialList = Object.entries(social)
@@ -96,12 +95,6 @@ export function buildUserPrompt(context: GenerationContext): string {
     section('INTERESTING FACTS', clamp(lead.interesting_facts, 800)),
     section('OUTREACH ANGLE', clamp(lead.outreach_angle, 800)),
     section('SOCIAL', clamp(socialList, 400)),
-    template
-      ? section(
-          'TEMPLATE TO FOLLOW (structure and tone, not wording replace every {{token}})',
-          `Subject: ${template.subject}\n\n${clamp(template.body, 2500)}`,
-        )
-      : null,
     context.previousDrafts.length > 0
       ? section(
           'ALREADY SENT OR DRAFTED FOR THIS LEAD (do not repeat these)',

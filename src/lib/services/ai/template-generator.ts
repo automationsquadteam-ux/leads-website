@@ -7,8 +7,7 @@ import type { EmailGenerator, GenerationContext, GenerationResult } from './type
  *
  * This is the "placeholder function" the architecture is built around, and it
  * is a real one rather than a stub that returns lorem ipsum. It composes a
- * draft from the template plus whatever research and personalization the lead
- * actually has, so:
+ * draft from whatever research and personalization the lead actually has, so:
  *
  *   * the whole pipeline regenerate, version, review, approve, send can be
  *     exercised end to end before any model is configured;
@@ -20,7 +19,7 @@ import type { EmailGenerator, GenerationContext, GenerationResult } from './type
  * GenerationContext to a model instead.
  */
 
-/** Follow-up skeletons, used when the campaign template covers only the first email. */
+/** Follow-up skeletons. Each takes one specific line from the lead's research. */
 const FOLLOWUP_SHAPES: Record<Exclude<EmailType, 'initial'>, (name: string) => string[]> = {
   followup1: (name) => [
     `I wrote last week about ${name} and never heard back no problem, inboxes are inboxes.`,
@@ -89,23 +88,26 @@ export class TemplateGenerator implements EmailGenerator {
     return {
       ok: true,
       message:
-        'The template generator needs no external service. It composes drafts from the campaign template plus the lead research.',
+        'The template generator needs no external service. It composes drafts from the lead research.',
     };
   }
 
   async generate(context: GenerationContext): Promise<GenerationResult> {
-    const { lead, template, type, signature } = context;
+    const { lead, type, signature } = context;
 
     let subjectSource: string;
     let bodySource: string;
 
     if (type === 'initial') {
-      subjectSource = template?.subject?.trim() || `Quick idea for ${lead.business_name}`;
-      bodySource = template?.body?.trim() || defaultInitialBody(context);
+      subjectSource = `Quick idea for ${lead.business_name}`;
+      bodySource = defaultInitialBody(context);
     } else {
-      // A campaign template describes the first email. Reusing it verbatim for
-      // a follow-up is the single most obvious tell of an automated sequence,
-      // so follow-ups get their own shape with one specific line from research.
+      /*
+       * Follow-ups get their own shape rather than a reworded first email.
+       * Reusing the opener verbatim is the single most obvious tell of an
+       * automated sequence, so each one carries one specific line from the
+       * research instead.
+       */
       subjectSource =
         type === 'followup1'
           ? `Following up ${lead.business_name}`
@@ -122,17 +124,14 @@ export class TemplateGenerator implements EmailGenerator {
     if (content.length === 0) {
       return {
         ok: false,
-        message: 'The template produced an empty draft. Check the campaign template body.',
+        message: 'The generator produced an empty draft. This lead has no research to compose from.',
         email: null,
       };
     }
 
     return {
       ok: true,
-      message:
-        type === 'initial' && template
-          ? `Draft composed from the "${template.name}" template.`
-          : 'Draft composed from the lead research.',
+      message: 'Draft composed from the lead research.',
       email: { subject, content, generatedBy: this.id },
     };
   }

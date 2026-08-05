@@ -231,11 +231,24 @@ export async function repairAndApproveDrafts(limit = 400): Promise<DraftSweepRes
         .maybeSingle();
 
       if (active) {
+        /*
+         * The version, and only the version.
+         *
+         * This used to set `leads.status = 'approved'` as well. That satisfied
+         * the dashboard and not the sender — which checks the VERSION — and it
+         * meant a sweep whose whole job is cleaning up wording was writing a
+         * field about the lead. `sync_pipeline_from_version()` sets
+         * lead_pipeline.approved from here, which is the one path that matters.
+         *
+         * Nothing else on the lead is touched: not the address, not the
+         * verification verdict, not the research. A lead with no address can be
+         * approved and simply never reaches Ready to Send, because that needs
+         * all four gates.
+         */
         await admin
           .from('email_versions')
           .update({ status: 'approved', reviewed_by: userId, reviewed_at: new Date().toISOString() })
           .eq('id', active.id);
-        await admin.from('leads').update({ status: 'approved' }).eq('id', draft.lead_id);
         approved += 1;
 
         if (approvedLeads.length < 20) {

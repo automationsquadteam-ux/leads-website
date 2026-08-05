@@ -78,7 +78,7 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
           <Field
             label="Daily sending limit"
             htmlFor="daily-limit"
-            hint="Maximum emails per day across all campaigns."
+            hint="Maximum emails per day."
           >
             <Input
               id="daily-limit"
@@ -192,7 +192,7 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
             label="Generator"
             htmlFor="ai-provider"
             className="sm:col-span-2"
-            hint="Template composes drafts from the campaign template plus the lead research deterministic, offline, always available. Ollama hands the same context to a local model."
+            hint="Template composes drafts from the lead research deterministic, offline, always available. Ollama hands the same context to a local model."
           >
             <Select id="ai-provider" name="string:ai.provider" defaultValue={provider}>
               <option value="template">Template deterministic, no model</option>

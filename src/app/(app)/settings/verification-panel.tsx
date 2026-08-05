@@ -112,7 +112,7 @@ export function VerificationPanel({
             </Link>
 
             <Link
-              href="/leads?view=never_checked"
+              href="/leads?view=awaiting_verification"
               title="Has an address that has never been sent to a verifier."
               className="rounded-md border border-border px-2.5 py-2 transition-colors hover:border-primary hover:bg-surface-hover"
             >

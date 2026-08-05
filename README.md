@@ -4,7 +4,11 @@ Cold outreach CRM built on Next.js (App Router), TypeScript, Tailwind CSS and Su
 
 Contains the database schema, row-level security, authentication, the lead importer, and
 the full application interface: dashboard, leads table with search and filters, lead
-detail, campaigns, templates, email logs, replies and settings.
+detail, email logs, replies, analytics and settings.
+
+> **This file has drifted.** Campaigns and templates were deleted in migration 0025, and the
+> pipeline stage was redefined as the first unmet gate. `GUIDE.md` is the current document -
+> read section 12 there before trusting anything below about the data model.
 
 AI draft generation and scheduling are deliberately **not** implemented — those actions
 exist as clearly-labelled placeholders.
@@ -250,7 +254,7 @@ Three independent layers. Each one alone would be a bug; together they fail clos
 **1. Middleware — `src/proxy.ts`**
 
 Runs before every non-static request. Redirects signed-out users to `/login`, and blocks
-non-admins from `/admin`, `/leads`, `/research`, `/drafts`, `/campaigns`, `/templates`,
+non-admins from `/admin`, `/leads`, `/research`, `/drafts`,
 `/settings`, `/import` and `/api/admin`. Also refreshes the Supabase session cookie.
 
 > Next 16 renamed the middleware file convention from `middleware.ts` /
@@ -310,8 +314,6 @@ Two consequences worth knowing:
 | `/dashboard`  | admin + viewer | 8 metric cards, emails/replies trend charts, status + country + niche breakdowns, campaign stats |
 | `/leads`      | admin          | Data table: global search, status filters, sorting, pagination, row selection, bulk actions |
 | `/leads/[id]` | admin          | Full detail, inline editing, approve/archive, email + reply history, timeline |
-| `/campaigns`  | admin          | Progress cards with start / pause / resume / stop, create + edit          |
-| `/templates`  | admin          | Full CRUD with a placeholder inserter                                     |
 | `/email-logs` | admin          | Recipient, subject, status, provider, date, error                         |
 | `/replies`    | admin          | Business, preview, sentiment, date                                        |
 | `/settings`   | admin          | Google Sheets and email provider config; credentials; sync/test triggers |
@@ -591,7 +593,7 @@ would rather keep them apart, run with `--key-mode=business` and you get all 703
 ├── supabase/
 │   ├── schema.sql                  ← paste this into the SQL Editor
 │   ├── config.toml                 local CLI config
-│   ├── seed.sql                    starter template + campaign (db reset)
+│   ├── seed.sql                    empty since 0025 (db reset)
 │   └── migrations/                 the same schema as 8 ordered migrations
 ├── scripts/
 │   └── import-leads.ts             import CLI
@@ -607,7 +609,7 @@ would rather keep them apart, run with `--key-mode=business` and you get all 703
     │       ├── leads/
     │       │   ├── (list)/         table, search, filters  [loading.tsx scoped here]
     │       │   └── [id]/           detail + inline editing
-    │       ├── campaigns/  templates/  email-logs/  replies/  settings/
+    │       ├── email-logs/  replies/  settings/
     ├── components/
     │   ├── ui/                     primitives: button, card, input, badge,
     │   │                           dialog, table, skeleton, toast

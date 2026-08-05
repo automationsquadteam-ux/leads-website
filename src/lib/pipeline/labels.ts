@@ -26,7 +26,21 @@ export interface StageMeta {
 export const STAGE_META: Record<PipelineStage, StageMeta> = {
   need_email: {
     label: 'Need Email',
-    description: 'No contact address on file yet.',
+    description: 'No contact address on file yet. Someone has to find one.',
+    tone: 'danger',
+  },
+  /*
+   * Split out of need_email in 0026/0027.
+   *
+   * Both stages end in "go and find an address", which is why they shared one
+   * for a while — but the dashboard has always shown them as two tiles, because
+   * a lead that was never sourced and a lead whose address bounced are different
+   * work. Sharing a stage meant the tiles read 307 and 19 while the stage filter
+   * read 326, and nothing on screen explained the arithmetic.
+   */
+  dead_email: {
+    label: 'Dead Address',
+    description: 'The address on file was proved undeliverable. It needs replacing.',
     tone: 'danger',
   },
   need_verification: {

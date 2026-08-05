@@ -51,6 +51,7 @@ export type EmailVersionStatus = 'draft' | 'approved' | 'rejected';
  */
 export type PipelineStage =
   | 'need_email'
+  | 'dead_email'
   | 'need_verification'
   | 'research'
   | 'draft'
@@ -153,10 +154,8 @@ export interface Database {
           city: string | null;
           country: string | null;
           niche: string | null;
-          category: string | null;
           source: string | null;
           status: LeadStatus;
-          campaign_id: string | null;
           research_summary: string | null;
           website_observations: string | null;
           automation_opportunities: string | null;
@@ -172,7 +171,6 @@ export interface Database {
           drafted_at: string | null;
           notes: string | null;
           last_contacted_at: string | null;
-          next_followup_at: string | null;
           dedupe_key: string;
           import_batch_id: string | null;
           imported_at: string | null;
@@ -191,10 +189,8 @@ export interface Database {
           city?: string | null;
           country?: string | null;
           niche?: string | null;
-          category?: string | null;
           source?: string | null;
           status?: LeadStatus;
-          campaign_id?: string | null;
           research_summary?: string | null;
           website_observations?: string | null;
           automation_opportunities?: string | null;
@@ -210,7 +206,6 @@ export interface Database {
           drafted_at?: string | null;
           notes?: string | null;
           last_contacted_at?: string | null;
-          next_followup_at?: string | null;
           dedupe_key: string;
           import_batch_id?: string | null;
           imported_at?: string | null;
@@ -224,70 +219,10 @@ export interface Database {
         Relationships: [];
       };
 
-      templates: {
-        Row: {
-          id: string;
-          name: string;
-          subject: string;
-          body: string;
-          variables: string[];
-          is_active: boolean;
-          created_by: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          subject: string;
-          body: string;
-          variables?: string[];
-          is_active?: boolean;
-          created_by?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database['public']['Tables']['templates']['Insert']>;
-        Relationships: [];
-      };
-
-      campaigns: {
-        Row: {
-          id: string;
-          name: string;
-          description: string | null;
-          active: boolean;
-          daily_limit: number;
-          template_id: string | null;
-          starts_at: string | null;
-          ends_at: string | null;
-          created_by: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          description?: string | null;
-          active?: boolean;
-          daily_limit?: number;
-          template_id?: string | null;
-          starts_at?: string | null;
-          ends_at?: string | null;
-          created_by?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database['public']['Tables']['campaigns']['Insert']>;
-        Relationships: [];
-      };
-
       email_logs: {
         Row: {
           id: string;
           lead_id: string;
-          campaign_id: string | null;
-          template_id: string | null;
           status: EmailLogStatus;
           provider: string | null;
           message_id: string | null;
@@ -302,8 +237,6 @@ export interface Database {
         Insert: {
           id?: string;
           lead_id: string;
-          campaign_id?: string | null;
-          template_id?: string | null;
           status?: EmailLogStatus;
           provider?: string | null;
           message_id?: string | null;
@@ -611,68 +544,6 @@ export interface Database {
     };
 
     Views: {
-      dashboard_overview: {
-        Row: {
-          total_leads: number;
-          new_leads: number;
-          researching_leads: number;
-          ready_leads: number;
-          sent_leads: number;
-          replied_leads: number;
-          bounced_leads: number;
-          excluded_leads: number;
-          leads_with_research: number;
-          leads_with_draft: number;
-          followups_due: number;
-          countries_covered: number;
-          niches_covered: number;
-        };
-        Relationships: [];
-      };
-      dashboard_lead_status_counts: {
-        Row: { status: LeadStatus; lead_count: number; pct_of_total: number | null };
-        Relationships: [];
-      };
-      dashboard_leads_by_country: {
-        Row: {
-          country: string;
-          lead_count: number;
-          sent_count: number;
-          replied_count: number;
-          drafted_count: number;
-        };
-        Relationships: [];
-      };
-      dashboard_leads_by_niche: {
-        Row: { niche: string; lead_count: number; replied_count: number };
-        Relationships: [];
-      };
-      dashboard_leads_by_category: {
-        Row: { category: string; lead_count: number };
-        Relationships: [];
-      };
-      dashboard_leads_created_daily: {
-        Row: { day: string; leads_added: number };
-        Relationships: [];
-      };
-      dashboard_campaign_stats: {
-        Row: {
-          campaign_id: string;
-          campaign_name: string;
-          active: boolean;
-          daily_limit: number;
-          starts_at: string | null;
-          ends_at: string | null;
-          leads_assigned: number;
-          emails_sent: number;
-          emails_bounced: number;
-          emails_failed: number;
-          replies_received: number;
-          reply_rate_pct: number | null;
-          bounce_rate_pct: number | null;
-        };
-        Relationships: [];
-      };
       dashboard_email_activity_daily: {
         Row: {
           day: string;
@@ -685,48 +556,15 @@ export interface Database {
         };
         Relationships: [];
       };
-      dashboard_reply_stats: {
-        Row: {
-          sentiment: string;
-          reply_count: number;
-          handled_count: number;
-          unhandled_count: number;
-          pct_of_replies: number | null;
-        };
-        Relationships: [];
-      };
-      dashboard_reply_activity_daily: {
-        Row: {
-          day: string;
-          replies: number;
-          positive: number;
-          neutral: number;
-          negative: number;
-          unsubscribe: number;
-        };
-        Relationships: [];
-      };
-      dashboard_leads_safe: {
-        Row: {
-          id: string;
-          business_name: string;
-          city: string | null;
-          country: string | null;
-          niche: string | null;
-          category: string | null;
-          status: LeadStatus;
-          campaign_id: string | null;
-          created_at: string;
-          last_contacted_at: string | null;
-          has_research: boolean;
-          has_draft: boolean;
-        };
-        Relationships: [];
-      };
 
       /* --------------------------------------------------------------------- */
       /* Pipeline (admin-only contains contact data)                          */
       /* --------------------------------------------------------------------- */
+
+      lead_stage_counts: {
+        Row: { stage: PipelineStage; lead_count: number; lead_count_all: number };
+        Relationships: [];
+      };
 
       pipeline_board: {
         Row: {
@@ -737,7 +575,6 @@ export interface Database {
           country: string | null;
           niche: string | null;
           lead_status: LeadStatus;
-          campaign_id: string | null;
           current_stage: PipelineStage;
           next_step: PipelineNextStep;
           email_found: boolean;
@@ -832,10 +669,6 @@ export interface Database {
         Row: { stage: PipelineStage; lead_count: number; pct_of_total: number | null };
         Relationships: [];
       };
-      public_stats_statuses: {
-        Row: { status: LeadStatus; lead_count: number };
-        Relationships: [];
-      };
       public_stats_activity_daily: {
         Row: {
           day: string;
@@ -844,19 +677,6 @@ export interface Database {
           replies: number;
           positive_replies: number;
           negative_replies: number;
-        };
-        Relationships: [];
-      };
-      public_stats_campaigns: {
-        Row: {
-          campaign_name: string;
-          active: boolean;
-          leads_assigned: number;
-          emails_sent: number;
-          emails_bounced: number;
-          replies_received: number;
-          reply_rate_pct: number | null;
-          bounce_rate_pct: number | null;
         };
         Relationships: [];
       };
@@ -885,18 +705,6 @@ export interface Database {
           avg_drafting_hours: number | null;
           approved_sample: number;
           sent_sample: number;
-        };
-        Relationships: [];
-      };
-      analytics_template_performance: {
-        Row: {
-          template_id: string;
-          template_name: string;
-          is_active: boolean;
-          emails_sent: number;
-          emails_bounced: number;
-          replies_received: number;
-          reply_rate_pct: number | null;
         };
         Relationships: [];
       };
@@ -979,8 +787,6 @@ export type Views<T extends keyof PublicSchema['Views']> = PublicSchema['Views']
 export type Profile = Tables<'profiles'>;
 export type Lead = Tables<'leads'>;
 export type LeadInsert = TablesInsert<'leads'>;
-export type Template = Tables<'templates'>;
-export type Campaign = Tables<'campaigns'>;
 export type EmailLog = Tables<'email_logs'>;
 export type Reply = Tables<'replies'>;
 export type Setting = Tables<'settings'>;
@@ -1023,6 +829,7 @@ export const EMAIL_VERIFICATION_STATUSES: readonly EmailVerificationStatus[] = [
 /** Earliest to latest. Ordering a board by this array matches the SQL enum order. */
 export const PIPELINE_STAGES: readonly PipelineStage[] = [
   'need_email',
+  'dead_email',
   'need_verification',
   'research',
   'draft',

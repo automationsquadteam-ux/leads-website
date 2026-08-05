@@ -29,8 +29,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   await requireAdmin();
 
   const { id } = await params;
-  const { lead, pipeline, versions, activity, emailLogs, replies, campaignName } =
-    await getLeadDetail(id);
+  const { lead, pipeline, versions, activity, emailLogs, replies } = await getLeadDetail(id);
 
   if (!lead) notFound();
 
@@ -105,7 +104,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
 
       <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <LeadDetail lead={lead} />
+          <LeadDetail lead={lead} stage={pipeline?.current_stage ?? null} />
           <ResearchPanel lead={lead} />
           <PersonalizationPanel lead={lead} />
           <DraftWorkspace
@@ -159,7 +158,6 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Email history</CardTitle>
-            {campaignName ? <Badge tone="primary">{campaignName}</Badge> : <Badge>No campaign</Badge>}
           </CardHeader>
           <CardContent className="p-0">
             {emailLogs.length === 0 ? (
