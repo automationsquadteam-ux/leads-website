@@ -64,7 +64,12 @@ function sanitizeSearch(term: string): string {
  * a page that shows 97 is worse than no widget.
  */
 export const LEAD_VIEWS = {
-  missing_email: 'Leads missing an email address',
+  missing_email: 'Leads with no email address',
+  // Distinct from missing_email: these HAVE an address that has simply never
+  // been sent to a verifier. A plain ?verify=unverified filter cannot express
+  // that, because a lead with no address is also "unverified" and there are 308
+  // of those — which is why the tile said 2 and the link showed 308.
+  never_checked: 'Has an address, never sent to a verifier',
   awaiting_verification: 'Address on file, not yet verified',
   invalid_email: 'Address proved undeliverable needs a new source',
   approval_queue: 'Drafted, waiting for approval',
@@ -133,6 +138,9 @@ async function idsForView(
   switch (view) {
     case 'missing_email':
       query = query.eq('email_found', false);
+      break;
+    case 'never_checked':
+      query = query.eq('email_found', true).eq('email_verification_status', 'unverified');
       break;
     case 'awaiting_verification':
       query = query
@@ -278,6 +286,17 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
 
   if (statuses.length > 0) {
     query = query.in('status', statuses);
+  } else if (!view) {
+    /*
+     * Archived means "put this out of the way", so the default list honours
+     * that. Leaving them in made archiving pointless — the row you wanted gone
+     * was still in every count and every page of results.
+     *
+     * Still reachable: tick Archived in the status filter, and they appear.
+     * A named view is left alone, because a view like missing_email is asking a
+     * specific question that archiving does not answer.
+     */
+    query = query.neq('status', 'archived');
   }
 
   const from = (page - 1) * pageSize;

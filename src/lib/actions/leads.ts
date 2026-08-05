@@ -171,6 +171,62 @@ export async function sendEmail(id: string, emailType: EmailType = 'initial'): P
   return { ok: result.ok, message: result.message };
 }
 
+/**
+ * Delete leads permanently.
+ *
+ * Archiving is the reversible option and is right for "not now". This is for
+ * rows that should never have existed — a duplicate, a test record, junk from a
+ * bad import — where leaving them archived means filtering around them forever.
+ *
+ * Every dependent row goes with it. `leads.id` is referenced with ON DELETE
+ * CASCADE by email_logs, replies, email_versions, lead_pipeline and
+ * lead_activity, so the send history and drafts are destroyed too. That is the
+ * intent, and it is why the UI asks twice.
+ *
+ * No undo. `npm run leads:purge` writes a JSON backup before deleting and can
+ * restore from it; this deliberately does not, because a per-row backup file
+ * for a duplicate nobody wanted is clutter rather than safety.
+ */
+export async function deleteLeads(ids: string[]): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+  } catch {
+    return { ok: false, message: 'You do not have permission to delete leads.' };
+  }
+
+  if (ids.length === 0) return { ok: false, message: 'No leads selected.' };
+  if (ids.length > 500) {
+    return {
+      ok: false,
+      message: 'Refusing to delete more than 500 at once. Use npm run leads:purge, which writes a backup first.',
+    };
+  }
+
+  const admin = createServiceClient();
+
+  // Read the names before they are gone, so the confirmation can say what it
+  // actually removed rather than a bare count.
+  const { data: doomed } = await admin.from('leads').select('business_name').in('id', ids);
+  const names = (doomed ?? []).map((l) => l.business_name);
+
+  const { data, error } = await admin.from('leads').delete().in('id', ids).select('id');
+  if (error) return { ok: false, message: `Could not delete: ${error.message}` };
+
+  const deleted = (data ?? []).length;
+
+  revalidatePath('/leads');
+  revalidatePath('/dashboard');
+  revalidatePath('/replies');
+
+  const preview =
+    names.length <= 3 ? names.join(', ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
+
+  return {
+    ok: true,
+    message: `Deleted ${deleted} lead${deleted === 1 ? '' : 's'} permanently${preview ? `: ${preview}` : ''}. Sent history and drafts went with them.`,
+  };
+}
+
 /** Bulk status change from the leads table selection. */
 export async function bulkSetStatus(ids: string[], status: LeadStatus): Promise<ActionResult> {
   try {

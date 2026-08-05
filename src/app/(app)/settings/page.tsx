@@ -1,4 +1,7 @@
 import { PageHeader } from '@/components/shell/app-shell';
+import { Badge } from '@/components/ui/badge';
+import { CollapsibleSection } from '@/components/collapsible-section';
+import { formatNumber } from '@/lib/utils';
 import { requireAdmin } from '@/lib/auth/session';
 import { getCronSecret } from '@/lib/env';
 import { getSettings, settingsMap } from '@/lib/data/misc';
@@ -42,6 +45,8 @@ export default async function SettingsPage() {
   // Sensitive rows never reach the client, even for admins.
   const values = Object.fromEntries(settingsMap(rows.filter((row) => !row.is_sensitive)));
 
+  const cronConfigured = getCronSecret() !== null;
+
   return (
     <>
       <PageHeader
@@ -49,25 +54,45 @@ export default async function SettingsPage() {
         description="Integrations, sending configuration and credentials."
       />
 
-      <div className="space-y-8 p-4 sm:p-6">
+      {/*
+        Every section starts collapsed. This page had grown to five panels of
+        dense configuration, and scrolling past four of them to reach the fifth
+        is not reading, it is hunting. Each header carries a one-line status so
+        the closed page still answers "is anything wrong".
+      */}
+      <div className="space-y-3 p-4 sm:p-6">
         {error ? (
           <p className="rounded-md border border-danger/30 bg-danger-subtle px-3 py-2.5 text-sm text-danger">
             Could not load settings: {error}
           </p>
         ) : null}
 
-        <section>
-          <h2 className="mb-3 text-sm font-semibold">Integrations</h2>
+        <CollapsibleSection
+          title="Integrations"
+          description="Google Sheets, the email provider, and stored credentials."
+          badge={
+            <Badge tone={config.sheets.spreadsheetId ? 'success' : 'neutral'}>
+              {config.sheets.spreadsheetId ? `Sheet: ${config.sheets.sheetName}` : 'Not configured'}
+            </Badge>
+          }
+        >
           <IntegrationsPanel
             config={config}
             secrets={secrets}
             lastRuns={lastRuns}
             encryptionReady={encryptionAvailable()}
           />
-        </section>
+        </CollapsibleSection>
 
-        <section>
-          <h2 className="mb-3 text-sm font-semibold">Email verification &amp; follow-ups</h2>
+        <CollapsibleSection
+          title="Email verification, drafts &amp; follow-ups"
+          description="Check addresses, clean drafts, and write follow-ups ahead of time."
+          badge={
+            <Badge tone={verification.exportable > 0 ? 'warning' : 'success'}>
+              {formatNumber(verification.exportable)} to check
+            </Badge>
+          }
+        >
           <VerificationPanel
             counts={verification.counts}
             noAddress={verification.noAddress}
@@ -76,10 +101,25 @@ export default async function SettingsPage() {
             sentWithoutFollowups={verification.sentWithoutFollowups}
             leadsMissingFollowups={verification.leadsMissingFollowups}
           />
-        </section>
+        </CollapsibleSection>
 
-        <section>
-          <h2 className="mb-3 text-sm font-semibold">Automation</h2>
+        <CollapsibleSection
+          title="Automation"
+          description="The scheduled sender and the draft generator."
+          badge={
+            <Badge
+              tone={
+                config.sending.paused ? 'danger' : cronConfigured ? 'success' : 'warning'
+              }
+            >
+              {config.sending.paused
+                ? 'Paused'
+                : cronConfigured
+                  ? 'Scheduler live'
+                  : 'CRON_SECRET missing'}
+            </Badge>
+          }
+        >
           {/*
             Only whether the secret EXISTS crosses to the client, never its
             value the panel needs to say "configured" or "not configured" and
@@ -88,14 +128,27 @@ export default async function SettingsPage() {
           <AutomationPanel
             config={config}
             lastRuns={lastRuns}
-            cronConfigured={getCronSecret() !== null}
+            cronConfigured={cronConfigured}
           />
-        </section>
+        </CollapsibleSection>
 
-        <section>
-          <h2 className="mb-3 text-sm font-semibold">Sending &amp; content</h2>
+        {/*
+          One <form> with one save button spanning several cards, which is why
+          CollapsibleSection uses <details> rather than conditional rendering:
+          the inputs stay in the DOM when collapsed, so a section you never
+          opened still submits its existing values instead of blanking them.
+        */}
+        <CollapsibleSection
+          title="Sending &amp; content"
+          description="Pace, working hours, email identity, the generator, and what the public page shows."
+          badge={
+            <Badge tone={config.email.fromAddress ? 'neutral' : 'warning'}>
+              {config.email.fromAddress || 'No from address'}
+            </Badge>
+          }
+        >
           <SettingsForm values={values} />
-        </section>
+        </CollapsibleSection>
       </div>
     </>
   );

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Users, ExternalLink, Archive, CheckCircle2, Ban, Download } from 'lucide-react';
+import { Users, ExternalLink, Archive, CheckCircle2, Ban, Download, Trash2 } from 'lucide-react';
 
 import { DataTable, type Column } from '@/components/data-table';
 import { SearchBar } from '@/components/search-bar';
@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import { NextStepBadge, StageBadge } from '@/components/pipeline-badge';
-import { bulkSetStatus } from '@/lib/actions/leads';
+import { bulkSetStatus, deleteLeads } from '@/lib/actions/leads';
 import { VERIFICATION_META } from '@/lib/pipeline/labels';
 import type { LeadRow } from '@/lib/data/leads';
 import {
@@ -34,6 +34,8 @@ interface Props {
   search: string;
   statuses: LeadStatus[];
   verification: EmailVerificationStatus[];
+  /** Active named view, so the chips can show which one is on. */
+  view?: string;
   sort: string;
   direction: 'asc' | 'desc';
   facets: Record<string, number>;
@@ -49,7 +51,7 @@ const DASH = '—';
  * cache to invalidate.
  */
 export function LeadsTable({
-  rows, total, page, pageSize, search, statuses, verification, sort, direction, facets,
+  rows, total, page, pageSize, search, statuses, verification, view, sort, direction, facets,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -59,6 +61,7 @@ export function LeadsTable({
   const [pending, startTransition] = React.useTransition();
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [confirmArchive, setConfirmArchive] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const update = React.useCallback(
     (changes: Record<string, string | null>) => {
@@ -125,13 +128,27 @@ export function LeadsTable({
       {
         key: 'verification',
         header: 'Verified',
-        width: 120,
+        width: 130,
         render: (lead) => {
           if (!lead.verification) return <span className="text-muted-foreground">{DASH}</span>;
+
+          // "Unverified" covers two very different situations and the
+          // difference is what you act on: no address at all is a SOURCING
+          // problem, an unchecked address is a VERIFICATION one. Showing the
+          // same word for both sent people looking for a verifier run that
+          // could never have applied.
+          if (!lead.email) {
+            return (
+              <Badge tone="neutral" title="No address at all. This needs one found, not verified.">
+                No email
+              </Badge>
+            );
+          }
+
           const meta = VERIFICATION_META[lead.verification];
           return (
             <Badge tone={meta.tone} title={meta.hint}>
-              {meta.label}
+              {lead.verification === 'unverified' ? 'Never checked' : meta.label}
             </Badge>
           );
         },
@@ -236,9 +253,49 @@ export function LeadsTable({
           Verification is its own filter rather than another status chip: it
           answers a different question ("can I email this?") and is the one you
           reach for before a send run.
+
+          "No email" and "Never checked" are named views rather than
+          ?verify= values, because both would otherwise be `unverified` — a
+          lead with no address has nothing to verify, so it carries that status
+          too. Filtering on the raw enum would return all 308 of them under a
+          chip that claims to show the handful with an unchecked address.
         */}
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by email verification">
-          {EMAIL_VERIFICATION_STATUSES.map((status) => {
+          <button
+            type="button"
+            aria-pressed={view === 'missing_email'}
+            onClick={() =>
+              update({ view: view === 'missing_email' ? null : 'missing_email', verify: null })
+            }
+            className={cn(
+              'cursor-pointer rounded-md border px-2 py-1 text-xs font-medium transition-colors',
+              view === 'missing_email'
+                ? 'border-primary bg-primary-subtle text-primary'
+                : 'border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground',
+            )}
+            title="No address at all. These need one found, not verified."
+          >
+            No email
+          </button>
+
+          <button
+            type="button"
+            aria-pressed={view === 'never_checked'}
+            onClick={() =>
+              update({ view: view === 'never_checked' ? null : 'never_checked', verify: null })
+            }
+            className={cn(
+              'cursor-pointer rounded-md border px-2 py-1 text-xs font-medium transition-colors',
+              view === 'never_checked'
+                ? 'border-primary bg-primary-subtle text-primary'
+                : 'border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground',
+            )}
+            title="Has an address that has never been sent to a verifier."
+          >
+            Never checked
+          </button>
+
+          {EMAIL_VERIFICATION_STATUSES.filter((s) => s !== 'unverified').map((status) => {
             const active = verification.includes(status);
             return (
               <button
@@ -249,7 +306,7 @@ export function LeadsTable({
                   const next = active
                     ? verification.filter((v) => v !== status)
                     : [...verification, status];
-                  update({ verify: next.length > 0 ? next.join(',') : null });
+                  update({ verify: next.length > 0 ? next.join(',') : null, view: null });
                 }}
                 className={cn(
                   'cursor-pointer rounded-md border px-2 py-1 text-xs font-medium transition-colors',
@@ -306,9 +363,18 @@ export function LeadsTable({
             <Ban className="size-3.5" aria-hidden="true" />
             Mark invalid
           </Button>
-          <Button size="sm" variant="danger" onClick={() => setConfirmArchive(true)}>
+          <Button size="sm" variant="secondary" onClick={() => setConfirmArchive(true)}>
             <Archive className="size-3.5" aria-hidden="true" />
             Archive
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => setConfirmDelete(true)}
+            title="Permanent. Removes the leads and their send history."
+          >
+            <Trash2 className="size-3.5" aria-hidden="true" />
+            Delete
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
             Clear
@@ -364,10 +430,26 @@ export function LeadsTable({
         open={confirmArchive}
         onOpenChange={setConfirmArchive}
         title={`Archive ${formatNumber(selected.size)} lead${selected.size === 1 ? '' : 's'}?`}
-        description="Archived leads are hidden from the working pipeline but not deleted. You can restore them from the lead page."
+        description="Archived leads are hidden from the working list but not deleted. You can restore them from the lead page, or find them with the Archived status filter."
         confirmLabel="Archive"
-        destructive
         onConfirm={() => runBulk('archived')}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Permanently delete ${formatNumber(selected.size)} lead${selected.size === 1 ? '' : 's'}?`}
+        description="This cannot be undone. Their drafts, send history and any replies are deleted with them. Archive instead if you only want them out of the way."
+        confirmLabel="Delete permanently"
+        destructive
+        onConfirm={async () => {
+          const result = await deleteLeads([...selected]);
+          toast(result.message, result.ok ? 'success' : 'error');
+          if (result.ok) {
+            setSelected(new Set());
+            startTransition(() => router.refresh());
+          }
+        }}
       />
     </div>
   );

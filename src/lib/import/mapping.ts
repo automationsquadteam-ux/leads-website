@@ -1,5 +1,5 @@
 import type { LeadInsert, LeadStatus } from '@/lib/supabase/database.types';
-import { normaliseDraft } from '@/lib/services/drafts/quality';
+import { normaliseDraft, normaliseSubjectLine } from '@/lib/services/drafts/quality';
 import { buildDedupeKey, type KeyMode } from './dedupe';
 import {
   cleanMultiline,
@@ -144,10 +144,13 @@ export function mapRow(row: SheetRow, options: MapOptions): MapResult {
    */
   const rawDraft = cleanMultiline(pick(row, 'draft_email'));
   const rawSubject = cleanText(pick(row, 'subject_line'));
-  const normalised = normaliseDraft(rawDraft, rawSubject);
 
+  // Header and body live in SEPARATE sheet columns, so each cell holds a bare
+  // fragment (`"body": "Hi,\n\n..."`) rather than a whole JSON object. Both are
+  // cleaned independently.
+  const normalised = normaliseDraft(rawDraft);
   const draftEmail = normalised.content.trim() === '' ? null : normalised.content;
-  const subjectLine = normalised.subject?.trim() || rawSubject;
+  const subjectLine = normaliseSubjectLine(rawSubject) ?? normalised.subject;
 
   const hasResearch = researchSummary !== null;
   const hasDraft = draftEmail !== null;

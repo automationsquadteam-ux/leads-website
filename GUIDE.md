@@ -77,6 +77,7 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0020 | `20260804220000_outreach_run_budget.sql` | ❌ **NOT YET** |
 | 0021 | `20260805100000_research_complete_any_field.sql` | ❌ **NOT YET** |
 | 0022 | `20260805120000_reconcile_approved_versions.sql` | ❌ **NOT YET** |
+| 0023 | `20260805140000_manual_verification_is_a_verdict.sql` | ❌ **NOT YET** |
 
 **To apply 0015:** paste `supabase/schema-update-5-verification-and-public-leads.sql` into
 the Supabase SQL editor and Run. Idempotent, includes both backfills.
@@ -98,6 +99,39 @@ read as unverified.
 **To apply 0021:** then paste `supabase/schema-update-11-research-any-field.sql`.
 
 **To apply 0022:** then paste `supabase/schema-update-12-reconcile-approved.sql`.
+
+**To apply 0023:** then paste `supabase/schema-update-13-manual-verification.sql`.
+
+### The flag and the status move together, in both directions
+
+`email_verified` (boolean) and `email_verification_status` (enum) describe the same fact, so
+0023 makes them bidirectional. **Which side wins is decided by which one changed** in the
+statement:
+
+| Changed | Effect |
+| --- | --- |
+| `email_verification_status` | A verifier or a bounce spoke. It drives the flag. |
+| `email_verified` | A human spoke. It drives the status, recorded as source `manual`. |
+
+Before this, ticking "Email verified" on the lead page set only the flag. The status stayed
+`unverified`, the table kept showing "Never checked", and the lead stayed in the verifier
+export — being re-billed for an address someone had already confirmed.
+
+Unticking returns the status to `unverified`, never to `invalid`: "no longer sure" is not
+"proved dead". An existing `invalid` is never softened, because a hard bounce is evidence.
+
+### Archive versus delete
+
+`archiveLead` sets `status = 'archived'` and the default leads list now excludes those, so
+archiving actually removes the row from view. Tick Archived in the status filter to see them.
+A named `?view=` is exempt, because those ask a specific question that archiving does not
+answer.
+
+`deleteLeads()` is permanent and cascades: `email_logs`, `replies`, `email_versions`,
+`lead_pipeline` and `lead_activity` all reference `leads.id` with ON DELETE CASCADE, so send
+history and drafts go too. That is the intent for a duplicate or junk row, and it is why the
+UI confirms. It refuses more than 500 at once and points at `npm run leads:purge`, which
+writes a restorable JSON backup first.
 
 ### Duplicate leads sharing one address, despite a UNIQUE dedupe_key
 
@@ -121,6 +155,19 @@ be copied across but a conversation cannot.
 
 Recomputing keys automatically would be worse: it would collide with the surviving row and
 fail the whole sync.
+
+### A tile must link to exactly the rows it counted
+
+"No address" and "Never checked" are both `email_verification_status = 'unverified'` in the
+database — a lead with no address has nothing to verify, so it carries that status too. A
+`?verify=unverified` link therefore returned all 308 of them under a tile reading 2.
+
+Both are named views (`?view=missing_email`, `?view=never_checked`) for that reason. When
+adding a tile, check that its link and its count resolve through the same query; if they
+cannot, the tile needs a view rather than a filter.
+
+The leads table shows **No email** rather than "Unverified" when there is no address, because
+the two are different jobs: one is sourcing, the other is verification.
 
 ### "Unverified" is not "has no address"
 
@@ -505,6 +552,19 @@ salvages the text instead of discarding a perfectly usable draft.
 It runs at **import** (`lib/import/mapping.ts`), so the CRM stores an email rather than a
 payload and every downstream consumer deals in prose. Cleaning per-feature would mean
 remembering to do it in each one.
+
+**The sheet keeps header and body in SEPARATE columns**, so each cell holds a bare fragment
+rather than a whole object:
+
+```
+Email Header cell:  "header": "Elevate Your Budapest Goulash Experience",
+Email Body cell:    "body": "Hi,\n\nI came across..."
+```
+
+That never starts with `{`, so the JSON passes skip it entirely and the key name and quotes
+would reach the recipient. `normaliseDraft()` has a dedicated fragment pass for it, and
+`normaliseSubjectLine()` applies the same treatment to the header column — stricter, since a
+newline surviving into a subject is a parse failure rather than a formatting choice.
 
 `inspectDraft()` returns what is still wrong: JSON wrapper, literal `\n`, code fences, stray
 braces, wrapping quotes, unfilled placeholders, no subject, suspiciously short. Round
@@ -1116,6 +1176,8 @@ back (and it sets no `sheet_row_number`, so those leads cannot write back to the
 | 2026-08-03 | This guide created |
 | 2026-08-03 | n8n removed (0011); Sheets write-back added; nested-`<form>` hydration bug fixed in `secret-field.tsx` |
 | 2026-08-03 | 0011 confirmed applied to the live DB (the guide had it as pending) |
+| 2026-08-05 | **0023**: ticking "Email verified" now records a real verdict instead of only setting the flag (the lead kept saying "Never checked" and stayed in the paid export); permanent delete added for duplicates and junk; archived leads dropped from the default list, so archiving finally does what it says |
+| 2026-08-05 | Draft cleaner handles the sheet's SEPARATE header/body columns (bare `"body": "..."` fragments, which the JSON passes skipped); verification tiles link to views that match their counts; leads table says "No email" vs "Never checked"; CSV export of leads with no address; settings sections collapsed by default via `<details>`, so a collapsed section still submits its fields |
 | 2026-08-05 | Draft quality: `drafts/quality.ts` unwraps the JSON the upstream Ollama pipeline produces (tolerantly, since a multi-line body makes the JSON invalid), runs at import so nothing downstream sees a payload, and backs a "Clean and approve drafts" sweep that repairs into a new version and approves only what comes out spotless |
 | 2026-08-05 | **0022**: the sender had been picking the same 6 leads every 3 minutes and refusing all 6, because `lead_pipeline.approved` (from `leads.status`) and the version status disagreed. Reconciled, and `findDueWork()` now requires the approved version so the queue cannot offer work it will reject. Added `leads:duplicates` after finding two businesses present twice |
 | 2026-08-05 | All displayed timestamps pinned to `Asia/Karachi` and labelled PKT; storage and the sending window stay UTC; Settings shows the window translated into local time |

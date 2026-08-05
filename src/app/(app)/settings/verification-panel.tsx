@@ -70,6 +70,13 @@ export function VerificationPanel({
             one.
           */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            {/*
+              Each tile links to EXACTLY the rows it counted.
+              "No address" and "Never checked" need named views rather than a
+              ?verify= filter: both would otherwise be `unverified`, since a
+              lead with no address carries that status too. The tile said 2 and
+              the link showed all 308 of them.
+            */}
             <Link
               href="/leads?view=missing_email"
               title="No address at all. Nothing to verify — these need one found."
@@ -79,11 +86,17 @@ export function VerificationPanel({
               <span className="tabular block text-lg font-semibold">{formatNumber(noAddress)}</span>
             </Link>
 
-            {EMAIL_VERIFICATION_STATUSES.map((status) => {
+            <Link
+              href="/leads?view=never_checked"
+              title="Has an address that has never been sent to a verifier."
+              className="rounded-md border border-border px-2.5 py-2 transition-colors hover:border-primary hover:bg-surface-hover"
+            >
+              <span className="block text-xs text-muted-foreground">Never checked</span>
+              <span className="tabular block text-lg font-semibold">{formatNumber(exportable)}</span>
+            </Link>
+
+            {EMAIL_VERIFICATION_STATUSES.filter((s) => s !== 'unverified').map((status) => {
               const meta = VERIFICATION_META[status];
-              // Unverified is shown as "addresses never checked", excluding the
-              // no-address rows already counted in the tile above.
-              const value = status === 'unverified' ? exportable : (counts[status] ?? 0);
               return (
                 <Link
                   key={status}
@@ -91,10 +104,10 @@ export function VerificationPanel({
                   title={meta.hint}
                   className="rounded-md border border-border px-2.5 py-2 transition-colors hover:border-primary hover:bg-surface-hover"
                 >
-                  <span className="block text-xs text-muted-foreground">
-                    {status === 'unverified' ? 'Never checked' : meta.label}
+                  <span className="block text-xs text-muted-foreground">{meta.label}</span>
+                  <span className="tabular block text-lg font-semibold">
+                    {formatNumber(counts[status] ?? 0)}
                   </span>
-                  <span className="tabular block text-lg font-semibold">{formatNumber(value)}</span>
                 </Link>
               );
             })}
@@ -118,6 +131,22 @@ export function VerificationPanel({
                 >
                   <Download className="size-4" aria-hidden="true" />
                   Also re-check catch-all &amp; unknown ({formatNumber(exportable + inconclusive)})
+                </a>
+              ) : null}
+
+              {/*
+                A different job entirely: these leads have no address to check,
+                so the file carries website, phone, social and location — what
+                you actually need to go and find one.
+              */}
+              {noAddress > 0 ? (
+                <a
+                  href="/api/admin/emails/missing.csv"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover"
+                  title="Business name, website, phone, social and location for every lead with no address, plus a blank email column to fill in."
+                >
+                  <Download className="size-4" aria-hidden="true" />
+                  Leads with no address ({formatNumber(noAddress)})
                 </a>
               ) : null}
             </div>

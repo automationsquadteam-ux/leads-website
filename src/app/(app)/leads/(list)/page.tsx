@@ -123,6 +123,7 @@ export default async function LeadsPage({
           search={search}
           statuses={statuses}
           verification={verification}
+          view={view}
           sort={sort}
           direction={direction}
           facets={facets}

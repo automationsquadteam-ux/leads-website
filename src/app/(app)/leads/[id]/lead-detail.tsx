@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { useActionState } from 'react';
-import { Archive, ArchiveRestore, Ban, Mail, Pencil, Save, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Archive, ArchiveRestore, Ban, Mail, Pencil, Save, Trash2, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +16,8 @@ import {
   useActionFeedback,
   useAsyncAction,
 } from '@/components/action-form';
-import { archiveLead, markInvalid, unarchiveLead, updateLead } from '@/lib/actions/leads';
+import { useToast } from '@/components/ui/toast';
+import { archiveLead, deleteLeads, markInvalid, unarchiveLead, updateLead } from '@/lib/actions/leads';
 import { LEAD_STATUSES, type Lead } from '@/lib/supabase/database.types';
 
 /**
@@ -30,7 +32,10 @@ import { LEAD_STATUSES, type Lead } from '@/lib/supabase/database.types';
 export function LeadDetail({ lead }: { lead: Lead }) {
   const [editing, setEditing] = React.useState(false);
   const [confirmArchive, setConfirmArchive] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
   const { busy, run } = useAsyncAction();
+  const { toast } = useToast();
+  const router = useRouter();
 
   const [state, formAction, saving] = useActionState(updateLead, EMPTY_ACTION_RESULT);
   const [handledState, setHandledState] = React.useState(state);
@@ -82,6 +87,17 @@ export function LeadDetail({ lead }: { lead: Lead }) {
               <Button type="button" size="sm" variant="ghost" onClick={() => setConfirmArchive(true)}>
                 <Archive className="size-3.5" aria-hidden="true" />
                 Archive
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-danger hover:bg-danger-subtle hover:text-danger"
+                onClick={() => setConfirmDelete(true)}
+                title="Permanent. For duplicates and junk — archive instead if you might want it back."
+              >
+                <Trash2 className="size-3.5" aria-hidden="true" />
+                Delete
               </Button>
             </>
           )}
@@ -208,10 +224,25 @@ export function LeadDetail({ lead }: { lead: Lead }) {
         open={confirmArchive}
         onOpenChange={setConfirmArchive}
         title="Archive this lead?"
-        description="It will be hidden from the working pipeline. Nothing is deleted and you can restore it at any time."
+        description="It will be hidden from the working list. Nothing is deleted and you can restore it at any time."
         confirmLabel="Archive"
-        destructive
         onConfirm={() => run('archive', () => archiveLead(lead.id)).then(() => undefined)}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Permanently delete ${lead.business_name}?`}
+        description="This cannot be undone. Its drafts, send history and any replies are deleted with it. Archive instead if you only want it out of the way."
+        confirmLabel="Delete permanently"
+        destructive
+        onConfirm={async () => {
+          const result = await deleteLeads([lead.id]);
+          toast(result.message, result.ok ? 'success' : 'error');
+          // The lead no longer exists, so staying on its page would 404 on the
+          // next render. Go back to the list.
+          if (result.ok) router.replace('/leads');
+        }}
       />
     </Card>
   );

@@ -142,10 +142,57 @@ export function normaliseDraft(raw: string | null | undefined, fallbackSubject?:
     }
   }
 
-  // Pass 3: prose. Still unescape, because a draft can carry literal \n
-  // without ever having been JSON.
-  const content = /\\n/.test(unfenced) ? unescapeJsonText(unfenced) : unfenced;
-  return { subject: fallbackSubject ?? null, content: content.trim(), wasStructured: false };
+  /*
+   * Pass 3: a bare FRAGMENT rather than a whole object.
+   *
+   * The sheet keeps "Email Header" and "Email Body" in separate columns, so
+   * each cell holds one key-value pair with no enclosing braces:
+   *
+   *     "body": "Hi,\n\nI came across..."
+   *
+   * That is not JSON and never starts with `{`, so the passes above skip it
+   * entirely and it would otherwise reach the recipient with the key name and
+   * quotes still attached.
+   */
+  const fragment = /^\s*"?(header|subject|body|content|email_body|message|text)"?\s*:\s*"?([\s\S]*?)"?\s*,?\s*$/i.exec(
+    unfenced,
+  );
+  if (fragment?.[2] !== undefined && fragment[2].trim() !== '') {
+    return {
+      subject: fallbackSubject ?? null,
+      content: unescapeJsonText(fragment[2]).trim(),
+      wasStructured: true,
+    };
+  }
+
+  // Pass 4: prose. Still unescape and unwrap, because a draft can carry literal
+  // \n or a stray pair of quotes without ever having been JSON.
+  let content = /\\n|\\"/.test(unfenced) ? unescapeJsonText(unfenced) : unfenced;
+  content = content.trim().replace(/^"([\s\S]*)"$/, '$1').trim();
+
+  return { subject: fallbackSubject ?? null, content, wasStructured: false };
+}
+
+/**
+ * Clean a subject line.
+ *
+ * The sheet's "Email Header" column has the same problem as the body: it can
+ * hold `"header": "Quick idea"` rather than `Quick idea`. Subjects are single
+ * line, so this is deliberately stricter than the body cleaner — any newline
+ * that survives is collapsed, because a subject containing one is a parse
+ * failure rather than a formatting choice.
+ */
+export function normaliseSubjectLine(raw: string | null | undefined): string | null {
+  const input = (raw ?? '').trim();
+  if (input === '') return null;
+
+  const { content } = normaliseDraft(input);
+  const cleaned = content
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return cleaned === '' ? null : cleaned;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -310,7 +357,9 @@ export function repairDraft(input: {
   const issuesBefore = inspectDraft(input);
   const normalised = normaliseDraft(input.content, input.subject);
 
-  const subject = (normalised.subject ?? '').trim() || null;
+  // The subject gets the same treatment: it comes from its own sheet column and
+  // can carry the same `"header": "..."` wrapping as the body.
+  const subject = normaliseSubjectLine(normalised.subject);
   const content = normalised.content;
   const repaired = content !== (input.content ?? '').trim() || subject !== (input.subject ?? '').trim();
 
