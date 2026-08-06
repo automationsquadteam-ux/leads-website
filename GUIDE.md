@@ -1624,6 +1624,20 @@ on the body. `overflow-x: clip` on `html`/`body` is the belt-and-braces half; **
 `hidden`**, because `hidden` creates a scroll container and would break `position: sticky` on the
 topbar.
 
+### The email log had no way off page 1
+
+`getEmailLogs()` has never filtered by date, and the page has always read `?page=` — but nothing
+ever rendered a control to change it. So the log was frozen on the newest 50 rows, and on a day
+that used the full send quota those 50 rows WERE that day. It looked exactly like "the log only
+keeps today"; all 87 attempts were there the whole time, 35 of them one page away.
+
+`LogPagination` is a thin client wrapper around the shared `Pagination`, because that component
+takes callbacks and the log page is a server component. Page and size live in the URL, as they do
+on the leads list.
+
+**Worth checking whenever a list is added:** a `?page=` the server reads and the client cannot set
+is invisible, and it fails in the most misleading way possible — the data looks deleted.
+
 ### Sending days were hardcoded, and Save reverted them
 
 `updateSettings()` wrote `days: [1, 2, 3, 4, 5]` as a literal. So the sending days could not be
@@ -1729,6 +1743,7 @@ holes. Fixed by rebalancing rather than by padding:
 
 | Date | Change |
 | --- | --- |
+| 2026-08-06 | Email log gets pagination. The page read `?page=` but rendered no control, so it was stuck on the newest 50 of 87 rows and appeared to hold only today |
 | 2026-08-06 | Sending days become a real setting. `updateSettings()` hardcoded `days: [1,2,3,4,5]`, so they could not be changed and every Save reverted them; now a seven-day control with a presence marker. Live window set to every day |
 | 2026-08-06 | **Six fixes.** The cleaner now strips MATCHED wrapping quotes and fills bracket placeholders from the lead's own fields, taking the pending queue from **0 clean to 82 of 92**; the 10 left have no answer in the database and stay blocked on purpose. `leads.status` reverted to the ten DB enum values, which is what broke the last deploy — "Initial Approved" is a LABEL and now lives only in STAGE_META/GATE_LABELS, with the draft chip saying plain "Approved" because a lead has three drafts. Email logs swap the constant Provider column for which step was sent. `min-w-0` on the shell plus `overflow-x: clip` stops every page dragging sideways on a phone. Pause vs Close spelled out on the lead page |
 | 2026-08-05 | **Scheduled jobs + layout.** `/api/cron/sheet-sync` (23:59 Asia/Karachi) and `/api/cron/approve-drafts` (00:00, 07:00, 14:00, 21:00) added, sharing `guardCronRequest()` with the outreach route. The draft sweep moved to `lib/services/drafts/sweep.ts` so the button and the schedule run one function. Settings now lists all three jobs with their cron lines. /analytics rebalanced into four even rows, the last rendering `analytics_generation_daily` — queried since 0014, never displayed until now. The public page pipeline row is 3×3 with a new Dead Address card, without which the `dead_email` split would have dropped 19 leads off it silently |

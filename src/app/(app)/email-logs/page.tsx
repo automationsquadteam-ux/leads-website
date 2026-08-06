@@ -8,22 +8,33 @@ import { Table, TBody, TD, TH, THead, TR, TableWrap } from '@/components/ui/tabl
 import { EMAIL_TYPE_LABELS } from '@/lib/pipeline/labels';
 import { requireAdmin } from '@/lib/auth/session';
 import { getEmailLogs } from '@/lib/data/misc';
+import { PAGE_SIZES } from '@/components/pagination';
 import { formatDateTime, formatNumber } from '@/lib/utils';
+import { LogPagination } from './log-pagination';
 
 export const metadata = { title: 'Email Logs' };
 
 export default async function EmailLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; size?: string }>;
 }) {
   await requireAdmin();
 
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, size: sizeParam } = await searchParams;
   const parsed = Number.parseInt(pageParam ?? '1', 10);
   const page = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 
-  const { rows, total, error } = await getEmailLogs(page);
+  /*
+   * Every attempt ever made is in this table and reachable — the query has no
+   * date filter and never had one. What was missing was any way to leave page 1,
+   * so on a day with a full send quota the newest 50 rows WERE that day and the
+   * log looked like it only kept today.
+   */
+  const sizeRaw = Number.parseInt(sizeParam ?? '50', 10);
+  const pageSize = (PAGE_SIZES as readonly number[]).includes(sizeRaw) ? sizeRaw : 50;
+
+  const { rows, total, error } = await getEmailLogs(page, pageSize);
 
   return (
     <>
@@ -31,7 +42,7 @@ export default async function EmailLogsPage({
         title="Email Logs"
         description={
           total > 0
-            ? `${formatNumber(total)} send attempt${total === 1 ? '' : 's'} recorded`
+            ? `${formatNumber(total)} send attempt${total === 1 ? '' : 's'} recorded, newest first`
             : 'Every send attempt is recorded here'
         }
       />
@@ -97,6 +108,8 @@ export default async function EmailLogsPage({
               </Table>
             </TableWrap>
           )}
+
+          {total > 0 ? <LogPagination page={page} pageSize={pageSize} total={total} /> : null}
         </div>
       </div>
     </>
