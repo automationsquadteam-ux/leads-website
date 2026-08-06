@@ -8,7 +8,7 @@ import { Table, TBody, TD, TH, THead, TR, TableWrap } from '@/components/ui/tabl
 import { EMAIL_TYPE_LABELS } from '@/lib/pipeline/labels';
 import { requireAdmin } from '@/lib/auth/session';
 import { getEmailLogs } from '@/lib/data/misc';
-import { PAGE_SIZES } from '@/components/pagination';
+import { parsePageNumber, parsePageSize } from '@/lib/pagination';
 import { formatDateTime, formatNumber } from '@/lib/utils';
 import { LogPagination } from './log-pagination';
 
@@ -22,8 +22,7 @@ export default async function EmailLogsPage({
   await requireAdmin();
 
   const { page: pageParam, size: sizeParam } = await searchParams;
-  const parsed = Number.parseInt(pageParam ?? '1', 10);
-  const page = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  const page = parsePageNumber(pageParam);
 
   /*
    * Every attempt ever made is in this table and reachable — the query has no
@@ -31,8 +30,7 @@ export default async function EmailLogsPage({
    * so on a day with a full send quota the newest 50 rows WERE that day and the
    * log looked like it only kept today.
    */
-  const sizeRaw = Number.parseInt(sizeParam ?? '50', 10);
-  const pageSize = (PAGE_SIZES as readonly number[]).includes(sizeRaw) ? sizeRaw : 50;
+  const pageSize = parsePageSize(sizeParam);
 
   const { rows, total, error } = await getEmailLogs(page, pageSize);
 

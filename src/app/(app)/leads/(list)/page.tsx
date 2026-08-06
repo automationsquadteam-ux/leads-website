@@ -12,13 +12,12 @@ import {
   EMAIL_VERIFICATION_STATUSES, PIPELINE_STAGES,
   type EmailVerificationStatus, type PipelineStage,
 } from '@/lib/supabase/database.types';
+import { parsePageNumber, parsePageSize } from '@/lib/pagination';
 import { formatNumber } from '@/lib/utils';
 import { LeadsTable } from './leads-table';
 import { LeadsSyncActions } from './sync-actions';
 
 export const metadata = { title: 'Leads' };
-
-const PAGE_SIZES = [25, 50, 100, 200];
 
 function parseStages(raw: string | undefined): PipelineStage[] {
   if (!raw) return [];
@@ -68,11 +67,8 @@ export default async function LeadsPage({
   const sort: SortColumn = isSortColumn(sortParam) ? sortParam : 'created_at';
   const direction = single('dir') === 'asc' ? 'asc' : 'desc';
 
-  const pageRaw = Number.parseInt(single('page') ?? '1', 10);
-  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
-
-  const sizeRaw = Number.parseInt(single('size') ?? '50', 10);
-  const pageSize = PAGE_SIZES.includes(sizeRaw) ? sizeRaw : 50;
+  const page = parsePageNumber(single('page'));
+  const pageSize = parsePageSize(single('size'));
 
   const [result, facets] = await Promise.all([
     getLeads({ search, stages, view, verification, showArchived, sort, direction, page, pageSize }),

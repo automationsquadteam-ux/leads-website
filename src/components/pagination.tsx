@@ -4,9 +4,12 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-r
 
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
+import { PAGE_SIZES } from '@/lib/pagination';
 import { formatNumber } from '@/lib/utils';
 
-export const PAGE_SIZES = [25, 50, 100, 200] as const;
+// PAGE_SIZES is imported, never re-exported. Re-exporting it from a
+// 'use client' module would hand server components the same client reference
+// that broke /email-logs — see the note in lib/pagination.ts.
 
 export function Pagination({
   page,
