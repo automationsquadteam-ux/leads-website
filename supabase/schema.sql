@@ -4613,8 +4613,83 @@ comment on view public.lead_stage_counts is
 
 grant select on public.lead_stage_counts to authenticated;
 
+
 -- ---------------------------------------------------------------------------
--- 3. The last two views reporting leads.status are retired.
+-- 4. The public overview counts the new stage.
+--
+-- Its `need_email` counter reads `current_stage = 'need_email'`, so splitting
+-- dead addresses out silently dropped 19 leads from every stage counter on the
+-- public page. The whole body is restated because CREATE OR REPLACE VIEW needs
+-- an identical leading column list; only the last column is new.
+-- ---------------------------------------------------------------------------
+create or replace view public.public_stats_overview
+with (security_invoker = false) as
+select
+  (select count(*) from public.lead_pipeline)::bigint                                          as total_leads,
+  (select count(*) from public.lead_pipeline where current_stage = 'need_email')::bigint       as need_email,
+  (select count(*) from public.lead_pipeline where current_stage = 'need_verification')::bigint as need_verification,
+  (select count(*) from public.lead_pipeline where current_stage = 'research')::bigint         as researching,
+  (select count(*) from public.lead_pipeline where current_stage = 'draft')::bigint            as awaiting_draft,
+  (select count(*) from public.lead_pipeline where current_stage = 'review')::bigint           as draft_ready,
+  (select count(*) from public.lead_pipeline where current_stage = 'approved')::bigint         as approved,
+  (select count(*) from public.lead_pipeline where closed is not null)::bigint                 as closed,
+
+  (select count(*) from public.email_logs
+    where status in ('sent', 'delivered', 'opened', 'clicked'))::bigint                        as emails_sent,
+  (select count(*) from public.email_logs)::bigint                                             as emails_attempted,
+  (select count(*) from public.email_logs where status = 'bounced')::bigint                    as emails_bounced,
+  (select count(*) from public.email_logs where email_type = 'initial'
+     and status in ('sent', 'delivered', 'opened', 'clicked'))::bigint                         as initial_sent,
+  (select count(*) from public.email_logs where email_type = 'followup1'
+     and status in ('sent', 'delivered', 'opened', 'clicked'))::bigint                         as followup1_sent,
+  (select count(*) from public.email_logs where email_type = 'followup2'
+     and status in ('sent', 'delivered', 'opened', 'clicked'))::bigint                         as followup2_sent,
+
+  (select count(*) from public.replies)::bigint                                                as replies,
+  (select count(*) from public.replies where sentiment = 'positive')::bigint                   as positive_replies,
+  (select count(*) from public.replies where sentiment = 'negative')::bigint                   as negative_replies,
+  (select count(*) from public.replies where sentiment = 'neutral')::bigint                    as neutral_replies,
+
+  -- Bounce rate is measured against every attempt, reply rate against
+  -- successful sends: you cannot get a reply to a message that never left.
+  round(
+    100.0 * (select count(*) from public.email_logs where status = 'bounced')
+    / nullif((select count(*) from public.email_logs), 0), 2
+  )                                                                                            as bounce_rate_pct,
+  round(
+    100.0 * (select count(*) from public.replies)
+    / nullif((select count(*) from public.email_logs
+               where status in ('sent', 'delivered', 'opened', 'clicked')), 0), 2
+  )                                                                                            as reply_rate_pct,
+
+  -- Average hours between the message that prompted a reply and the reply
+  -- itself. Prefers the log the reply is explicitly linked to; otherwise the
+  -- most recent send to that lead before the reply arrived.
+  (
+    select round(avg(extract(epoch from (r.received_at - sent.sent_at)) / 3600.0)::numeric, 1)
+    from public.replies r
+    join lateral (
+      select el.sent_at
+      from public.email_logs el
+      where el.sent_at is not null
+        and (
+          el.id = r.email_log_id
+          or (r.email_log_id is null and el.lead_id = r.lead_id and el.sent_at <= r.received_at)
+        )
+      order by el.sent_at desc
+      limit 1
+    ) sent on true
+  )                                                                                            as avg_response_hours,
+
+  -- Appended. CREATE OR REPLACE can only add columns at the END, so anything
+  -- new goes here.
+  (select count(*) from public.lead_pipeline where current_stage = 'dead_email')::bigint as dead_email;
+
+comment on view public.public_stats_overview is
+  'PUBLIC (anon-readable). Aggregate counters and rates only - no lead identity of any kind.';
+
+-- ---------------------------------------------------------------------------
+-- 5. The last two views reporting leads.status are retired.
 --
 -- Since 0025 the stage is the truth and leads.status is an inbound label from
 -- the sheet. These two published the label: `dashboard_lead_status_counts` fed

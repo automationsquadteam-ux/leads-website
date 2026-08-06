@@ -1,7 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { getCronSecret } from '@/lib/env';
+import { guardCronRequest } from '@/lib/cron/authorize';
 import { runOutreachCycle } from '@/lib/services/outreach/scheduler';
 import { finishRun, startRun } from '@/lib/services/integration-runs';
 
@@ -21,8 +20,9 @@ import { finishRun, startRun } from '@/lib/services/integration-runs';
  *
  * Authorization is a shared secret, not a session: there is no user here. The
  * route is outside the middleware's admin prefixes for that reason, which makes
- * the check below the ONLY thing standing between the open internet and a
- * function that sends email. It fails closed when CRON_SECRET is unset.
+ * guardCronRequest() the ONLY thing standing between the open internet and a
+ * function that sends email. It fails closed when CRON_SECRET is unset, and it
+ * lives in lib/cron/authorize.ts because three routes now share it.
  */
 
 // Sending email is not a cacheable GET.
@@ -40,37 +40,9 @@ export const dynamic = 'force-dynamic';
  */
 export const maxDuration = 300;
 
-function isAuthorized(request: NextRequest): boolean {
-  const expected = getCronSecret();
-  if (!expected) return false;
-
-  const header = request.headers.get('authorization') ?? '';
-  const presented = header.startsWith('Bearer ') ? header.slice(7) : '';
-  if (presented === '') return false;
-
-  const a = Buffer.from(presented);
-  const b = Buffer.from(expected);
-  // timingSafeEqual throws on a length mismatch, which would itself leak the
-  // length compare sizes first and only then in constant time.
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 async function handle(request: NextRequest) {
-  if (!getCronSecret()) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message:
-          'CRON_SECRET is not set on the server, so scheduled sending is disabled. Add it to the environment and redeploy.',
-      },
-      { status: 503 },
-    );
-  }
-
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ ok: false, message: 'Unauthorized.' }, { status: 401 });
-  }
+  const refusal = guardCronRequest(request, 'sending');
+  if (refusal) return refusal;
 
   const dryRun = request.nextUrl.searchParams.get('dry') === '1';
 

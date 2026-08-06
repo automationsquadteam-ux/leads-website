@@ -59,6 +59,31 @@ export default async function AnalyticsPage() {
     value: row.lead_count,
   }));
 
+  /*
+   * analytics_generation_daily returns one row per (day, generator), so the
+   * days have to be unioned before they can be plotted — a generator that was
+   * idle on a day has no row at all rather than a zero.
+   */
+  const generators = [...new Set(data.generation.map((row) => row.generated_by))].slice(0, 4);
+  const generationSeries = generators.map((generator, index) => ({
+    label: generator,
+    color: ['var(--primary)', 'var(--violet)', 'var(--success)', 'var(--info)'][index] ?? 'var(--primary)',
+    points: data.generation
+      .filter((row) => row.generated_by === generator)
+      .map((row) => ({ label: row.day, value: row.versions_created })),
+  }));
+
+  const generatorTotals = new Map<string, number>();
+  for (const row of data.generation) {
+    generatorTotals.set(
+      row.generated_by,
+      (generatorTotals.get(row.generated_by) ?? 0) + row.versions_created,
+    );
+  }
+  const generatorPoints: SeriesPoint[] = [...generatorTotals.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+
   const industryPoints: SeriesPoint[] = data.industries
     .slice(0, 10)
     .map((row) => ({ label: row.industry, value: row.leads }));
@@ -142,7 +167,7 @@ export default async function AnalyticsPage() {
           </Card>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
+        <section className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
               <div>
@@ -192,11 +217,9 @@ export default async function AnalyticsPage() {
               />
             </CardContent>
           </Card>
-
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">
-
           <Card>
             <CardHeader>
               <div>
@@ -241,9 +264,6 @@ export default async function AnalyticsPage() {
               </div>
             </CardContent>
           </Card>
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-3">
 
           <Card>
             <CardHeader>
@@ -258,6 +278,44 @@ export default async function AnalyticsPage() {
                 caption="Leads by industry"
                 colorFor={() => 'var(--info)'}
                 emptyMessage="No leads yet."
+              />
+            </CardContent>
+          </Card>
+        </section>
+
+        {/*
+          Draft output, from analytics_generation_daily. The view has always been
+          queried and never rendered — this row exists partly because removing
+          the campaign and template cards left the grid lopsided, and the honest
+          way to fill a gap is with a figure that was already being fetched
+          rather than a chart invented to occupy space.
+        */}
+        <section className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Drafts written</CardTitle>
+                <CardDescription>Versions created per day, by generator</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <MultiLineChart series={generationSeries} caption="Draft versions created per day" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Who wrote the drafts</CardTitle>
+                <CardDescription>Versions per generator, all time in view</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <BarList
+                points={generatorPoints}
+                caption="Draft versions by generator"
+                colorFor={() => 'var(--primary)'}
+                emptyMessage="No drafts generated yet."
               />
             </CardContent>
           </Card>

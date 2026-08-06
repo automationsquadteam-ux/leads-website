@@ -92,32 +92,89 @@ export function AutomationPanel({
             />
           </div>
 
-          <div className="rounded-md border border-border bg-muted px-3 py-2.5 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">Running this on a schedule</p>
-            <p className="mt-1">
-              The website never schedules anything itself a Next.js server can be restarted or
-              scaled to zero at any moment, so an in-process timer is not a schedule. Point any cron
-              service at the endpoint instead:
-            </p>
-            <pre className="mt-1.5 overflow-x-auto rounded border border-border bg-surface px-2 py-1.5 font-mono text-[11px]">
-              curl -X POST -H &quot;Authorization: Bearer $CRON_SECRET&quot; https://your-host/api/cron/outreach
-            </pre>
-            <p className="mt-1.5">
-              {cronConfigured ? (
-                <>
-                  <span className="text-success">CRON_SECRET is set.</span> The endpoint is live.
-                </>
-              ) : (
-                <>
-                  <span className="text-warning">CRON_SECRET is not set</span>, so the endpoint
-                  answers 503 and scheduled sending is disabled. Add it to the environment and
-                  redeploy.
-                </>
-              )}
-            </p>
-          </div>
+          <ScheduleNotice cronConfigured={cronConfigured} />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** The three scheduled jobs, what they do, and the exact cron entries. */
+const SCHEDULED_JOBS: Array<{
+  path: string;
+  title: string;
+  when: string;
+  cron: string;
+  what: string;
+}> = [
+  {
+    path: '/api/cron/sheet-sync',
+    title: 'Sheet sync',
+    when: 'Daily, 23:59 Asia/Karachi',
+    cron: '59 23 * * *',
+    what: 'Pulls the Google Sheet in after n8n has finished appending for the day. Identical to the Sync button on the leads page.',
+  },
+  {
+    path: '/api/cron/approve-drafts',
+    title: 'Clean and approve drafts',
+    when: '00:00, 07:00, 14:00, 21:00',
+    cron: '0 0,7,14,21 * * *',
+    what: 'Identical to the Clean and approve drafts button below. Sends nothing — a draft it cannot fully clean keeps its place in the queue.',
+  },
+  {
+    path: '/api/cron/outreach',
+    title: 'Scheduled sender',
+    when: 'Every few minutes',
+    cron: '*/3 * * * *',
+    what: 'Sends follow-ups that are due. Initial emails only while outreach.auto_send_initial is on.',
+  },
+];
+
+function ScheduleNotice({ cronConfigured }: { cronConfigured: boolean }) {
+  return (
+    <div className="space-y-2.5 rounded-md border border-border bg-muted px-3 py-2.5 text-xs text-muted-foreground">
+      <div>
+        <p className="font-medium text-foreground">Running these on a schedule</p>
+        <p className="mt-1">
+          The website never schedules anything itself a Next.js server can be restarted or scaled
+          to zero at any moment, so an in-process timer is not a schedule. Point a cron service
+          (cron-job.org, Vercel Cron, schtasks) at each endpoint, sending the secret as a bearer
+          token. Set the schedule&apos;s timezone to <strong>Asia/Karachi</strong>, or subtract five
+          hours for UTC.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {SCHEDULED_JOBS.map((job) => (
+          <div key={job.path} className="rounded border border-border bg-surface px-2.5 py-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+              <span className="font-medium text-foreground">{job.title}</span>
+              <span className="tabular font-mono text-[11px]">{job.cron}</span>
+            </div>
+            <p className="mt-0.5">
+              {job.when} · {job.what}
+            </p>
+            <pre className="mt-1.5 overflow-x-auto font-mono text-[11px]">
+              curl -X POST -H &quot;Authorization: Bearer $CRON_SECRET&quot; https://your-host
+              {job.path}
+            </pre>
+          </div>
+        ))}
+      </div>
+
+      <p>
+        {cronConfigured ? (
+          <>
+            <span className="text-success">CRON_SECRET is set.</span> All three endpoints are live.
+            Every run is recorded below, whether a schedule or a button started it.
+          </>
+        ) : (
+          <>
+            <span className="text-warning">CRON_SECRET is not set</span>, so all three endpoints
+            answer 503 and every scheduled job is disabled. Add it to the environment and redeploy.
+          </>
+        )}
+      </p>
     </div>
   );
 }

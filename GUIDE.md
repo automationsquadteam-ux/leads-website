@@ -43,6 +43,7 @@ Migrations 0001 through 0023 are all applied to the live database.
 | Draft cleaning (unwraps the JSON n8n produces) | Done, at import and on demand |
 | Automatic follow-ups (`/api/cron/outreach`) | Done, driven by cron-job.org every 3 min |
 | **Reply ingestion** | Done — Cloudflare Email Worker → `/api/inbound/reply` |
+| Scheduled jobs (sheet sync, draft sweep, sender) | Done — three `/api/cron/*` endpoints, driven externally |
 | **Email verification** | Done — verifier CSV round trip, verify-on-send, manual verdicts |
 | Public front page at `/` (no login) | Done, anon reads six aggregate views |
 | Analytics page | Done |
@@ -1561,10 +1562,59 @@ no scope, and read by nothing since it was written.
 `public_stats_leads` **stays**: it is a working, default-denied feature (Settings → Public page),
 not dead code.
 
+### Three scheduled jobs, none of them scheduled by this app
+
+`/api/cron/outreach` was joined by two more. All three take the same shared-secret check —
+`guardCronRequest()` in `lib/cron/authorize.ts`, moved out of the outreach route the moment
+there was a second caller, because a security check copied three times is a security check that
+ends up subtly different in one of them.
+
+| Endpoint | Cron | Does |
+| --- | --- | --- |
+| `/api/cron/sheet-sync` | `59 23 * * *` Asia/Karachi | The same `syncFromGoogleSheet()` as the Sync button, once n8n has finished appending for the day |
+| `/api/cron/approve-drafts` | `0 0,7,14,21 * * *` | The same `runDraftSweep()` as the Clean-and-approve button |
+| `/api/cron/outreach` | `*/3 * * * *` | Sends what is due |
+
+**Cron cannot express "every 7 hours."** `0 */7 * * *` restarts its count at midnight, so it
+fires at 00, 07, 14, 21 and then waits three hours rather than seven. The explicit hour list is
+the same four times and says outright what it does.
+
+**`vercel.json` was deliberately left alone.** It already declares one cron; Vercel's Hobby plan
+allows two, and adding two more would fail the deploy rather than degrade. cron-job.org is what
+actually drives these — it also speaks timezones, so 23:59 can be set as 23:59 Asia/Karachi
+instead of being hand-converted to 18:59 UTC and silently breaking at a DST boundary somewhere.
+
+**`runDraftSweep()` moved to `lib/services/drafts/sweep.ts`** so the button and the schedule run
+one function. `repairAndApproveDrafts()` is now a nine-line action: `assertAdmin()`, call the
+service, `revalidatePath()`. The same shape as the verification CSV round trip — two front
+doors, one service, identical state either way. Authorization deliberately is NOT in the
+service: the action checks the session, the route checks the secret, and the service assumes the
+caller earned it.
+
+The cron sweep gets a 240s budget against the button's 45s, because nobody is watching a page
+wait. Both stop themselves cleanly rather than being killed mid-write.
+
+### The two pages the deletions left lopsided
+
+Removing the campaign, template and status cards left `lg:grid-cols-3` sections holding one card
+and `lg:grid-cols-2` sections holding one, so both pages rendered half-width cards next to
+holes. Fixed by rebalancing rather than by padding:
+
+- **/analytics** is now four even two-column rows. The last one renders
+  `analytics_generation_daily`, **a view that had always been queried and never displayed** —
+  the honest way to fill a gap is a figure already being fetched, not a chart invented to occupy
+  space.
+- **The public page** pipeline row went from eight cards in a four-column grid to nine in a
+  three-column grid (3×3), the ninth being **Dead Address**. That card is not decoration:
+  `public_stats_overview.need_email` counts the stage, so splitting `dead_email` out would
+  otherwise have dropped 19 leads off the public page without a trace. Stage distribution, which
+  lost its neighbour, is full width — better for an eleven-row bar list anyway.
+
 ## 13. Changelog
 
 | Date | Change |
 | --- | --- |
+| 2026-08-05 | **Scheduled jobs + layout.** `/api/cron/sheet-sync` (23:59 Asia/Karachi) and `/api/cron/approve-drafts` (00:00, 07:00, 14:00, 21:00) added, sharing `guardCronRequest()` with the outreach route. The draft sweep moved to `lib/services/drafts/sweep.ts` so the button and the schedule run one function. Settings now lists all three jobs with their cron lines. /analytics rebalanced into four even rows, the last rendering `analytics_generation_daily` — queried since 0014, never displayed until now. The public page pipeline row is 3×3 with a new Dead Address card, without which the `dead_email` split would have dropped 19 leads off it silently |
 | 2026-08-05 | **0026 + 0027** (must be pasted in that order — Postgres will not use a new enum value in the transaction that added it). `dead_email` becomes its own stage, so the stage filter stops reading 326 where the tiles read 307 and 19. New `lead_stage_counts` view makes the filter facets honour the archived toggle, fixing a chip that said `initial_sent 94` against a page of 93. The lead detail page stops rendering `leads.status` — the "Researching" badge and the editable Status dropdown are gone, replaced by the derived stage — and `StatusBadge` / `LEAD_STATUS_LABELS` / `STATUS_CHART_COLORS` are deleted, so nothing renders lead status anywhere. `dashboard_lead_status_counts`, `public_stats_statuses` and `dashboard_leads_safe` dropped |
 | 2026-08-05 | **Chunks 2 and 3.** **0025**: the stage becomes the FIRST UNMET GATE, so it names what is blocking a lead instead of the last thing that got done — 497 leads move backwards into need_email / need_verification, keeping their drafts and approvals. Every dashboard tile and named view is now a `current_stage` query, which is what makes a count and the page it opens the same query by construction. "Emails Waiting Review" removed (it was the Approval Queue plus follow-up drafts); "Checked, Inconclusive" added for the 173 addresses a verifier answered on and could not prove. Campaigns and templates deleted outright, along with ten unread views, `leads.category`, `leads.next_followup_at` and three orphan settings rows. The lead page gets a five-state verification dropdown; the leads list swaps Status for Stage with Archived as a toggle; approval writes the version and nothing else |
 | 2026-08-05 | **Audit + chunk 1.** Read-only probe of the live database found twelve problems (section 12). Fixed: Ready to Send now requires all four gates (103 → 7, of which 96 could never have been sent — 62 had no address, 4 were proven dead); the verification gate moved into `sendLeadEmail()` so the Send button and the API are covered and not just the cron; `saveResearch()` stopped nulling `researched_at`; overdue follow-ups measured from the start of today so they no longer double-count against due-today. `auto_send_initial` paused |

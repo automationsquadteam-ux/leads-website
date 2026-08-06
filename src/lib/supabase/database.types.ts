@@ -662,6 +662,7 @@ export interface Database {
           bounce_rate_pct: number | null;
           reply_rate_pct: number | null;
           avg_response_hours: number | null;
+          dead_email: number;
         };
         Relationships: [];
       };

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  Building2, CheckCircle2, FileText, Globe2, LogIn, Mail, MailQuestion, Search,
+  Building2, CheckCircle2, FileText, Globe2, LogIn, Mail, MailQuestion, MailX, Search,
   Send, ShieldQuestion, ThumbsDown, ThumbsUp, Timer, TrendingDown, TrendingUp, Users,
 } from 'lucide-react';
 
@@ -133,12 +133,18 @@ export async function PublicStatsPage() {
             </p>
           ) : null}
 
-          <section aria-label="Pipeline" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <section aria-label="Pipeline" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <MetricCard label="Total Leads" value={formatNumber(overview?.total_leads ?? 0)} icon={Users} />
             <MetricCard
               label="Need Email"
               value={formatNumber(overview?.need_email ?? 0)}
               icon={MailQuestion}
+            />
+            <MetricCard
+              label="Dead Address"
+              value={formatNumber(overview?.dead_email ?? 0)}
+              icon={MailX}
+              hint="Proved undeliverable"
             />
             <MetricCard
               label="Need Verification"
@@ -251,12 +257,18 @@ export async function PublicStatsPage() {
             </Card>
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-2">
+          {/*
+            Full width, not half of a two-column grid. It lost its neighbour when
+            the Status distribution chart was retired, and a half-width card
+            beside a hole is worse than a wide one - which this is better as
+            anyway, since the stage list is eleven rows long.
+          */}
+          <section>
             <Card>
               <CardHeader>
                 <div>
                   <CardTitle>Stage distribution</CardTitle>
-                  <CardDescription>Where the pipeline sits</CardDescription>
+                  <CardDescription>Where the pipeline sits right now</CardDescription>
                 </div>
               </CardHeader>
               <CardContent>
@@ -268,7 +280,6 @@ export async function PublicStatsPage() {
                 />
               </CardContent>
             </Card>
-
           </section>
 
           {/*
