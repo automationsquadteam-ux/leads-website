@@ -201,12 +201,19 @@ function DraftIssues({ subject, content }: { subject: string | null; content: st
   );
 }
 
+/*
+ * This chip describes ONE DRAFT, and a lead has three of them — initial,
+ * follow-up 1, follow-up 2. So it says "Approved" and not "Initial Approved":
+ * the latter was applied here by a find-and-replace and read wrong on every
+ * follow-up. "Initial approved" is a fact about the LEAD, and lives on the
+ * pipeline panel where the gate it describes actually is.
+ */
 function StatusChip({ version }: { version: EmailVersion }) {
   if (version.status === 'approved') {
     return (
       <Badge tone="success">
         <CheckCircle2 className="size-3" aria-hidden="true" />
-        Inital Approved
+        Approved
       </Badge>
     );
   }

@@ -152,7 +152,7 @@ function ScheduleNotice({ cronConfigured }: { cronConfigured: boolean }) {
 
       <div className="space-y-2">
         {SCHEDULED_JOBS.map((job) => (
-          <div key={job.path} className="rounded border border-border bg-surface px-2.5 py-2">
+          <div key={job.path} className="min-w-0 rounded border border-border bg-surface px-2.5 py-2">
             <div className="flex flex-wrap items-baseline justify-between gap-x-2">
               <span className="font-medium text-foreground">{job.title}</span>
               <span className="tabular font-mono text-[11px]">{job.cron}</span>
@@ -160,7 +160,7 @@ function ScheduleNotice({ cronConfigured }: { cronConfigured: boolean }) {
             <p className="mt-0.5">
               {job.when} · {job.what}
             </p>
-            <pre className="mt-1.5 overflow-x-auto font-mono text-[11px]">
+            <pre className="scrollbar-thin mt-1.5 max-w-full overflow-x-auto whitespace-pre font-mono text-[11px]">
               curl -X POST -H &quot;Authorization: Bearer $CRON_SECRET&quot; https://your-host
               {job.path}
             </pre>

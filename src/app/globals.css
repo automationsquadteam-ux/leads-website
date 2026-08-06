@@ -133,13 +133,37 @@
     color-scheme: dark;
   }
 
+  /*
+   * Nothing may make the document wider than the screen.
+   *
+   * On a phone every page could be dragged sideways into empty space: the
+   * layout had collapsed to one column correctly, but a single long token —
+   * a curl command, a URL, an email address — kept the document wider than the
+   * viewport. `overflow-x: clip` on the root stops the drag without creating a
+   * scroll container, so `position: sticky` on the topbar keeps working, which
+   * `overflow: hidden` here would have broken.
+   */
+  html {
+    overflow-x: clip;
+  }
+
   body {
+    overflow-x: clip;
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
     /* Inter's contextual alternates + tabular figures keep data columns steady. */
     font-feature-settings: 'cv11', 'ss01';
     font-variation-settings: normal;
+  }
+
+  /*
+   * Long unbroken strings wrap instead of pushing. `overflow-wrap` only breaks
+   * a word when it would otherwise overflow, so ordinary prose is untouched —
+   * unlike `word-break: break-all`, which would hyphenate everything.
+   */
+  body {
+    overflow-wrap: break-word;
   }
 
   /* A single, consistent focus ring everywhere never removed, per a11y rules. */

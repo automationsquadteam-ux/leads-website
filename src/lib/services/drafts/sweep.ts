@@ -4,7 +4,8 @@ import { createServiceClient } from '@/lib/supabase/service-client';
 import { createEmailVersion } from '@/lib/services/email-versions';
 import { finishRun, startRun } from '@/lib/services/integration-runs';
 import { recordActivity } from '@/lib/services/activity';
-import { inspectDraft, repairDraft } from './quality';
+import { getIntegrationConfig } from '@/lib/services/config';
+import { inspectDraft, repairDraft, type DraftContext } from './quality';
 
 /**
  * Clean every pending draft, then approve the ones that come out spotless.
@@ -97,15 +98,40 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
 
   const drafts = pending ?? [];
 
-  // Business names up front, so the report can name leads rather than list
-  // UUIDs. One query for the batch, not one per draft.
+  /*
+   * The leads themselves, up front. One query per 300, not one per draft.
+   *
+   * Not just for naming them in the report: the repair fills bracket
+   * placeholders — [City], [Niche], [Business Summary] — from these fields, and
+   * that is only possible with the lead in hand. 30 of 92 pending drafts were
+   * blocked on placeholders the database could answer.
+   */
   const nameById = new Map<string, string>();
+  const contextById = new Map<string, DraftContext>();
+  const senderName = (await getIntegrationConfig()).email.fromName;
+
   for (let i = 0; i < drafts.length; i += 300) {
     const { data } = await admin
       .from('leads')
-      .select('id, business_name')
+      .select('*')
       .in('id', drafts.slice(i, i + 300).map((d) => d.lead_id));
-    for (const lead of data ?? []) nameById.set(lead.id, lead.business_name);
+
+    for (const lead of data ?? []) {
+      nameById.set(lead.id, lead.business_name);
+      contextById.set(lead.id, {
+        businessName: lead.business_name,
+        city: lead.city,
+        country: lead.country,
+        niche: lead.niche,
+        website: lead.website,
+        researchSummary: lead.research_summary,
+        websiteObservations: lead.website_observations,
+        automationOpportunities: lead.automation_opportunities,
+        aiChatbotOpportunities: lead.ai_chatbot_opportunities,
+        websiteImprovementOpportunities: lead.website_improvement_opportunities,
+        senderName,
+      });
+    }
   }
 
   let repaired = 0;
@@ -120,7 +146,10 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
     if (Date.now() - started > maxRuntimeMs) break;
     examined += 1;
 
-    const result = repairDraft({ subject: draft.subject, content: draft.content });
+    const result = repairDraft(
+      { subject: draft.subject, content: draft.content },
+      contextById.get(draft.lead_id) ?? {},
+    );
 
     let subject = draft.subject;
     let content = draft.content;
@@ -148,8 +177,8 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
         await recordActivity({
           leadId: draft.lead_id,
           kind: 'draft_edited',
-          summary: `Draft unwrapped from JSON version ${created.version.version_number}`,
-          detail: `Cleaned automatically. Version ${draft.version_number} is unchanged in the history.`,
+          summary: `Draft cleaned version ${created.version.version_number}`,
+          detail: `Unwrapped and placeholders filled from the lead's own fields. Version ${draft.version_number} is unchanged in the history.`,
           actorId: userId,
         });
       }

@@ -58,8 +58,17 @@ const leadUpdateSchema = z.object({
   city: optionalText,
   country: optionalText,
   niche: optionalText,
+  /*
+   * The DATABASE enum, not a label. `public.lead_status` has ten values and
+   * 'approved' is one of them; renaming it here to 'initial approved' is what
+   * broke the last deploy, because Postgres has no such value and TypeScript
+   * has no such LeadStatus.
+   *
+   * Wording belongs in STAGE_META and GATE_LABELS, which is where "Initial
+   * Approved" now lives. Nothing a user reads comes from this list.
+   */
   status: z.enum([
-    'new', 'researching', 'ready', 'initial approved', 'sending',
+    'new', 'researching', 'ready', 'approved', 'sending',
     'sent', 'replied', 'bounced', 'invalid', 'archived',
   ]),
   research_summary: optionalText,

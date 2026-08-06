@@ -33,14 +33,27 @@ export function AppShell({
       <DesktopSidebar role={role} />
       <MobileSidebar role={role} open={navOpen} onClose={() => setNavOpen(false)} />
 
-      <div className="lg:pl-[var(--sidebar-width)]">
+      {/*
+        `min-w-0` is the load-bearing class here, not `overflow-x-hidden`.
+        A grid or flex child defaults to `min-width: auto`, meaning it refuses to
+        shrink below its widest CONTENT — so one long unbreakable string (a curl
+        command, an email address, a URL) silently widened this column, which
+        widened the page, which is why every screen could be dragged sideways
+        into blank space on a phone while the content itself had gone one-column.
+        Clipping alone would have hidden the symptom and kept the layout wrong.
+      */}
+      <div className="min-w-0 lg:pl-[var(--sidebar-width)]">
         <Topbar
           email={email}
           role={role}
           onOpenNav={() => setNavOpen(true)}
           signOutAction={signOutAction}
         />
-        <main id="main" tabIndex={-1} className="min-h-[calc(100dvh-var(--header-height))]">
+        <main
+          id="main"
+          tabIndex={-1}
+          className="min-h-[calc(100dvh-var(--header-height))] overflow-x-hidden"
+        >
           {children}
         </main>
       </div>

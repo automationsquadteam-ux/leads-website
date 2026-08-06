@@ -22,6 +22,17 @@ const initialState: ActionResult = { ok: false, message: '' };
  * in the field name (`number:sending.daily_limit`). The action decodes that
  * prefix to coerce the value before writing.
  */
+/** ISO weekday numbers, the same 1 = Monday .. 7 = Sunday the sender uses. */
+const WEEKDAYS = [
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+  { value: 7, label: 'Sun' },
+] as const;
+
 export function SettingsForm({ values }: { values: Record<string, unknown> }) {
   const { toast } = useToast();
   const [state, formAction, pending] = useActionState(updateSettings, initialState);
@@ -51,11 +62,13 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
     timezone?: string;
     start?: string;
     end?: string;
+    days?: number[];
   };
 
   const whStart = workingHours.start ?? '09:00';
   const whEnd = workingHours.end ?? '17:00';
   const whZone = workingHours.timezone ?? 'UTC';
+  const whDays = Array.isArray(workingHours.days) ? workingHours.days : [1, 2, 3, 4, 5, 6, 7];
 
   const localStart = convertWallClock(whStart, whZone);
   const localEnd = convertWallClock(whEnd, whZone);
@@ -121,6 +134,40 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
             hint="The window the sender may run in. Independent of how times are displayed."
           >
             <Input id="hours-tz" name="wh-tz" defaultValue={whZone} placeholder="UTC" />
+          </Field>
+
+          {/*
+            Sending days were HARDCODED to Monday-Friday in the save handler, so
+            the value in the database was overwritten every time this form was
+            saved — a setting nobody could change and which silently reverted.
+            It is a real control now, and the marker below is what makes
+            unticking the last day work: an unchecked checkbox is simply absent
+            from FormData, so without it "no days" and "this form was not on
+            screen" are indistinguishable.
+          */}
+          <input type="hidden" name="wh-days-present" value="1" />
+          <Field
+            label="Sending days"
+            className="sm:col-span-2"
+            hint="The sender ignores every other day, whatever else is due."
+          >
+            <div className="flex flex-wrap gap-1.5">
+              {WEEKDAYS.map(({ value, label }) => (
+                <label
+                  key={value}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm transition-colors hover:bg-surface-hover has-checked:border-primary has-checked:bg-primary-subtle has-checked:text-primary"
+                >
+                  <input
+                    type="checkbox"
+                    name="wh-day"
+                    value={value}
+                    defaultChecked={whDays.includes(value)}
+                    className="size-3.5 cursor-pointer accent-primary"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
           </Field>
 
           {/*

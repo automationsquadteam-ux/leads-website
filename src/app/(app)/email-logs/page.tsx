@@ -3,7 +3,9 @@ import { Mail } from 'lucide-react';
 import { PageHeader } from '@/components/shell/app-shell';
 import { EmptyState } from '@/components/empty-state';
 import { EmailStatusBadge } from '@/components/status-badge';
+import { Badge } from '@/components/ui/badge';
 import { Table, TBody, TD, TH, THead, TR, TableWrap } from '@/components/ui/table';
+import { EMAIL_TYPE_LABELS } from '@/lib/pipeline/labels';
 import { requireAdmin } from '@/lib/auth/session';
 import { getEmailLogs } from '@/lib/data/misc';
 import { formatDateTime, formatNumber } from '@/lib/utils';
@@ -46,7 +48,7 @@ export default async function EmailLogsPage({
             <EmptyState
               icon={Mail}
               title="No emails sent yet"
-              description="Email delivery is not connected. Once the sending worker runs, every attempt delivered, bounced or failed is logged here with its provider message id."
+              description="Email delivery is not connected. Once the sending worker runs, every attempt delivered, bounced or failed is logged here, with which step of the sequence it was."
             />
           ) : (
             <TableWrap>
@@ -56,8 +58,8 @@ export default async function EmailLogsPage({
                     <TH>Recipient</TH>
                     <TH>Business</TH>
                     <TH>Subject</TH>
+                    <TH>Step</TH>
                     <TH>Status</TH>
-                    <TH>Provider</TH>
                     <TH>Date</TH>
                     <TH>Error</TH>
                   </tr>
@@ -68,10 +70,23 @@ export default async function EmailLogsPage({
                       <TD className="font-mono text-xs">{log.recipient ?? '—'}</TD>
                       <TD>{log.businessName ?? '—'}</TD>
                       <TD className="max-w-[280px] truncate">{log.subject ?? '—'}</TD>
+                      {/*
+                        Which email this was, not which relay carried it. The
+                        provider is the same string on every row (one provider is
+                        configured at a time), so the column was a constant taking
+                        up space, while "was this the first email or a follow-up"
+                        is the thing you actually want when reading a send log.
+                        The provider is still on the row and in the message id if
+                        a delivery ever needs chasing.
+                      */}
+                      <TD>
+                        <Badge tone={log.email_type === 'initial' ? 'primary' : 'neutral'}>
+                          {EMAIL_TYPE_LABELS[log.email_type]}
+                        </Badge>
+                      </TD>
                       <TD>
                         <EmailStatusBadge status={log.status} />
                       </TD>
-                      <TD className="text-muted-foreground">{log.provider ?? '—'}</TD>
                       <TD className="tabular text-muted-foreground">
                         {formatDateTime(log.sent_at ?? log.created_at)}
                       </TD>

@@ -41,8 +41,12 @@ import {
 
 const GATES: Array<{ key: PipelineGate; label: string; hint: string }> = [
   { key: 'research_complete', label: 'Research complete', hint: 'Enough is known to write a draft.' },
-  { key: 'draft_ready', label: 'Draft ready', hint: 'An initial email exists and is worth reviewing.' },
-  { key: 'approved', label: 'Initial Approved', hint: 'Signed off and eligible to send.' },
+  { key: 'draft_ready', label: 'Initial draft written', hint: 'An initial email exists and is worth reviewing.' },
+  {
+    key: 'approved',
+    label: 'Initial email approved',
+    hint: 'The FIRST email is signed off and eligible to send. Follow-ups are approved on their own tabs and do not affect this.',
+  },
 ];
 
 export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
@@ -149,6 +153,22 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
         ) : null}
 
         <div className="space-y-2 border-t border-border pt-3">
+          {/*
+            Two ways to stop emailing someone, and they mean different things.
+            Spelled out because "they replied saying no thanks — do I pause or
+            close?" is the question this panel gets asked, and a wrong guess
+            either keeps mailing someone who declined or buries a lead who only
+            asked to be left alone until next quarter.
+          */}
+          <p className="text-xs text-muted-foreground">
+            <strong className="text-foreground">Pause</strong> keeps the lead live and stops the
+            sender for now use it for &ldquo;not right now, try later&rdquo;.{' '}
+            <strong className="text-foreground">Close</strong> ends the sequence for good use it
+            when they say no, when they reply and the conversation moves to your inbox, or when the
+            lead turns out to be wrong. Both keep every draft, reply and log, and both are
+            reversible.
+          </p>
+
           <Button
             type="button"
             variant="secondary"
@@ -157,7 +177,7 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
             onClick={() =>
               run('auto', () => setAutoFollowups(pipeline.lead_id, !pipeline.auto_followups))
             }
-            title="Excludes this lead from the scheduled sender without changing the global setting"
+            title="Excludes this lead from the scheduled sender without changing the global setting. The lead keeps its stage and stays in every queue."
           >
             {pipeline.auto_followups ? (
               <>
@@ -195,9 +215,10 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
               variant="secondary"
               className="w-full"
               onClick={() => setConfirmClose(true)}
+              title="Ends the sequence. The lead leaves every queue and every dashboard count, and its stage reads Closed."
             >
               <XCircle className="size-4" aria-hidden="true" />
-              Close workflow
+              Close workflow no more emails
             </Button>
           )}
         </div>
@@ -207,7 +228,7 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
         open={confirmClose}
         onOpenChange={setConfirmClose}
         title="Close this workflow?"
-        description="No further emails are sent for this lead. Everything is kept and you can reopen it at any time."
+        description="No further emails are sent for this lead, and it drops out of every queue and dashboard count. Its research, drafts, replies and send history are all kept, and Reopen puts it back exactly where it was. This is the right choice when someone replies to say no."
         confirmLabel="Close workflow"
         onConfirm={() =>
           run('close', () => closeLeadWorkflow(pipeline.lead_id, 'Closed by an administrator')).then(

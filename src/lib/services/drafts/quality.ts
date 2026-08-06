@@ -100,8 +100,127 @@ function stripJsonDebris(value: string): string {
       if ((text.match(/"/g) ?? []).length % 2 === 1) text = text.replace(/^\s*"/, '');
     }
 
+    /*
+     * MATCHED wrapping quotes: `"Hi Sam, ... Best regards"`.
+     *
+     * The odd-count rule above deliberately never touches these, and that left
+     * 59 of 92 pending drafts blocked on "The whole body is wrapped in quotes"
+     * — by far the biggest single reason anything was stuck. An even count was
+     * being read as "these quotes are part of the prose", but a body that both
+     * OPENS and CLOSES on a quote is a JSON string value that lost its key.
+     *
+     * Stripping the outer pair is right even when the email legitimately quotes
+     * something: `"I saw your "great" work"` has four quotes, and removing the
+     * outermost pair leaves the inner one exactly where it belongs. The case it
+     * would damage — prose that genuinely begins and ends with different
+     * quotations — does not occur in cold outreach, and the length guard keeps
+     * it from ever eating a short body whole.
+     */
+    if (text.length > 20 && text.startsWith('"') && text.endsWith('"')) {
+      text = text.slice(1, -1).trim();
+    }
+
+    /*
+     * A `{` or `}` alone on its own line is wreckage from the wrapper, never
+     * prose. Braces INSIDE a line are left alone: they are almost always a
+     * template token someone still has to deal with, and silently deleting one
+     * would turn a visible problem into an invisible one.
+     */
+    text = text.replace(/^[ \t]*[{}][ \t]*$/gm, '');
+
     text = text.trim();
   }
+
+  return text.replace(/\n{3,}/g, '\n\n');
+}
+
+/**
+ * The lead's own facts, for filling placeholders the generator left behind.
+ *
+ * Passed in rather than looked up, because this module is pure — no database,
+ * no network, no `server-only` — so a script, a Server Action and a client
+ * component all share one definition of what a clean draft is.
+ */
+export interface DraftContext {
+  businessName?: string | null;
+  city?: string | null;
+  country?: string | null;
+  niche?: string | null;
+  website?: string | null;
+  researchSummary?: string | null;
+  websiteObservations?: string | null;
+  automationOpportunities?: string | null;
+  aiChatbotOpportunities?: string | null;
+  websiteImprovementOpportunities?: string | null;
+  /** The configured from-name, for `[Your Name]`. */
+  senderName?: string | null;
+}
+
+/** Bracket tokens we can answer from the lead itself, lower-cased. */
+function knownValues(context: DraftContext): Map<string, string> {
+  const map = new Map<string, string>();
+  const put = (keys: string[], value: string | null | undefined) => {
+    const text = (value ?? '').trim();
+    if (text === '') return;
+    for (const key of keys) map.set(key.toLowerCase(), text);
+  };
+
+  put(['business name', 'company name', 'business', 'company'], context.businessName);
+  put(['city'], context.city);
+  put(['country'], context.country);
+  put(['niche', 'industry'], context.niche);
+  put(['website', 'website url', 'url'], context.website);
+  put(['business summary', 'research summary', 'summary'], context.researchSummary);
+  put(['website observations'], context.websiteObservations);
+  put(['automation opportunities'], context.automationOpportunities);
+  put(['ai chatbot opportunities', 'chatbot opportunities'], context.aiChatbotOpportunities);
+  put(['website improvement opportunities'], context.websiteImprovementOpportunities);
+  put(['your name', 'sender name', 'my name'], context.senderName);
+
+  return map;
+}
+
+/**
+ * Fill the placeholders we genuinely know the answer to, and drop the one kind
+ * of unfillable placeholder that is safe to drop.
+ *
+ * **What it will not do is guess.** `[Owner's Name]`, `[insert number]` and
+ * `[specific observation about their website]` have no answer in this database,
+ * and inventing one is how "Hi [Owner's Name]" becomes "Hi Sarah" for someone
+ * called Ahmed. Those stay, the draft stays blocked, and a human writes the
+ * line — which is the entire reason the placeholder check is blocking.
+ *
+ * The exception is a SALUTATION built round an unknown name. "Hi [Owner's
+ * Name]," carries no information beyond "Hi," so collapsing it loses nothing
+ * and rescues a draft that is otherwise complete. Every other position keeps
+ * its placeholder, because elsewhere the sentence was built around the missing
+ * fact and deleting it would leave a sentence that no longer says anything.
+ */
+export function fillKnownPlaceholders(value: string, context: DraftContext): string {
+  const known = knownValues(context);
+  const business = (context.businessName ?? '').trim().toLowerCase();
+
+  let text = value.replace(/\[([^\]\n]{1,80})\]/g, (whole, inner: string) => {
+    // Trailing punctuation is the generator's, not part of the token name:
+    // `[Niche:]` and `[Niche]` mean the same thing and both have an answer.
+    const key = inner.trim().toLowerCase().replace(/[\s:.,;-]+$/, '');
+    const answer = known.get(key);
+    if (answer) return answer;
+    // The generator sometimes brackets the business name itself.
+    if (business !== '' && key === business) return context.businessName!.trim();
+    return whole;
+  });
+
+  // A greeting whose only content is an unknown name becomes a plain greeting.
+  text = text.replace(
+    /^([ \t]*(?:Hi|Hello|Hey|Dear|Good morning|Good afternoon))[ \t]+\[[^\]\n]{1,80}\][ \t]*(,|!|\.|)?[ \t]*$/gim,
+    (_m, greeting: string, punctuation: string) => `${greeting}${punctuation || ','}`,
+  );
+  // ...and the same greeting when it runs on into the rest of the line.
+  text = text.replace(
+    /\b(Hi|Hello|Hey|Dear)[ \t]+\[[^\]\n]{1,80}\][ \t]*,/g,
+    (_m, greeting: string) => `${greeting},`,
+  );
 
   return text;
 }
@@ -404,10 +523,18 @@ export function isDraftClean(input: {
  * `repaired` is true only when normalising actually changed the text, which is
  * what decides whether a new version is worth creating.
  */
-export function repairDraft(input: {
-  subject: string | null | undefined;
-  content: string | null | undefined;
-}): {
+export function repairDraft(
+  input: {
+    subject: string | null | undefined;
+    content: string | null | undefined;
+  },
+  /**
+   * The lead's own facts. Optional, so every existing caller keeps working —
+   * without it the structural repairs still run and placeholders are simply
+   * left for a human, which is the old behaviour exactly.
+   */
+  context: DraftContext = {},
+): {
   subject: string | null;
   content: string;
   repaired: boolean;
@@ -419,8 +546,11 @@ export function repairDraft(input: {
 
   // The subject gets the same treatment: it comes from its own sheet column and
   // can carry the same `"header": "..."` wrapping as the body.
-  const subject = normaliseSubjectLine(normalised.subject);
-  const content = normalised.content;
+  const rawSubject = normaliseSubjectLine(normalised.subject);
+
+  const content = fillKnownPlaceholders(normalised.content, context).trim();
+  const subject = rawSubject === null ? null : fillKnownPlaceholders(rawSubject, context).trim() || null;
+
   const repaired = content !== (input.content ?? '').trim() || subject !== (input.subject ?? '').trim();
 
   return {

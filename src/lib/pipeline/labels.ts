@@ -60,12 +60,18 @@ export const STAGE_META: Record<PipelineStage, StageMeta> = {
   },
   review: {
     label: 'Draft Ready',
-    description: 'A draft exists and is waiting for a human to approve it.',
+    description: 'An initial draft exists and is waiting for a human to approve it.',
     tone: 'violet',
   },
+  /*
+   * "Approved" in this system always means ONE DRAFT was signed off, and this
+   * stage is reached only by the INITIAL one — `lead_pipeline.approved` is set
+   * by the email_versions trigger for type='initial' and by nothing else.
+   * Approving a follow-up marks that draft and moves no stage.
+   */
   approved: {
     label: 'Initial Approved',
-    description: 'Signed off and ready to send.',
+    description: 'The first email is signed off and verified. Nothing has been sent yet.',
     tone: 'success',
   },
   initial_sent: {
@@ -130,14 +136,14 @@ export const NEXT_STEP_META: Record<PipelineNextStep, NextStepMeta> = {
     automatable: false,
   },
   approve_draft: {
-    label: 'Approve Draft',
-    hint: 'Read the draft and approve or reject it.',
+    label: 'Approve Initial Draft',
+    hint: 'Read the first email and approve or reject it.',
     tone: 'violet',
     automatable: false,
   },
   send_initial_email: {
     label: 'Send Initial Email',
-    hint: 'Initial Approved and waiting to go out.',
+    hint: 'Initial email approved and verified. Waiting to go out.',
     tone: 'success',
     automatable: true,
   },

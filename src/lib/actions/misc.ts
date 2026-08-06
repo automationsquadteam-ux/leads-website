@@ -53,13 +53,31 @@ export async function updateSettings(
     if (whStart >= whEnd) {
       return { ok: false, message: 'Working hours end must be after the start time.' };
     }
+    /*
+     * Days come from the form. They used to be hardcoded to [1,2,3,4,5] here,
+     * which meant the sending days could not be changed at all — and worse,
+     * pressing Save on this page silently reverted whatever was in the database
+     * back to Monday-Friday.
+     *
+     * `wh-days-present` is the marker that makes "none ticked" expressible: an
+     * unchecked checkbox never appears in FormData, so without it an empty set
+     * and a form that was not rendered look identical.
+     */
+    const days = formData.getAll('wh-day')
+      .map((value) => Number(value))
+      .filter((day) => Number.isInteger(day) && day >= 1 && day <= 7);
+
+    if (formData.get('wh-days-present') !== null && days.length === 0) {
+      return { ok: false, message: 'Pick at least one sending day, or nothing will ever go out.' };
+    }
+
     updates.push({
       key: 'sending.working_hours',
       value: {
         timezone: typeof whTz === 'string' && whTz.trim() !== '' ? whTz.trim() : 'UTC',
         start: whStart,
         end: whEnd,
-        days: [1, 2, 3, 4, 5],
+        days: days.length > 0 ? [...new Set(days)].sort((a, b) => a - b) : [1, 2, 3, 4, 5, 6, 7],
       },
     });
   }

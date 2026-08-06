@@ -1562,6 +1562,99 @@ no scope, and read by nothing since it was written.
 `public_stats_leads` **stays**: it is a working, default-denied feature (Settings → Public page),
 not dead code.
 
+### "Approved" means one draft, and a lead has three
+
+A find-and-replace turned every "Approved" into "Initial Approved" on 2026-08-06, including
+`z.enum([... 'initial approved' ...])` in `actions/leads.ts`. That is the DATABASE enum
+`public.lead_status`, which has no such value, so the deploy failed to compile — and would have
+failed at the INSERT even if it had.
+
+The vocabulary, settled:
+
+| Thing | Where | Reads |
+| --- | --- | --- |
+| `email_versions.status = 'approved'` | draft workspace chip | **Approved** — this draft is signed off, whichever of the three it is |
+| `lead_pipeline.approved` | pipeline panel gate | **Initial email approved** — only the initial version sets it |
+| stage `approved` | badges, tiles | **Initial Approved** |
+
+The chip must NOT say "Initial", because it renders above follow-up 1 and follow-up 2 as well.
+Approving a follow-up marks that draft and moves no stage: `sync_pipeline_from_version()` sets
+the gate for `type = 'initial'` and for nothing else.
+
+**Wording belongs in `STAGE_META`, `NEXT_STEP_META` and `GATE_LABELS`.** Nothing a user reads
+comes from a database enum, so relabelling never needs a migration — and editing an enum to
+change a label breaks the build at best.
+
+### The cleaner fills what it knows and refuses to guess
+
+Two additions took the pending queue from **0 clean out of 92 to 82**:
+
+- **Matched wrapping quotes.** `stripJsonDebris()` only stripped a quote when the count was ODD,
+  reading an even count as "these are part of the prose". A body that both opens and closes on a
+  quote is a JSON string value that lost its key, and that was **60 of 92** drafts — the single
+  biggest reason anything was stuck. Stripping the outer pair is right even when the email quotes
+  something internally: four quotes minus the outermost two leaves the inner pair where it belongs.
+- **Placeholders answered from the lead.** `[City]`, `[Niche]`, `[Business Summary]`,
+  `[Website Observations]`, `[Your Name]` and friends are filled from `leads` and the configured
+  from-name. `fillKnownPlaceholders()` takes a `DraftContext` rather than reading the database,
+  so `quality.ts` stays pure and a script, an action and a client component keep sharing it.
+
+**It never guesses.** `[Owner's Name]`, `[insert number]` and
+`[specific observation about their website]` have no answer here, and inventing one is how "Hi
+[Owner's Name]" becomes "Hi Sarah" for someone called Ahmed. Those stay, and the draft stays
+blocked — which is the entire reason that check is blocking.
+
+The one exception is a SALUTATION built round an unknown name: "Hi [Owner's Name]," carries no
+information beyond "Hi," so it collapses. Every other position keeps its placeholder, because
+elsewhere the sentence was built around the missing fact.
+
+Braces are stripped only when a `{` or `}` sits **alone on a line**. A brace inside a line is
+almost always a token someone still has to deal with, and deleting it silently would turn a
+visible problem into an invisible one.
+
+### Why the whole app could be dragged sideways on a phone
+
+The layout collapsed to one column correctly; the document was simply wider than the viewport. A
+grid or flex child defaults to `min-width: auto` — it refuses to shrink below its widest CONTENT
+— so one long unbreakable string (a curl command, a URL, an email address) widened its column,
+which widened the page.
+
+Fixed at the cause with `min-w-0` on the shell's content column, plus `overflow-wrap: break-word`
+on the body. `overflow-x: clip` on `html`/`body` is the belt-and-braces half; **`clip` and not
+`hidden`**, because `hidden` creates a scroll container and would break `position: sticky` on the
+topbar.
+
+### Sending days were hardcoded, and Save reverted them
+
+`updateSettings()` wrote `days: [1, 2, 3, 4, 5]` as a literal. So the sending days could not be
+changed from the UI at all — and worse, **pressing Save on the Settings page silently reverted
+whatever was in the database back to Monday–Friday**, which would have undone any direct edit at
+the next unrelated settings change.
+
+It is a real seven-day control now, carrying a `wh-days-present` marker for the same reason the
+public-stage checkboxes do: an unchecked checkbox never appears in FormData, so without a marker
+"no days ticked" and "this form was not on screen" are indistinguishable. Saving with none ticked
+is refused rather than accepted, because zero days means nothing ever sends.
+
+Live value is now `{"start":"09:00","end":"17:00","timezone":"UTC","days":[1,2,3,4,5,6,7]}` —
+every day. Note the window is **UTC**, which is 14:00–22:00 in Asia/Karachi; the Settings page
+spells that translation out beneath the fields, because "09:00–17:00 UTC" next to a log line
+reading "14:32 PKT" is the pair that gets misread.
+
+### Pause versus close, for a reply that says no
+
+Both stop the sending and both are reversible, but they mean different things and the lead page
+now says so outright:
+
+- **Pause** (`auto_followups = false`) — the lead keeps its stage and stays in every queue and
+  count. For "not right now, try me next quarter".
+- **Close** (`closed` set) — the sequence is over. The lead leaves every queue and every dashboard
+  figure, and its stage reads Closed. For a no, for a conversation that has moved to your inbox,
+  and for a lead that turned out to be wrong.
+
+An unsubscribe closes the workflow automatically and sets `auto_followups = false` as well;
+`replied` on its own only changes the next step, which is why a reply still needs a decision.
+
 ### Three scheduled jobs, none of them scheduled by this app
 
 `/api/cron/outreach` was joined by two more. All three take the same shared-secret check —
@@ -1636,6 +1729,8 @@ holes. Fixed by rebalancing rather than by padding:
 
 | Date | Change |
 | --- | --- |
+| 2026-08-06 | Sending days become a real setting. `updateSettings()` hardcoded `days: [1,2,3,4,5]`, so they could not be changed and every Save reverted them; now a seven-day control with a presence marker. Live window set to every day |
+| 2026-08-06 | **Six fixes.** The cleaner now strips MATCHED wrapping quotes and fills bracket placeholders from the lead's own fields, taking the pending queue from **0 clean to 82 of 92**; the 10 left have no answer in the database and stay blocked on purpose. `leads.status` reverted to the ten DB enum values, which is what broke the last deploy — "Initial Approved" is a LABEL and now lives only in STAGE_META/GATE_LABELS, with the draft chip saying plain "Approved" because a lead has three drafts. Email logs swap the constant Provider column for which step was sent. `min-w-0` on the shell plus `overflow-x: clip` stops every page dragging sideways on a phone. Pause vs Close spelled out on the lead page |
 | 2026-08-05 | **Scheduled jobs + layout.** `/api/cron/sheet-sync` (23:59 Asia/Karachi) and `/api/cron/approve-drafts` (00:00, 07:00, 14:00, 21:00) added, sharing `guardCronRequest()` with the outreach route. The draft sweep moved to `lib/services/drafts/sweep.ts` so the button and the schedule run one function. Settings now lists all three jobs with their cron lines. /analytics rebalanced into four even rows, the last rendering `analytics_generation_daily` — queried since 0014, never displayed until now. The public page pipeline row is 3×3 with a new Dead Address card, without which the `dead_email` split would have dropped 19 leads off it silently |
 | 2026-08-05 | **0026 + 0027** (must be pasted in that order — Postgres will not use a new enum value in the transaction that added it). `dead_email` becomes its own stage, so the stage filter stops reading 326 where the tiles read 307 and 19. New `lead_stage_counts` view makes the filter facets honour the archived toggle, fixing a chip that said `initial_sent 94` against a page of 93. The lead detail page stops rendering `leads.status` — the "Researching" badge and the editable Status dropdown are gone, replaced by the derived stage — and `StatusBadge` / `LEAD_STATUS_LABELS` / `STATUS_CHART_COLORS` are deleted, so nothing renders lead status anywhere. `dashboard_lead_status_counts`, `public_stats_statuses` and `dashboard_leads_safe` dropped |
 | 2026-08-05 | **Chunks 2 and 3.** **0025**: the stage becomes the FIRST UNMET GATE, so it names what is blocking a lead instead of the last thing that got done — 497 leads move backwards into need_email / need_verification, keeping their drafts and approvals. Every dashboard tile and named view is now a `current_stage` query, which is what makes a count and the page it opens the same query by construction. "Emails Waiting Review" removed (it was the Approval Queue plus follow-up drafts); "Checked, Inconclusive" added for the 173 addresses a verifier answered on and could not prove. Campaigns and templates deleted outright, along with ten unread views, `leads.category`, `leads.next_followup_at` and three orphan settings rows. The lead page gets a five-state verification dropdown; the leads list swaps Status for Stage with Archived as a toggle; approval writes the version and nothing else |

@@ -109,7 +109,7 @@ export default async function DashboardPage() {
           <MetricCard
             label="Initial Approval Queue"
             value={formatNumber(widgets.approvalQueue)}
-            hint="Drafted, nobody has signed off"
+            hint="Initial draft written, nobody has signed it off"
             icon={CheckSquare}
             tone={widgets.approvalQueue > 0 ? 'warning' : 'default'}
             href="/leads?view=approval_queue"
@@ -206,8 +206,8 @@ export default async function DashboardPage() {
           <Card>
             <CardHeader>
               <div>
-                <CardTitle>Initial Approval queue</CardTitle>
-                <CardDescription>Oldest drafts waiting on a human</CardDescription>
+                <CardTitle>Initial approval queue</CardTitle>
+                <CardDescription>Oldest initial drafts waiting on a human</CardDescription>
               </div>
               <Badge tone={widgets.approvalQueue > 0 ? 'warning' : 'neutral'}>
                 {formatNumber(widgets.approvalQueue)}
