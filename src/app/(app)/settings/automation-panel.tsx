@@ -142,6 +142,12 @@ function ScheduleNotice({ cronConfigured }: { cronConfigured: boolean }) {
           token. Set the schedule&apos;s timezone to <strong>Asia/Karachi</strong>, or subtract five
           hours for UTC.
         </p>
+        <p className="mt-1">
+          Each endpoint answers <strong>202 Accepted</strong> immediately and then does the work,
+          because a sheet sync and a draft sweep both outlast the ~30 second timeout most cron
+          services allow. That means <strong>a green tick from your scheduler only says the job
+          started</strong> the outcome of every run, success or failure, is the list below.
+        </p>
       </div>
 
       <div className="space-y-2">

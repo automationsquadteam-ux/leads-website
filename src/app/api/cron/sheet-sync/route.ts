@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, type NextRequest } from 'next/server';
 
 import { guardCronRequest } from '@/lib/cron/authorize';
+import { accepted } from '@/lib/cron/accepted';
 import { syncFromGoogleSheet } from '@/lib/services/sheet-sync';
 import { finishRun, startRun } from '@/lib/services/integration-runs';
 
@@ -25,9 +26,13 @@ import { finishRun, startRun } from '@/lib/services/integration-runs';
 export const dynamic = 'force-dynamic';
 
 /**
- * A full sheet read plus per-row upserts over ~700 rows. Vercel clamps this to
- * whatever the plan allows rather than erroring, so asking for the ceiling is
- * safe on any plan.
+ * The ceiling for the whole invocation, INCLUDING the `after()` work that runs
+ * once the 202 has been sent — not just the response. A full sheet read plus
+ * per-row upserts over ~700 rows needs it. Vercel clamps this to whatever the
+ * plan allows rather than erroring, so asking for the ceiling is safe anywhere.
+ *
+ * A sync cut off part-way is recoverable: every write is an upsert keyed on
+ * dedupe_key, so the next run finishes the job rather than duplicating it.
  */
 export const maxDuration = 300;
 
@@ -35,44 +40,32 @@ async function handle(request: NextRequest) {
   const refusal = guardCronRequest(request, 'sheet sync');
   if (refusal) return refusal;
 
-  const runId = await startRun('google_sheets', 'sync_data');
-
-  try {
-    // No triggeredBy: there is no user behind a cron call, and inventing one
-    // would put a name against work nobody did.
-    const summary = await syncFromGoogleSheet();
-
-    await finishRun(runId, summary.ok ? 'success' : 'failed', summary.message, {
-      totalRows: summary.totalRows,
-      imported: summary.imported,
-      updated: summary.updated,
-      skipped: summary.skipped,
-      invalid: summary.invalid,
-      duplicatesInSheet: summary.duplicatesInSheet,
-    });
-
-    // 200 even when rows were invalid: the run itself completed, and a non-2xx
-    // makes most cron services retry the whole thing.
-    return NextResponse.json(
-      {
-        ok: summary.ok,
-        message: summary.message,
+  /*
+   * Answer first, sync second. A 700-row sync outlives cron-job.org's ~30s
+   * patience, so waiting for the result got the run reported as failed while it
+   * was still happily working. See lib/cron/accepted.ts.
+   */
+  after(async () => {
+    const runId = await startRun('google_sheets', 'sync_data');
+    try {
+      // No triggeredBy: there is no user behind a cron call, and inventing one
+      // would put a name against work nobody did.
+      const summary = await syncFromGoogleSheet();
+      await finishRun(runId, summary.ok ? 'success' : 'failed', summary.message, {
         totalRows: summary.totalRows,
         imported: summary.imported,
         updated: summary.updated,
         skipped: summary.skipped,
         invalid: summary.invalid,
-        durationMs: summary.durationMs,
-      },
-      { status: 200 },
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Sync failed unexpectedly.';
-    await finishRun(runId, 'failed', message);
-    // 500 here, unlike the invalid-rows case above: the sync did not run at all,
-    // so a retry is the right response rather than a wasted one.
-    return NextResponse.json({ ok: false, message }, { status: 500 });
-  }
+        duplicatesInSheet: summary.duplicatesInSheet,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Sync failed unexpectedly.';
+      await finishRun(runId, 'failed', message);
+    }
+  });
+
+  return accepted('Sheet sync');
 }
 
 export async function POST(request: NextRequest) {

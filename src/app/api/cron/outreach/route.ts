@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, type NextRequest } from 'next/server';
 
 import { guardCronRequest } from '@/lib/cron/authorize';
+import { accepted } from '@/lib/cron/accepted';
 import { runOutreachCycle } from '@/lib/services/outreach/scheduler';
 import { finishRun, startRun } from '@/lib/services/integration-runs';
 
@@ -46,19 +47,26 @@ async function handle(request: NextRequest) {
 
   const dryRun = request.nextUrl.searchParams.get('dry') === '1';
 
-  const runId = await startRun('outreach', dryRun ? 'dry_run' : 'send_due');
-  const summary = await runOutreachCycle({ dryRun });
-  await finishRun(runId, summary.ok ? 'success' : 'failed', summary.message, {
-    considered: summary.considered,
-    sent: summary.sent,
-    generated: summary.generated,
-    skipped: summary.skipped,
-    failed: summary.failed,
+  /*
+   * This route seemed fine while the other two were timing out, because it
+   * almost always finds nothing due and returns in milliseconds. It sleeps 90
+   * seconds between sends by design, so the first run with a real queue would
+   * have blown through cron-job.org's ~30s timeout exactly the same way.
+   * Answering first removes a failure that had not happened yet.
+   */
+  after(async () => {
+    const runId = await startRun('outreach', dryRun ? 'dry_run' : 'send_due');
+    const summary = await runOutreachCycle({ dryRun });
+    await finishRun(runId, summary.ok ? 'success' : 'failed', summary.message, {
+      considered: summary.considered,
+      sent: summary.sent,
+      generated: summary.generated,
+      skipped: summary.skipped,
+      failed: summary.failed,
+    });
   });
 
-  // 200 even when individual sends failed: the run itself completed, and a
-  // non-2xx would make most cron services retry the whole batch.
-  return NextResponse.json(summary, { status: 200 });
+  return accepted(dryRun ? 'Outreach dry run' : 'Outreach run');
 }
 
 export async function POST(request: NextRequest) {

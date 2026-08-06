@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, type NextRequest } from 'next/server';
 
 import { guardCronRequest } from '@/lib/cron/authorize';
+import { accepted } from '@/lib/cron/accepted';
 import { runDraftSweep } from '@/lib/services/drafts/sweep';
 
 /**
@@ -30,8 +31,9 @@ import { runDraftSweep } from '@/lib/services/drafts/sweep';
 export const dynamic = 'force-dynamic';
 
 /**
- * The sweep stops itself at its own budget (below) and reports honestly, so the
- * platform never kills it mid-write. 300 is clamped to whatever the plan allows.
+ * The ceiling for the whole invocation, including the `after()` work. The sweep
+ * stops itself at its own smaller budget (below), so the platform never kills it
+ * mid-write. 300 is clamped to whatever the plan allows.
  */
 export const maxDuration = 300;
 
@@ -39,32 +41,21 @@ async function handle(request: NextRequest) {
   const refusal = guardCronRequest(request, 'draft approval sweep');
   if (refusal) return refusal;
 
-  const summary = await runDraftSweep({
-    userId: null,
-    /*
-     * Larger than the button's implicit 45s because a cron call is not a person
-     * waiting on a page, and a run that reaches the end of the queue is worth
-     * more than one that returns quickly. Still under maxDuration, so the sweep
-     * stops itself rather than being cut off part-way through a version insert.
-     */
-    maxRuntimeMs: 240_000,
+  after(async () => {
+    await runDraftSweep({
+      userId: null,
+      /*
+       * 50s, the same budget the scheduled sender uses and for the same reason:
+       * a Vercel Hobby function is killed at 60s, and a sweep that stops itself
+       * cleanly is worth far more than one cut off part-way through writing a
+       * version. Whatever it does not reach stays in the queue for the next run
+       * — there are four a day, and the button is always there for a backlog.
+       */
+      maxRuntimeMs: 50_000,
+    });
   });
 
-  // 200 even when drafts were left for review: that is a normal outcome, not a
-  // failure, and a non-2xx makes most cron services retry the whole batch.
-  return NextResponse.json(
-    {
-      ok: summary.ok,
-      message: summary.message,
-      examined: summary.examined,
-      repaired: summary.repaired,
-      approved: summary.approved,
-      blocked: summary.blocked,
-      remaining: summary.remaining,
-      reasons: summary.reasons,
-    },
-    { status: 200 },
-  );
+  return accepted('Draft sweep');
 }
 
 export async function POST(request: NextRequest) {

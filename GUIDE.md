@@ -1584,6 +1584,28 @@ allows two, and adding two more would fail the deploy rather than degrade. cron-
 actually drives these — it also speaks timezones, so 23:59 can be set as 23:59 Asia/Karachi
 instead of being hand-converted to 18:59 UTC and silently breaking at a DST boundary somewhere.
 
+### Every cron route answers before it works, and why that is a trade
+
+cron-job.org gives up after about 30 seconds. A 700-row sheet sync and a sweep over a queue of 90
+both take longer than that legitimately, so both were reported as **failed runs while actually
+completing in the background** — the worst outcome available, since the alarm was false and a
+genuine failure would have looked identical.
+
+All three routes now answer `202 Accepted` in milliseconds and finish the job inside Next's
+`after()`, which keeps the function alive past the response. `/api/cron/outreach` was included
+even though it appeared healthy: it only survived because it usually finds nothing due, and it
+sleeps 90 seconds between sends by design, so its first real queue would have failed the same way.
+
+**The cost, which is real:** the scheduler can no longer tell you whether a run SUCCEEDED, only
+that it started, so it shows green either way. That is only acceptable because all three jobs
+write an `integration_runs` row carrying the true outcome, and Settings lists them. **Do not use
+`lib/cron/accepted.ts` for a route that does not record a run** — that would be a job whose
+failures are invisible everywhere.
+
+`maxDuration` now covers the `after()` work, not the response. The sweep's own budget is 50s,
+matching the sender's, so it stops cleanly inside a Hobby function's 60s rather than being killed
+mid-version-write; whatever it does not reach waits for the next of the four daily runs.
+
 **`runDraftSweep()` moved to `lib/services/drafts/sweep.ts`** so the button and the schedule run
 one function. `repairAndApproveDrafts()` is now a nine-line action: `assertAdmin()`, call the
 service, `revalidatePath()`. The same shape as the verification CSV round trip — two front
