@@ -101,7 +101,7 @@ export default async function AnalyticsPage() {
 
         <section aria-label="Funnel timing" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard
-            label="Avg Approval Time"
+            label="Avg Initial Approval Time"
             value={formatDuration(data.timing?.avg_approval_hours)}
             hint={
               data.timing?.approved_sample

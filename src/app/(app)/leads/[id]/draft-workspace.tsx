@@ -206,7 +206,7 @@ function StatusChip({ version }: { version: EmailVersion }) {
     return (
       <Badge tone="success">
         <CheckCircle2 className="size-3" aria-hidden="true" />
-        Approved
+        Inital Approved
       </Badge>
     );
   }

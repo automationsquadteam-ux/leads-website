@@ -78,7 +78,7 @@ export const LEAD_VIEWS = {
   needs_research: 'Verified, no research written',
   needs_draft: 'Research done, no draft',
   approval_queue: 'Drafted, waiting for approval',
-  ready_to_send: 'Verified, approved and waiting to go out',
+  ready_to_send: 'Verified, initial approved and waiting to go out',
   followup1_due: 'Follow-up 1 due today',
   followup2_due: 'Follow-up 2 due today',
   overdue_followups: 'Follow-ups due before today, still unsent',

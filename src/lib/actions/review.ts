@@ -439,7 +439,7 @@ export async function rejectVersion(
 const GATE_LABELS = {
   research_complete: 'Research complete',
   draft_ready: 'Draft ready',
-  approved: 'Approved',
+  approved: 'Initial Approved',
 } as const;
 
 export type PipelineGate = keyof typeof GATE_LABELS;

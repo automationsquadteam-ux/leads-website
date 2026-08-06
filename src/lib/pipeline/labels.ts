@@ -64,7 +64,7 @@ export const STAGE_META: Record<PipelineStage, StageMeta> = {
     tone: 'violet',
   },
   approved: {
-    label: 'Approved',
+    label: 'Initial Approved',
     description: 'Signed off and ready to send.',
     tone: 'success',
   },
@@ -137,7 +137,7 @@ export const NEXT_STEP_META: Record<PipelineNextStep, NextStepMeta> = {
   },
   send_initial_email: {
     label: 'Send Initial Email',
-    hint: 'Approved and waiting to go out.',
+    hint: 'Initial Approved and waiting to go out.',
     tone: 'success',
     automatable: true,
   },

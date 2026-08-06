@@ -163,7 +163,7 @@ export async function PublicStatsPage() {
               icon={FileText}
             />
             <MetricCard
-              label="Approved"
+              label="Initial Approved"
               value={formatNumber(overview?.approved ?? 0)}
               icon={CheckCircle2}
               tone="success"

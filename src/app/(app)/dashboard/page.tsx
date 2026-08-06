@@ -107,7 +107,7 @@ export default async function DashboardPage() {
             they belong to.
           */}
           <MetricCard
-            label="Approval Queue"
+            label="Initial Approval Queue"
             value={formatNumber(widgets.approvalQueue)}
             hint="Drafted, nobody has signed off"
             icon={CheckSquare}
@@ -195,7 +195,7 @@ export default async function DashboardPage() {
           <MetricCard
             label="Ready to Send"
             value={formatNumber(widgets.readyToSend)}
-            hint="Verified and approved, not yet sent"
+            hint="Emails Verified and initial approved, not yet sent"
             icon={Send}
             tone={widgets.readyToSend > 0 ? 'success' : 'default'}
             href="/leads?view=ready_to_send"
@@ -206,7 +206,7 @@ export default async function DashboardPage() {
           <Card>
             <CardHeader>
               <div>
-                <CardTitle>Approval queue</CardTitle>
+                <CardTitle>Initial Approval queue</CardTitle>
                 <CardDescription>Oldest drafts waiting on a human</CardDescription>
               </div>
               <Badge tone={widgets.approvalQueue > 0 ? 'warning' : 'neutral'}>

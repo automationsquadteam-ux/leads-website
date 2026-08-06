@@ -42,7 +42,7 @@ import {
 const GATES: Array<{ key: PipelineGate; label: string; hint: string }> = [
   { key: 'research_complete', label: 'Research complete', hint: 'Enough is known to write a draft.' },
   { key: 'draft_ready', label: 'Draft ready', hint: 'An initial email exists and is worth reviewing.' },
-  { key: 'approved', label: 'Approved', hint: 'Signed off and eligible to send.' },
+  { key: 'approved', label: 'Initial Approved', hint: 'Signed off and eligible to send.' },
 ];
 
 export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {

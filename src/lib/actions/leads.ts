@@ -59,7 +59,7 @@ const leadUpdateSchema = z.object({
   country: optionalText,
   niche: optionalText,
   status: z.enum([
-    'new', 'researching', 'ready', 'approved', 'sending',
+    'new', 'researching', 'ready', 'initial approved', 'sending',
     'sent', 'replied', 'bounced', 'invalid', 'archived',
   ]),
   research_summary: optionalText,
