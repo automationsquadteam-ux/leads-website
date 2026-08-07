@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { CheckCircle2, Circle, PauseCircle, PlayCircle, RotateCcw, XCircle } from 'lucide-react';
+import { CheckCircle2, Circle, PauseCircle, PlayCircle, RotateCcw, Save, XCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
@@ -56,6 +56,33 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
   const closed = pipeline.closed !== null;
   const verification = pipeline.email_verification_status;
 
+  /*
+   * The verification verdict is CHOSEN here and COMMITTED by the Save button,
+   * rather than writing the moment the select changes.
+   *
+   * Everything else on this page works that way — Business information, the
+   * research panels, the draft editor all stage an edit and wait for Save — and
+   * a control that saved on change was the odd one out in a way that mattered:
+   * marking an address dead removes the lead from every queue and can stop the
+   * sender, so brushing the wrong option with a scroll wheel had consequences
+   * and no undo prompt. The gates below are single clicks with obvious meanings
+   * and keep committing immediately.
+   *
+   * `saved` tracks the value this component last rendered from the server, so
+   * when a save completes and the page revalidates, the fresh prop resets the
+   * selection instead of leaving it looking dirty. Comparing during render
+   * rather than in an effect is the same idiom lead-detail.tsx uses: setting
+   * state inside an effect costs an extra cascading render.
+   */
+  const [choice, setChoice] = React.useState<EmailVerificationStatus>(verification);
+  const [saved, setSaved] = React.useState<EmailVerificationStatus>(verification);
+  if (verification !== saved) {
+    setSaved(verification);
+    setChoice(verification);
+  }
+
+  const verificationDirty = choice !== verification;
+
   const stamps: Array<[string, string | null]> = [
     ['Initial sent', pipeline.first_email_sent],
     ['Follow-up 1 due', pipeline.followup1_due],
@@ -81,16 +108,9 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
           </label>
           <Select
             id="verification-status"
-            value={verification}
+            value={choice}
             disabled={busy === 'verification' || !pipeline.email}
-            onChange={(event) =>
-              run('verification', () =>
-                setVerificationStatus(
-                  pipeline.lead_id,
-                  event.target.value as EmailVerificationStatus,
-                ),
-              )
-            }
+            onChange={(event) => setChoice(event.target.value as EmailVerificationStatus)}
           >
             {EMAIL_VERIFICATION_STATUSES.map((status) => (
               <option key={status} value={status}>
@@ -98,11 +118,40 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
               </option>
             ))}
           </Select>
+
+          {/* The hint follows the SELECTION, so it describes what Save will do. */}
           <p className="text-xs text-muted-foreground">
             {!pipeline.email
               ? 'No address on file yet. Nothing to verify until one is found.'
-              : VERIFICATION_META[verification].hint}
+              : VERIFICATION_META[choice].hint}
           </p>
+
+          {verificationDirty ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button
+                type="button"
+                size="sm"
+                loading={busy === 'verification'}
+                onClick={() =>
+                  run('verification', () => setVerificationStatus(pipeline.lead_id, choice))
+                }
+              >
+                <Save className="size-3.5" aria-hidden="true" />
+                Save
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={busy === 'verification'}
+                onClick={() => setChoice(verification)}
+              >
+                Cancel
+              </Button>
+              <span className="text-xs text-warning">Not saved yet</span>
+            </div>
+          ) : null}
+
           {pipeline.email_checked_at ? (
             <p className="text-xs text-muted-foreground">
               {pipeline.email_verification_source ?? 'checked'} ·{' '}

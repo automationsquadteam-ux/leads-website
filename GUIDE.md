@@ -1656,6 +1656,26 @@ every day. Note the window is **UTC**, which is 14:00–22:00 in Asia/Karachi; t
 spells that translation out beneath the fields, because "09:00–17:00 UTC" next to a log line
 reading "14:32 PKT" is the pair that gets misread.
 
+### The verification verdict stages, like every other edit on the lead page
+
+The Email address dropdown used to write on `onChange`. Everything else on that page — Business
+information, the research panels, the draft editor — stages an edit and waits for Save, and this
+control being the exception mattered rather than merely looking inconsistent: choosing **Dead**
+takes the lead out of every queue and stops the sender, so brushing the wrong option with a
+scroll wheel had real consequences and no confirmation.
+
+It now has its own Save and Cancel, appearing only when the selection differs from what is
+stored, with the hint under the select following the SELECTION so it describes what Save is about
+to do.
+
+The gate checkboxes below it still commit on click. They are single, obvious, reversible facts;
+a Save button for a tick box is ceremony.
+
+**The dirty-state idiom:** the component compares the incoming prop to a `saved` state during
+RENDER and resets the selection when they differ, so a completed save that revalidates the page
+clears the dirty flag by itself. `lead-detail.tsx` does the same thing, and for the same reason —
+doing it in an effect costs an extra cascading render.
+
 ### Pause versus close, for a reply that says no
 
 Both stop the sending and both are reversible, but they mean different things and the lead page
@@ -1745,6 +1765,7 @@ holes. Fixed by rebalancing rather than by padding:
 | Date | Change |
 | --- | --- |
 | 2026-08-06 | `PAGE_SIZES` moved to `lib/pagination.ts`. It lived in the `'use client'` pagination component, so importing it into the email-log server page produced a client reference rather than an array and threw at request time — a class of bug `next build` cannot see on a dynamic page. Four copies of the list collapsed into one, with shared `parsePageSize` / `parsePageNumber` helpers |
+| 2026-08-06 | The Email address verdict on the lead page stages behind a Save button instead of writing on change, matching Business information. Marking an address Dead removes the lead from every queue, so a stray scroll should not do it |
 | 2026-08-06 | Email log gets pagination. The page read `?page=` but rendered no control, so it was stuck on the newest 50 of 87 rows and appeared to hold only today |
 | 2026-08-06 | Sending days become a real setting. `updateSettings()` hardcoded `days: [1,2,3,4,5]`, so they could not be changed and every Save reverted them; now a seven-day control with a presence marker. Live window set to every day |
 | 2026-08-06 | **Six fixes.** The cleaner now strips MATCHED wrapping quotes and fills bracket placeholders from the lead's own fields, taking the pending queue from **0 clean to 82 of 92**; the 10 left have no answer in the database and stay blocked on purpose. `leads.status` reverted to the ten DB enum values, which is what broke the last deploy — "Initial Approved" is a LABEL and now lives only in STAGE_META/GATE_LABELS, with the draft chip saying plain "Approved" because a lead has three drafts. Email logs swap the constant Provider column for which step was sent. `min-w-0` on the shell plus `overflow-x: clip` stops every page dragging sideways on a phone. Pause vs Close spelled out on the lead page |
