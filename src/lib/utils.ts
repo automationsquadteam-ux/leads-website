@@ -172,6 +172,25 @@ export function displayUrl(url: string | null | undefined): string {
   return url.replace(/^https?:\/\//i, '').replace(/\/$/, '');
 }
 
+/**
+ * A Google search for a business, narrowed by where it is.
+ *
+ * The location is what makes it usable: "Konyha Restaurant" alone returns every
+ * restaurant of that name on earth, while "Konyha Restaurant Budapest Hungary"
+ * returns the one you are looking at. Every lead in this database has both a
+ * city and a country, so the query is always specific.
+ *
+ * Blank parts are dropped rather than producing double spaces, so this stays
+ * correct if a future import leaves one out.
+ */
+export function googleSearchUrl(...parts: Array<string | null | undefined>): string {
+  const query = parts
+    .map((part) => (part ?? '').trim())
+    .filter(Boolean)
+    .join(' ');
+  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+}
+
 export function initials(value: string | null | undefined): string {
   if (!value) return '?';
   const parts = value.replace(/@.*$/, '').split(/[\s._-]+/).filter(Boolean);

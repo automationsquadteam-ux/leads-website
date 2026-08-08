@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Users, ExternalLink, Archive, CheckCircle2, Download, Trash2 } from 'lucide-react';
+import { Users, ExternalLink, Archive, CheckCircle2, Download, Search, Trash2 } from 'lucide-react';
 
 import { DataTable, type Column } from '@/components/data-table';
 import { SearchBar } from '@/components/search-bar';
@@ -23,7 +23,7 @@ import {
   type EmailVerificationStatus,
   type PipelineStage,
 } from '@/lib/supabase/database.types';
-import { cn, displayUrl, formatDate, formatNumber } from '@/lib/utils';
+import { cn, displayUrl, formatDate, formatNumber, googleSearchUrl } from '@/lib/utils';
 
 interface Props {
   rows: LeadRow[];
@@ -98,6 +98,17 @@ export function LeadsTable({
         key: 'website',
         header: 'Website',
         width: 200,
+        /*
+         * No website is not nothing to say — it is the moment you go and look
+         * the business up. A dash sent you off to open a tab and retype the
+         * name, so the empty state is a Google search for this business narrowed
+         * by its city and country, which is the difference between finding the
+         * right Konyha Restaurant and finding forty of them.
+         *
+         * Shown on EVERY lead without a website, not only the ones missing an
+         * address: an address that exists still has to be verified by hand
+         * sometimes, and that starts with the same lookup.
+         */
         render: (lead) =>
           lead.website ? (
             <a
@@ -111,7 +122,19 @@ export function LeadsTable({
               <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
             </a>
           ) : (
-            <span className="text-muted-foreground">{DASH}</span>
+            <a
+              href={googleSearchUrl(lead.business_name, lead.city, lead.country)}
+              target="_blank"
+              rel="noopener noreferrer"
+              // The row itself navigates to the lead, so the click must not
+              // bubble or you would open the search AND leave the page.
+              onClick={(e) => e.stopPropagation()}
+              title={`No website on file. Search Google for "${[lead.business_name, lead.city, lead.country].filter(Boolean).join(' ')}"`}
+              className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+            >
+              <Search className="size-3 shrink-0" aria-hidden="true" />
+              Look up
+            </a>
           ),
       },
       {

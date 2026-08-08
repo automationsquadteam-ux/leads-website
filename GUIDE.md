@@ -1656,6 +1656,25 @@ every day. Note the window is **UTC**, which is 14:00–22:00 in Asia/Karachi; t
 spells that translation out beneath the fields, because "09:00–17:00 UTC" next to a log line
 reading "14:32 PKT" is the pair that gets misread.
 
+### An empty Website cell is a job, not a dash
+
+A lead with no website is the moment you go and look the business up, so the leads table shows a
+**Look up** link there instead of an em dash — a Google search for the business narrowed by its
+city and country. `googleSearchUrl()` in `lib/utils.ts` builds it; blank parts are dropped rather
+than producing double spaces, and `encodeURIComponent` handles the Cyrillic, Vietnamese and
+bracketed names this dataset actually contains.
+
+The location is the whole point. "Konyha Restaurant" returns every restaurant of that name on
+earth; "Konyha Restaurant Budapest Hungary" returns the one on screen. All 723 leads carry both a
+city and a country, so the query is never vague.
+
+It appears on **every** lead without a website — 112 of 723, of which 86 DO have an email address.
+Restricting it to leads missing an address was the obvious-looking choice and the wrong one: an
+address that exists still gets verified by hand sometimes, and that starts with the same lookup.
+
+`stopPropagation` on the click is load-bearing: the table row itself navigates to the lead, so
+without it a click would open the search AND leave the page.
+
 ### The verification verdict stages, like every other edit on the lead page
 
 The Email address dropdown used to write on `onChange`. Everything else on that page — Business
@@ -1765,6 +1784,7 @@ holes. Fixed by rebalancing rather than by padding:
 | Date | Change |
 | --- | --- |
 | 2026-08-06 | `PAGE_SIZES` moved to `lib/pagination.ts`. It lived in the `'use client'` pagination component, so importing it into the email-log server page produced a client reference rather than an array and threw at request time — a class of bug `next build` cannot see on a dynamic page. Four copies of the list collapsed into one, with shared `parsePageSize` / `parsePageNumber` helpers |
+| 2026-08-06 | Leads table shows a Google **Look up** link where the Website cell would be empty, scoped to the business plus its city and country. 112 of 723 leads, 86 of which have an email that may still need checking by hand |
 | 2026-08-06 | The Email address verdict on the lead page stages behind a Save button instead of writing on change, matching Business information. Marking an address Dead removes the lead from every queue, so a stray scroll should not do it |
 | 2026-08-06 | Email log gets pagination. The page read `?page=` but rendered no control, so it was stuck on the newest 50 of 87 rows and appeared to hold only today |
 | 2026-08-06 | Sending days become a real setting. `updateSettings()` hardcoded `days: [1,2,3,4,5]`, so they could not be changed and every Save reverted them; now a seven-day control with a presence marker. Live window set to every day |
