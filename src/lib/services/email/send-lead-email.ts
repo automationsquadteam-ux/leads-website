@@ -66,6 +66,32 @@ export async function sendLeadEmail(
   if (leadError || !lead) {
     return { ok: false, message: 'Lead not found.', messageId: null, logId: null };
   }
+
+  /*
+   * Archiving is documented elsewhere as "a visibility choice" — the pipeline
+   * row is untouched on purpose, so a merge that archives a duplicate (or any
+   * other archive) does not lose its history. But that means nothing else
+   * stops it from being sent to: findDueWork() reads lead_pipeline directly
+   * and has never checked leads.status, so an archived lead with a live
+   * followup1_due/followup2_due — exactly what `leads:duplicates --merge`
+   * leaves behind on the loser — gets auto-emailed on schedule like any other.
+   * Observed live: 6 of 8 archived duplicate-losers still armed, one of them
+   * (Lanka Safe Tours) due in days, most sharing the SURVIVOR's exact address,
+   * which is a duplicate send waiting to happen.
+   *
+   * This is the one gate every send path goes through (Send button, API, cron)
+   * so this is the only place that closes it for good, the same reasoning as
+   * the verification and placeholder gates below.
+   */
+  if (lead.status === 'archived') {
+    return {
+      ok: false,
+      message: 'This lead is archived and cannot be emailed. Restore it first if that was not intended.',
+      messageId: null,
+      logId: null,
+    };
+  }
+
   if (!lead.email) {
     return { ok: false, message: 'This lead has no email address.', messageId: null, logId: null };
   }

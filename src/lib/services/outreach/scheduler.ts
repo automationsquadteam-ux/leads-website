@@ -183,8 +183,40 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
       .limit(limit);
 
     const [second, first] = await Promise.all([followup2, followup1]);
-    for (const row of second.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup2' });
-    for (const row of first.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup1' });
+    const followupCandidates = [...(second.data ?? []), ...(first.data ?? [])];
+
+    /*
+     * lead_pipeline carries no leads.status column, and archiving one — by
+     * hand or by `leads:duplicates --merge` — never touches this row: it is
+     * documented as "a visibility choice", so a due date set before the
+     * archive stays due after it. Observed live: a merge that archives a
+     * duplicate loser routinely leaves it with a followup1_due a few days
+     * out, sharing the SURVIVOR's exact address — an unattended second send
+     * to the same inbox the survivor will also (eventually) get followed up
+     * on. One extra query, same shape as the email_versions check below.
+     */
+    const archived =
+      followupCandidates.length > 0
+        ? new Set(
+            (
+              await admin
+                .from('leads')
+                .select('id')
+                .in(
+                  'id',
+                  followupCandidates.map((row) => row.lead_id),
+                )
+                .eq('status', 'archived')
+            ).data?.map((row) => row.id) ?? [],
+          )
+        : new Set<string>();
+
+    for (const row of second.data ?? []) {
+      if (!archived.has(row.lead_id)) work.push({ lead_id: row.lead_id, type: 'followup2' });
+    }
+    for (const row of first.data ?? []) {
+      if (!archived.has(row.lead_id)) work.push({ lead_id: row.lead_id, type: 'followup1' });
+    }
   }
 
   if (config.outreach.autoSendInitial) {
@@ -207,7 +239,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
     const admin = createServiceClient();
     let query = admin
       .from('pipeline_board')
-      .select('lead_id, send_priority')
+      .select('lead_id, send_priority, lead_status')
       .is('replied', null)
       .is('closed', null)
       .eq('auto_followups', true)
@@ -224,7 +256,11 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
       // 9 means not sendable at all. It cannot reach here while
       // requireVerifiedEmail is on, but the sender must not depend on a setting
       // to avoid mailing an address a verifier called dead.
-      .filter((row) => row.send_priority < 9)
+      // Archived is the same story as the followup queries above: nothing
+      // clears `approved` or `first_email_sent is null` on archive, so an
+      // archived-but-approved lead (e.g. a duplicate loser merged before it
+      // ever sent) would otherwise queue its first email same as a live one.
+      .filter((row) => row.send_priority < 9 && row.lead_status !== 'archived')
       .map((row) => row.lead_id);
 
     /*
