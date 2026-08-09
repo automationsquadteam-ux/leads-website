@@ -77,7 +77,6 @@ async function main(): Promise<void> {
     const { data, error } = await db
       .from('leads')
       .select('*')
-      .not('email', 'is', null)
       .order('id', { ascending: true })
       .range(from, from + 999);
     if (error) throw new Error(error.message);
@@ -85,18 +84,46 @@ async function main(): Promise<void> {
     if ((data ?? []).length < 1000) break;
   }
 
-  const byEmail = new Map<string, Lead[]>();
+  /*
+   * TWO ways a lead gets duplicated, and only one of them shares an address.
+   *
+   *   same email        the classic case: one business, two rows, one address.
+   *   same SHEET ROW    two leads pointing at one row of the spreadsheet. This
+   *                     is the one grouping by email cannot see, because the
+   *                     addresses DIFFER — it is what editing an email used to
+   *                     cause before 0028, when dedupe_key was left holding the
+   *                     old address and the next sync inserted a second lead:
+   *
+   *                       row 723  email:showroom@apatchicars.com
+   *                                email:info@apatchicars.com
+   *
+   *                     Both rows are the same business and the same sheet row,
+   *                     so merging them is right even though nothing matches.
+   */
+  const groups = new Map<string, Lead[]>();
+
   for (const lead of all) {
     if (!lead.email) continue;
-    const key = lead.email.trim().toLowerCase();
-    byEmail.set(key, [...(byEmail.get(key) ?? []), lead]);
+    const key = `email:${lead.email.trim().toLowerCase()}`;
+    groups.set(key, [...(groups.get(key) ?? []), lead]);
   }
 
-  const dupes = [...byEmail.entries()].filter(([, rows]) => rows.length > 1);
+  const seen = new Set<string>();
+  for (const [, rows] of groups) {
+    if (rows.length > 1) for (const r of rows) seen.add(r.id);
+  }
+
+  for (const lead of all) {
+    if (!lead.sheet_row_number || seen.has(lead.id)) continue;
+    const key = `row:${lead.sheet_row_number}`;
+    groups.set(key, [...(groups.get(key) ?? []), lead]);
+  }
+
+  const dupes = [...groups.entries()].filter(([, rows]) => rows.length > 1);
   const line = '─'.repeat(72);
 
   console.log(`\n${line}`);
-  console.log(`  Leads sharing an email address${merge ? '  (MERGING)' : ''}`);
+  console.log(`  Leads sharing an email address or a sheet row${merge ? '  (MERGING)' : ''}`);
   console.log(line);
   console.log(`  Leads with an address   ${all.length}`);
   console.log(`  Duplicated addresses    ${dupes.length}`);
@@ -108,7 +135,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  for (const [email, rows] of dupes) {
+  for (const [groupKey, rows] of dupes) {
+    const email = groupKey.startsWith('row:')
+      ? `sheet row ${groupKey.slice(4)}`
+      : groupKey.slice(6);
     // Gather the evidence BEFORE ranking, so the survivor is chosen on it
     // rather than on field counts alone.
     const detail = new Map<string, { logs: number; replied: boolean; verified: boolean; stage: string; verif: string }>();

@@ -188,16 +188,44 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
   }
 
   if (config.outreach.autoSendInitial) {
-    let query = base()
+    /*
+     * Ordered by SEND PRIORITY first, approved_at second.
+     *
+     *   1  a verifier proved the address, or a real email was already delivered
+     *   2  a human confirmed it and no machine had said anything negative
+     *   3  a human confirmed it after the verifier tried and gave up
+     *
+     * So every tier-1 lead goes before any tier-2, and within a tier the
+     * longest-approved goes first. Ordering only, never a gate: an address
+     * confirmed from the company's own website is worth mailing, it just waits
+     * behind the ones a verifier proved. `compute_send_priority()` is the one
+     * definition — do not re-derive it here.
+     *
+     * Read from pipeline_board rather than lead_pipeline because the priority
+     * is computed by the view.
+     */
+    const admin = createServiceClient();
+    let query = admin
+      .from('pipeline_board')
+      .select('lead_id, send_priority')
+      .is('replied', null)
+      .is('closed', null)
+      .eq('auto_followups', true)
       .eq('approved', true)
       .is('first_email_sent', null)
+      .order('send_priority', { ascending: true })
       .order('approved_at', { ascending: true })
       .limit(limit);
 
     if (config.outreach.requireVerifiedEmail) query = query.eq('email_verified', true);
 
     const { data } = await query;
-    const candidates = (data ?? []).map((row) => row.lead_id);
+    const candidates = (data ?? [])
+      // 9 means not sendable at all. It cannot reach here while
+      // requireVerifiedEmail is on, but the sender must not depend on a setting
+      // to avoid mailing an address a verifier called dead.
+      .filter((row) => row.send_priority < 9)
+      .map((row) => row.lead_id);
 
     /*
      * An initial email also needs its ACTIVE VERSION approved, which is the

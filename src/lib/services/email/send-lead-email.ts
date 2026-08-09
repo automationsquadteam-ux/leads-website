@@ -89,7 +89,7 @@ export async function sendLeadEmail(
    */
   const { data: pipeline } = await admin
     .from('lead_pipeline')
-    .select('email_verified, email_verification_status')
+    .select('email_verified, email_verification_status, email_verifier_status')
     .eq('lead_id', leadId)
     .maybeSingle();
 
@@ -107,6 +107,29 @@ export async function sendLeadEmail(
       message:
         `${lead.email} was proved undeliverable, so sending to it would bounce. ` +
         'Find a new address for this lead first.',
+      messageId: null,
+      logId: null,
+    };
+  }
+
+  /*
+   * A VERIFIER called this address dead, and a human has since marked it valid.
+   * The machine wins.
+   *
+   * This is only safe — and only correct — because 0028 resets the verdict when
+   * the address changes. If the address still is the one that bounced, no
+   * override on a contact page should rescue it; if it has been corrected since,
+   * email_verifier_status is already NULL and this branch never fires. That is
+   * exactly the difference between "I fixed the typo" and "I disagree with the
+   * bounce".
+   */
+  if (pipeline?.email_verifier_status === 'invalid') {
+    return {
+      ok: false,
+      message:
+        `A verifier proved ${lead.email} undeliverable, and that has not been ` +
+        'overruled by correcting the address. Change the address to the right one ' +
+        'and the verdict clears by itself.',
       messageId: null,
       logId: null,
     };

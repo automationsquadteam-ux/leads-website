@@ -33,7 +33,7 @@ interface Props {
   search: string;
   stages: PipelineStage[];
   verification: EmailVerificationStatus[];
-  showArchived: boolean;
+  archivedOnly: boolean;
   /** Active named view, so the chips can show which one is on. */
   view?: string;
   sort: string;
@@ -51,7 +51,7 @@ const DASH = '—';
  * cache to invalidate.
  */
 export function LeadsTable({
-  rows, total, page, pageSize, search, stages, verification, showArchived, view, sort, direction, facets,
+  rows, total, page, pageSize, search, stages, verification, archivedOnly, view, sort, direction, facets,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -348,24 +348,29 @@ export function LeadsTable({
         </div>
 
         {/*
-          Archived is a toggle rather than a twelfth entry in the stage filter,
-          because it is a visibility choice and not a position in the pipeline:
-          an archived lead still has a stage, and putting it away does not make
-          that stage untrue.
+          Archived is its own filter rather than a twelfth entry in the stage
+          list, because it is a visibility choice and not a position in the
+          pipeline: an archived lead still has a stage, and putting it away does
+          not make that stage untrue.
+
+          It shows ONLY the archive. "Also show archived" dropped two archived
+          leads into seven hundred live ones, which is not a way to look at
+          them.
         */}
         <button
           type="button"
-          aria-pressed={showArchived}
-          onClick={() => update({ archived: showArchived ? null : '1' })}
+          aria-pressed={archivedOnly}
+          onClick={() => update({ archived: archivedOnly ? null : '1' })}
           className={cn(
             'cursor-pointer rounded-md border px-2 py-1 text-xs font-medium transition-colors',
-            showArchived
+            archivedOnly
               ? 'border-primary bg-primary-subtle text-primary'
               : 'border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground',
           )}
-          title="Archived leads are hidden from the working list by default."
+          title={archivedOnly ? 'Showing only archived leads. Click to return to the working list.' : 'Show the archive on its own.'}
         >
-          Show archived
+          <Archive className="size-3" aria-hidden="true" />
+          {archivedOnly ? 'Archived only' : 'Archived'}
         </button>
 
         <div className="flex-1" />

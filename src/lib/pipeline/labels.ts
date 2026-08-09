@@ -216,6 +216,38 @@ export const VERIFICATION_META: Record<
   },
 };
 
+/**
+ * Send priority, from public.compute_send_priority().
+ *
+ * Ordering only — nothing here gates a send. An address confirmed from the
+ * company's own website is worth mailing; it simply goes out after the ones a
+ * verifier proved, so a bad hand-confirmation costs less reputation.
+ *
+ * Presentation only. The rule lives in SQL; do not re-derive it here.
+ */
+export const SEND_PRIORITY_META: Record<number, { label: string; hint: string; tone: BadgeTone }> = {
+  1: {
+    label: 'Priority 1',
+    hint: 'A verifier proved this address, or a real email was already delivered to it. Goes out first.',
+    tone: 'success',
+  },
+  2: {
+    label: 'Priority 2',
+    hint: 'You confirmed this address yourself and no verifier had said anything against it. Goes out after priority 1.',
+    tone: 'primary',
+  },
+  3: {
+    label: 'Priority 3',
+    hint: 'You confirmed this address after the verifier tried and could not decide. Goes out last.',
+    tone: 'warning',
+  },
+  9: {
+    label: 'Not sendable',
+    hint: 'Either unverified, or a verifier proved this exact address undeliverable.',
+    tone: 'neutral',
+  },
+};
+
 export const EMAIL_TYPE_LABELS: Record<EmailType, string> = {
   initial: 'Initial Email',
   followup1: 'Follow-up 1',

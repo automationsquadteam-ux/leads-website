@@ -53,7 +53,7 @@ export default async function LeadsPage({
 
   const search = single('q') ?? '';
   const stages = parseStages(single('stage'));
-  const showArchived = single('archived') === '1';
+  const archived: 'exclude' | 'only' = single('archived') === '1' ? 'only' : 'exclude';
 
   // ?view=<name> is how every dashboard widget drills through. Unknown values
   // are ignored rather than erroring a stale bookmark should show the full
@@ -71,8 +71,8 @@ export default async function LeadsPage({
   const pageSize = parsePageSize(single('size'));
 
   const [result, facets] = await Promise.all([
-    getLeads({ search, stages, view, verification, showArchived, sort, direction, page, pageSize }),
-    getStageFacets(showArchived),
+    getLeads({ search, stages, view, verification, archived, sort, direction, page, pageSize }),
+    getStageFacets(archived),
   ]);
 
   return (
@@ -120,7 +120,7 @@ export default async function LeadsPage({
           search={search}
           stages={stages}
           verification={verification}
-          showArchived={showArchived}
+          archivedOnly={archived === 'only'}
           view={view}
           sort={sort}
           direction={direction}

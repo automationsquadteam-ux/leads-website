@@ -328,6 +328,10 @@ export interface Database {
           email_verification_status: EmailVerificationStatus;
           email_verification_source: string | null;
           email_checked_at: string | null;
+          /** The last verdict from a NON-manual source. Survives a human override. */
+          email_verifier_status: EmailVerificationStatus | null;
+          /** Which address the current verdict is about. */
+          email_checked_address: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -335,6 +339,8 @@ export interface Database {
           lead_id: string;
           email_verification_status?: EmailVerificationStatus;
           email_verification_source?: string | null;
+          email_verifier_status?: EmailVerificationStatus | null;
+          email_checked_address?: string | null;
           email_checked_at?: string | null;
           email_found?: boolean;
           email_found_at?: string | null;
@@ -597,6 +603,10 @@ export interface Database {
           email_verification_status: EmailVerificationStatus;
           email_verification_source: string | null;
           email_checked_at: string | null;
+          email_verifier_status: EmailVerificationStatus | null;
+          email_checked_address: string | null;
+          /** 1 verifier-proved · 2 hand-confirmed · 3 hand-confirmed after unknown · 9 not sendable. */
+          send_priority: number;
         };
         Relationships: [];
       };

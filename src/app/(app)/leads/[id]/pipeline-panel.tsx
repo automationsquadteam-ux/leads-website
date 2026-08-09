@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { CheckCircle2, Circle, PauseCircle, PlayCircle, RotateCcw, Save, XCircle } from 'lucide-react';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -16,7 +17,7 @@ import {
   setVerificationStatus,
   type PipelineGate,
 } from '@/lib/actions/review';
-import { VERIFICATION_META } from '@/lib/pipeline/labels';
+import { SEND_PRIORITY_META, VERIFICATION_META } from '@/lib/pipeline/labels';
 import { formatDateTime, formatRelative } from '@/lib/utils';
 import {
   EMAIL_VERIFICATION_STATUSES,
@@ -156,6 +157,33 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
             <p className="text-xs text-muted-foreground">
               {pipeline.email_verification_source ?? 'checked'} ·{' '}
               {formatRelative(pipeline.email_checked_at)}
+            </p>
+          ) : null}
+
+          {/*
+            What the VERIFIER said, kept separately from what you said. Without
+            this the two are indistinguishable once you override — and the
+            difference is the whole basis of the send order below.
+          */}
+          {pipeline.email_verifier_status &&
+          pipeline.email_verifier_status !== pipeline.email_verification_status ? (
+            <p className="text-xs text-muted-foreground">
+              A verifier said{' '}
+              <strong className="text-foreground">
+                {VERIFICATION_META[pipeline.email_verifier_status].label}
+              </strong>{' '}
+              about this address.
+            </p>
+          ) : null}
+
+          {!verificationDirty && pipeline.email ? (
+            <p className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <Badge tone={SEND_PRIORITY_META[pipeline.send_priority]?.tone ?? 'neutral'}>
+                {SEND_PRIORITY_META[pipeline.send_priority]?.label ?? 'Not sendable'}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {SEND_PRIORITY_META[pipeline.send_priority]?.hint ?? ''}
+              </span>
             </p>
           ) : null}
         </div>

@@ -92,6 +92,7 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0025 | `20260805180000_stage_is_the_first_unmet_gate.sql` | ✅ yes (2026-08-05) |
 | 0026 | `20260805200000_add_dead_email_stage_value.sql` | ❌ **NOT YET** — paste `schema-update-16-dead-email-enum-value.sql` **on its own, first** |
 | 0027 | `20260805210000_dead_email_stage_and_status_views.sql` | ❌ **NOT YET** — paste `schema-update-17-dead-email-stage.sql` **after 16 has committed** |
+| 0028 | `20260806120000_verdicts_belong_to_an_address.sql` | ❌ **NOT YET** — paste `schema-update-18-address-verdicts.sql` |
 
 **Everything through 0025 is applied.** Verified against the live database on 2026-08-05 by
 probing for each migration's marker rather than trusting the file list — `inbound_messages`
@@ -1656,6 +1657,91 @@ every day. Note the window is **UTC**, which is 14:00–22:00 in Asia/Karachi; t
 spells that translation out beneath the fields, because "09:00–17:00 UTC" next to a log line
 reading "14:32 PKT" is the pair that gets misread.
 
+### Editing an email created a duplicate lead. This is the leak.
+
+`dedupe_key` was computed once at import and nothing recomputed it, so:
+
+1. lead exists with `dedupe_key = 'email:info@apatchicars.com'`
+2. an admin corrects the address to `showroom@apatchicars.com`
+3. write-back pushes the new address to the sheet row
+4. the next sync reads that row, computes `email:showroom@apatchicars.com`, finds
+   no lead with that key, and **inserts a new lead**
+
+Found in the live data as **eight sheet rows claimed by two leads each**, three of them
+email-to-email pairs that no other path could produce:
+
+```
+row 686  Ali & Sons    email:ascon@ali-sons.com     || email:last@ali-sons.com
+row 723  Apatchi Cars  email:showroom@apatchicars   || email:info@apatchicars.com
+row 121  Modern Mart   email:contact@gmail.com      || email:info@modernmart.lk
+```
+
+plus four leads whose stored key no longer matched their own address, caught mid-drift. **Several
+of the pairs show `logs=1` on BOTH rows — those businesses were emailed twice.**
+
+0028 recomputes the key in a BEFORE trigger at the moment of the edit. GUIDE used to warn against
+recomputing keys; that warning was about a bulk backfill over every row, where one collision fails
+an entire sync. One row at a time is the opposite case — a collision means "another lead already
+owns that address", which is a true and useful thing to say to whoever just typed it.
+
+Only an already-`email:` key is recomputed. A `site:` or `name:` key keeps its identity, because
+those were chosen when there was no address and the sheet still matches on them.
+
+`npm run leads:duplicates` now groups by sheet row as well as by address, which is the only way to
+see this class — the two rows have DIFFERENT addresses, so email grouping cannot find them.
+
+### A verdict belongs to an address, not to a lead
+
+The same root cause, second symptom. NeverBounce judged `info@abc.com`; someone corrected a typo
+to `info@abd.com`; the verdict stayed:
+
+- `valid` → the new, unchecked address was marked verified and **passed the send gate**
+- `invalid` → the new, correct address stayed dead, blocked for ever, counted in Dead Addresses
+
+`email_checked_address` records which address each verdict was about, and changing to a different
+one resets the verdict, its source, the verifier's own verdict and the timestamps.
+
+That reset is what makes **"a verifier said invalid → never send"** safe to enforce in
+`sendLeadEmail()`. It applies only while the address is the one that was judged: correct the typo
+and `email_verifier_status` is already NULL, so the block never fires. That is exactly the
+difference between "I fixed the typo" and "I disagree with the bounce", and it needs no override
+switch that could be misused.
+
+### Send priority — ordering, never gating
+
+`email_verifier_status` keeps the last NON-manual verdict, so a human override no longer erases
+what the machine found. `compute_send_priority()` reads the pair:
+
+| Tier | Means |
+| --- | --- |
+| **1** | a verifier said valid, or a real email was already delivered |
+| **2** | you confirmed it, and no machine had said anything against it (catch-all, or never checked) |
+| **3** | you confirmed it after the verifier tried and gave up (unknown) |
+| **9** | not sendable — unverified, or the verifier proved THIS address dead |
+
+`findDueWork()` orders initial sends by priority then `approved_at`, reading `pipeline_board`
+because the view computes it. Every tier-1 lead goes before any tier-2. **Nothing is gated:** an
+address confirmed from the company's own website is worth mailing, it just waits behind the ones a
+verifier proved, so a bad hand-confirmation costs less reputation.
+
+### The sheet write-back only touches what changed
+
+The write has always been per-cell — one single-cell range per column, and a column whose header is
+not in `WRITEBACK_COLUMNS` is never touched. But **every mapped column was rewritten on every
+sync**: `push()` accepted a `fields` argument and ignored it, with a comment arguing that a
+batchUpdate costs one HTTP call either way.
+
+Cost was never the issue. A column the CRM holds as NULL is written as an empty string, so editing
+one note re-stamped a dozen unrelated cells and blanked any that had been filled in by hand
+upstream. Each `WritebackColumn` now declares which `SyncField` group makes it worth rewriting, and
+only those columns are sent.
+
+### Archived is a filter, not an "also show"
+
+"Show archived" mixed two archived leads into seven hundred live ones, which is not a way to look
+at them. It shows **only** the archive now, and the stage facets count archived leads in that mode
+— the difference between `lead_count_all` and `lead_count` in `lead_stage_counts`.
+
 ### An empty Website cell is a job, not a dash
 
 A lead with no website is the moment you go and look the business up, so the leads table shows a
@@ -1784,6 +1870,7 @@ holes. Fixed by rebalancing rather than by padding:
 | Date | Change |
 | --- | --- |
 | 2026-08-06 | `PAGE_SIZES` moved to `lib/pagination.ts`. It lived in the `'use client'` pagination component, so importing it into the email-log server page produced a client reference rather than an array and threw at request time — a class of bug `next build` cannot see on a dynamic page. Four copies of the list collapsed into one, with shared `parsePageSize` / `parsePageNumber` helpers |
+| 2026-08-06 | **0028 — the duplicate-lead leak.** Editing an email left `dedupe_key` holding the old address, so the next sheet sync inserted a second lead for the same row: eight sheet rows in the live data are claimed by two leads each, several emailed twice. The key is now recomputed in a trigger, and `leads:duplicates` groups by sheet row so the pairs are findable. Same root cause fixed for verdicts: `email_checked_address` means a verification result resets when the address changes, which is what makes "a verifier said invalid → never send" enforceable without an override. Adds `email_verifier_status` and send priority 1/2/3, ordering initial sends verifier-proved first. Write-back now sends only the columns whose field group changed, instead of re-stamping every mapped cell and blanking ones filled in by hand upstream. Archived became an only-archived filter |
 | 2026-08-06 | Leads table shows a Google **Look up** link where the Website cell would be empty, scoped to the business plus its city and country. 112 of 723 leads, 86 of which have an email that may still need checking by hand |
 | 2026-08-06 | The Email address verdict on the lead page stages behind a Save button instead of writing on change, matching Business information. Marking an address Dead removes the lead from every queue, so a stray scroll should not do it |
 | 2026-08-06 | Email log gets pagination. The page read `?page=` but rendered no control, so it was stuck on the newest 50 of 87 rows and appeared to hold only today |

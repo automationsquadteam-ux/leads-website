@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { SyncSnapshot } from './sync/types';
+import { ALL_SYNC_FIELDS, type SyncField, type SyncSnapshot } from './sync/types';
 import { getIntegrationConfig } from './config';
 import { getAccessToken, readSheetHeaders, SheetsError, SHEETS_API } from './google-sheets';
 
@@ -31,50 +31,69 @@ import { getAccessToken, readSheetHeaders, SheetsError, SHEETS_API } from './goo
 interface WritebackColumn {
   key: string;
   headers: string[];
+  /**
+   * Which change makes this column worth rewriting.
+   *
+   * The write is per-cell, so a column the sheet has and this list does not is
+   * never touched. But every mapped column USED to be rewritten on every sync
+   * regardless of what changed — the `fields` argument was accepted and then
+   * ignored — so editing one note re-stamped a dozen unrelated cells with
+   * whatever the CRM happened to hold, blanking any that were null here and
+   * filled in by hand upstream.
+   *
+   * Now a column is only written when its group is in the change set.
+   */
+  fields: SyncField[];
   /** Null clears the cell; undefined means "this lead has nothing to say here". */
   value: (snapshot: SyncSnapshot) => string | null | undefined;
 }
 
 const WRITEBACK_COLUMNS: WritebackColumn[] = [
-  { key: 'business_name', headers: ['business name'], value: (s) => s.lead.business_name },
-  { key: 'website', headers: ['website'], value: (s) => s.lead.website },
-  { key: 'email', headers: ['email'], value: (s) => s.lead.email },
-  { key: 'phone', headers: ['phone'], value: (s) => s.lead.phone },
-  { key: 'city', headers: ['city'], value: (s) => s.lead.city },
-  { key: 'country', headers: ['country'], value: (s) => s.lead.country },
-  { key: 'niche', headers: ['niche'], value: (s) => s.lead.niche },
+  { key: 'business_name', headers: ['business name'], fields: ['identity'], value: (s) => s.lead.business_name },
+  { key: 'website', headers: ['website'], fields: ['identity'], value: (s) => s.lead.website },
+  { key: 'email', headers: ['email'], fields: ['identity'], value: (s) => s.lead.email },
+  { key: 'phone', headers: ['phone'], fields: ['identity'], value: (s) => s.lead.phone },
+  { key: 'city', headers: ['city'], fields: ['identity'], value: (s) => s.lead.city },
+  { key: 'country', headers: ['country'], fields: ['identity'], value: (s) => s.lead.country },
+  { key: 'niche', headers: ['niche'], fields: ['identity'], value: (s) => s.lead.niche },
 
-  { key: 'research', headers: ['business summary', 'research summary'], value: (s) => s.lead.research_summary },
-  { key: 'personalization', headers: ['personalization notes', 'personalization'], value: (s) => s.lead.personalization },
-  { key: 'outreach_angle', headers: ['suggested outreach angle', 'outreach angle'], value: (s) => s.lead.outreach_angle },
+  { key: 'research', headers: ['business summary', 'research summary'], fields: ['research'], value: (s) => s.lead.research_summary },
+  { key: 'personalization', headers: ['personalization notes', 'personalization'], fields: ['personalization'], value: (s) => s.lead.personalization },
+  { key: 'outreach_angle', headers: ['suggested outreach angle', 'outreach angle'], fields: ['research'], value: (s) => s.lead.outreach_angle },
 
   {
     key: 'initial_subject',
+    fields: ['draft'],
     headers: ['email header', 'email subject', 'subject line'],
     value: (s) => s.activeDrafts.initial?.subject ?? s.lead.subject_line,
   },
   {
     key: 'initial_body',
+    fields: ['draft'],
     headers: ['email body', 'email draft', 'draft email'],
     value: (s) => s.activeDrafts.initial?.content ?? s.lead.draft_email,
   },
   {
     key: 'followup1_subject',
+    fields: ['followup1'],
     headers: ['follow-up 1 subject', 'followup 1 subject', 'follow up 1 subject'],
     value: (s) => s.activeDrafts.followup1?.subject,
   },
   {
     key: 'followup1_body',
+    fields: ['followup1'],
     headers: ['follow-up 1', 'followup 1', 'follow up 1', 'follow-up 1 body', 'followup email 1'],
     value: (s) => s.activeDrafts.followup1?.content,
   },
   {
     key: 'followup2_subject',
+    fields: ['followup2'],
     headers: ['follow-up 2 subject', 'followup 2 subject', 'follow up 2 subject'],
     value: (s) => s.activeDrafts.followup2?.subject,
   },
   {
     key: 'followup2_body',
+    fields: ['followup2'],
     headers: ['follow-up 2', 'followup 2', 'follow up 2', 'follow-up 2 body', 'followup email 2'],
     value: (s) => s.activeDrafts.followup2?.content,
   },
@@ -90,6 +109,7 @@ const WRITEBACK_COLUMNS: WritebackColumn[] = [
    */
   {
     key: 'email_data_done',
+    fields: ['draft'],
     headers: ['email data done', 'email draft done', 'draft done'],
     value: (s) => {
       const draft = s.activeDrafts.initial?.content ?? s.lead.draft_email;
@@ -103,6 +123,7 @@ const WRITEBACK_COLUMNS: WritebackColumn[] = [
   // exists is answered by the draft itself.
   {
     key: 'email_sent_status',
+    fields: ['status', 'stage'],
     headers: ['email sent status', 'email status'],
     value: (s) => (s.pipeline?.first_email_sent ? 'Yes' : undefined),
   },
@@ -121,16 +142,19 @@ const WRITEBACK_COLUMNS: WritebackColumn[] = [
      * An ISO timestamp would not.
      */
     key: 'date_sent',
+    fields: ['status', 'stage'],
     headers: ['date sent'],
     value: (s) => (s.pipeline?.first_email_sent ? s.pipeline.first_email_sent.slice(0, 10) : undefined),
   },
   {
     key: 'research_status',
+    fields: ['research', 'stage'],
     headers: ['research status'],
     value: (s) => (s.pipeline?.research_complete ? 'Done' : undefined),
   },
   {
     key: 'reply',
+    fields: ['status', 'stage'],
     headers: ['reply'],
     value: (s) => (s.pipeline?.replied ? 'Yes' : undefined),
   },
@@ -145,11 +169,12 @@ const WRITEBACK_COLUMNS: WritebackColumn[] = [
    */
   {
     key: 'stage',
+    fields: ['stage'],
     headers: ['stage', 'pipeline stage', 'crm stage'],
     value: (s) => s.pipeline?.current_stage,
   },
-  { key: 'next_step', headers: ['next step', 'next action'], value: (s) => s.nextStep },
-  { key: 'notes', headers: ['notes', 'internal notes', 'crm notes'], value: (s) => s.lead.notes },
+  { key: 'next_step', headers: ['next step', 'next action'], fields: ['stage'], value: (s) => s.nextStep },
+  { key: 'notes', headers: ['notes', 'internal notes', 'crm notes'], fields: ['notes'], value: (s) => s.lead.notes },
 ];
 
 /** 0 -> A, 25 -> Z, 26 -> AA */
@@ -177,7 +202,10 @@ export interface WriteBackResult {
   cellsUpdated: number;
 }
 
-export async function writeLeadToSheet(snapshot: SyncSnapshot): Promise<WriteBackResult> {
+export async function writeLeadToSheet(
+  snapshot: SyncSnapshot,
+  fields: SyncField[] = [...ALL_SYNC_FIELDS],
+): Promise<WriteBackResult> {
   const { lead } = snapshot;
   const config = await getIntegrationConfig();
 
@@ -224,7 +252,12 @@ export async function writeLeadToSheet(snapshot: SyncSnapshot): Promise<WriteBac
   const sheetName = quoteSheetName(config.sheets.sheetName);
   const data: Array<{ range: string; values: string[][] }> = [];
 
+  const changed = new Set(fields);
+
   for (const spec of WRITEBACK_COLUMNS) {
+    // Only columns the change actually touched. See WritebackColumn.fields.
+    if (!spec.fields.some((field) => changed.has(field))) continue;
+
     const header = spec.headers.find((candidate) => columnFor.has(candidate));
     if (header === undefined) continue;
     const column = columnFor.get(header)!;
@@ -245,9 +278,9 @@ export async function writeLeadToSheet(snapshot: SyncSnapshot): Promise<WriteBac
 
   if (data.length === 0) {
     return {
-      ok: false,
-      attempted: true,
-      message: 'None of the CRM fields matched a column in the sheet. Check the header row.',
+      ok: true,
+      attempted: false,
+      message: 'Nothing in this change maps to a column in the sheet.',
       cellsUpdated: 0,
     };
   }

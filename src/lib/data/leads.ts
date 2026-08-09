@@ -106,8 +106,12 @@ export interface LeadListParams {
   view?: LeadView;
   /** Filter by email verification state. Empty means no filter. */
   verification?: EmailVerificationStatus[];
-  /** Archived leads are hidden unless this is on. */
-  showArchived?: boolean;
+  /**
+   * Archived leads are hidden by default. 'only' shows the archive and nothing
+   * else, which is what you want when reviewing what you put away — 'include'
+   * mixed them into 700 live leads and made them impossible to find.
+   */
+  archived?: 'exclude' | 'only';
   sort?: SortColumn;
   direction?: 'asc' | 'desc';
   page?: number;
@@ -273,7 +277,7 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
     stages = [],
     view,
     verification = [],
-    showArchived = false,
+    archived = 'exclude',
     sort = 'created_at',
     direction = 'desc',
     page = 1,
@@ -336,10 +340,16 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
    * It is the ONE thing `leads.status` is still read for in the UI, because
    * archiving is a visibility choice rather than a position in the pipeline: an
    * archived lead can be at any stage, and the stage does not stop being true
-   * because you put the lead away. Hence a toggle of its own rather than a
-   * twelfth entry in the stage filter.
+   * because you put the lead away. Hence a filter of its own rather than a
+   * twelfth entry in the stage list.
+   *
+   * ONLY, not "also": the point of opening the archive is to look at what is in
+   * it, and mixing two archived leads into seven hundred live ones is not a way
+   * to see them.
    */
-  if (!showArchived) query = query.neq('status', 'archived');
+  query = archived === 'only'
+    ? query.eq('status', 'archived')
+    : query.neq('status', 'archived');
 
   const from = (page - 1) * pageSize;
   query = query
@@ -465,13 +475,18 @@ export async function getLeadDetail(id: string): Promise<LeadDetail> {
  * stage, and the list hides archived by default. A facet that does not answer
  * the same question as the list is worse than no facet.
  */
-export async function getStageFacets(showArchived = false): Promise<Record<string, number>> {
+export async function getStageFacets(archived: 'exclude' | 'only' = 'exclude'): Promise<Record<string, number>> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('lead_stage_counts')
     .select('stage, lead_count, lead_count_all');
 
   return Object.fromEntries(
-    (data ?? []).map((row) => [row.stage, showArchived ? row.lead_count_all : row.lead_count]),
+    (data ?? []).map((row) => [
+      row.stage,
+      // In archive-only mode the facet must count archived leads, which is the
+      // difference between the two columns the view returns.
+      archived === 'only' ? row.lead_count_all - row.lead_count : row.lead_count,
+    ]),
   );
 }

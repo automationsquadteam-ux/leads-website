@@ -21,11 +21,17 @@ export class GoogleSheetTarget implements SyncTarget {
     return config.sheets.writeBack;
   }
 
-  async push(snapshot: SyncSnapshot, _fields: SyncField[]) {
-    // Field-level granularity is ignored on purpose: a batchUpdate of the whole
-    // row costs one HTTP call either way, and writing every mapped cell keeps
-    // the row internally consistent even when an earlier push failed.
-    const result = await writeLeadToSheet(snapshot);
+  async push(snapshot: SyncSnapshot, fields: SyncField[]) {
+    /*
+     * The changed fields are passed through, not ignored.
+     *
+     * The old comment here argued that writing every mapped cell was free
+     * because a batchUpdate costs one HTTP call either way. It is not free: a
+     * column the CRM holds as NULL is written as an empty string, so editing one
+     * note re-stamped a dozen unrelated cells and blanked any that had been
+     * filled in by hand upstream. Cost was never the issue — clobbering was.
+     */
+    const result = await writeLeadToSheet(snapshot, fields);
     return {
       target: this.id,
       attempted: result.attempted,
