@@ -575,6 +575,40 @@ export interface Database {
         Relationships: [];
       };
 
+      /**
+       * 0035. Machine-facing send queue for the scheduler.
+       *
+       * Exists because `pipeline_board` is gated `where public.is_admin()`,
+       * which the service-role key never satisfies — it bypasses RLS on a
+       * table, but a predicate in a view body is an ordinary WHERE clause.
+       * That returned zero rows to the scheduler and stopped every automatic
+       * initial send after 0028. This view is protected by grants instead
+       * (revoked from anon/authenticated) and already excludes archived leads.
+       */
+      lead_send_queue: {
+        Row: {
+          lead_id: string;
+          lead_status: LeadStatus;
+          current_stage: PipelineStage;
+          approved: boolean;
+          approved_at: string | null;
+          email_found: boolean;
+          email_verified: boolean;
+          email_verification_status: EmailVerificationStatus;
+          email_verifier_status: EmailVerificationStatus | null;
+          first_email_sent: string | null;
+          followup1_due: string | null;
+          followup1_sent: string | null;
+          followup2_due: string | null;
+          followup2_sent: string | null;
+          replied: string | null;
+          closed: string | null;
+          auto_followups: boolean;
+          send_priority: number;
+        };
+        Relationships: [];
+      };
+
       pipeline_board: {
         Row: {
           lead_id: string;
