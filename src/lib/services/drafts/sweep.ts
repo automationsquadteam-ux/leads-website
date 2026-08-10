@@ -64,6 +64,8 @@ export interface DraftSweepSummary {
    */
   approvedLeads: Array<{ leadId: string; businessName: string }>;
   remaining: number;
+  /** Drafts flagged stuck by a previous run (0030) — excluded from `examined`, but not gone. */
+  flaggedStuck: number;
 }
 
 export interface DraftSweepOptions {
@@ -93,6 +95,11 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
     .eq('type', 'initial')
     .eq('active', true)
     .eq('status', 'draft')
+    // 0030. A draft already flagged stuck by a previous sweep is left alone
+    // until a NEW version replaces it (an edit, or a repair) — otherwise the
+    // same permanently-blocked handful gets re-parsed and re-reported as
+    // newly blocked on every run, four times a day, forever.
+    .is('sweep_checked_at', null)
     .order('created_at', { ascending: true })
     .limit(limit);
 
@@ -187,17 +194,18 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
     const issues = inspectDraft({ subject, content });
     const blocking = issues.filter((issue) => issue.blocking);
 
-    if (blocking.length === 0) {
-      // The version id may have changed if a repair created a new one, so
-      // re-resolve the active row rather than trusting the one we started with.
-      const { data: active } = await admin
-        .from('email_versions')
-        .select('id')
-        .eq('lead_id', draft.lead_id)
-        .eq('type', 'initial')
-        .eq('active', true)
-        .maybeSingle();
+    // The version id may have changed if a repair created a new one, so
+    // re-resolve the active row rather than trusting the one we started with.
+    // Needed either way now: to approve it, or to flag it as checked.
+    const { data: active } = await admin
+      .from('email_versions')
+      .select('id')
+      .eq('lead_id', draft.lead_id)
+      .eq('type', 'initial')
+      .eq('active', true)
+      .maybeSingle();
 
+    if (blocking.length === 0) {
       if (active) {
         /*
          * The version, and only the version.
@@ -222,6 +230,18 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
         }
       }
     } else {
+      // 0030. Still blocked after a repair attempt — flag it so the next run
+      // (in 7 hours, or the next button click) does not re-parse and
+      // re-report the same draft as a fresh block. A human editing it, or a
+      // future repair improvement, creates a new version and this clears
+      // itself.
+      if (active) {
+        await admin
+          .from('email_versions')
+          .update({ sweep_checked_at: new Date().toISOString() })
+          .eq('id', active.id);
+      }
+
       const first = blocking[0]!;
       const entry = blockedBy.get(first.kind) ?? { count: 0, example: first.message };
       entry.count += 1;
@@ -244,12 +264,27 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
   const blocked = reasons.reduce((sum, r) => sum + r.count, 0);
   const remaining = Math.max(0, drafts.length - examined);
 
+  /*
+   * 0030 excludes flagged drafts from `pending` entirely, so this run's own
+   * numbers can no longer say how many are sitting behind the flag — a sweep
+   * that flags its way to "0 blocked" every run would otherwise look like a
+   * cleared queue instead of a growing pile nobody is looking at.
+   */
+  const { count: flaggedStuck } = await admin
+    .from('email_versions')
+    .select('*', { count: 'exact', head: true })
+    .eq('type', 'initial')
+    .eq('active', true)
+    .eq('status', 'draft')
+    .not('sweep_checked_at', 'is', null);
+
   const message =
     `${examined} draft(s) checked: ${repaired} cleaned, ${approved} approved and ready to send, ` +
     `${blocked} left for review.` +
-    (remaining > 0 ? ` ${remaining} not reached run again.` : '');
+    (remaining > 0 ? ` ${remaining} not reached run again.` : '') +
+    (flaggedStuck ? ` ${flaggedStuck} flagged from earlier runs stay excluded until edited.` : '');
 
-  await finishRun(runId, 'success', message, { examined, repaired, approved, blocked });
+  await finishRun(runId, 'success', message, { examined, repaired, approved, blocked, flaggedStuck: flaggedStuck ?? 0 });
 
   return {
     ok: true,
@@ -262,5 +297,6 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
     blockedLeads,
     approvedLeads,
     remaining,
+    flaggedStuck: flaggedStuck ?? 0,
   };
 }

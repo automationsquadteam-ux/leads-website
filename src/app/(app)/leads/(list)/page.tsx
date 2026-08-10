@@ -15,7 +15,6 @@ import {
 import { parsePageNumber, parsePageSize } from '@/lib/pagination';
 import { formatNumber } from '@/lib/utils';
 import { LeadsTable } from './leads-table';
-import { LeadsSyncActions } from './sync-actions';
 
 export const metadata = { title: 'Leads' };
 
@@ -84,7 +83,6 @@ export default async function LeadsPage({
             ? `${formatNumber(result.total)} lead${result.total === 1 ? '' : 's'} matching the current view`
             : 'Search, filter and manage your prospect list'
         }
-        actions={<LeadsSyncActions />}
       />
 
       <div className="p-4 sm:p-6">

@@ -8,7 +8,6 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service-client';
 import { recordActivity } from '@/lib/services/activity';
 import { sendLeadEmail } from '@/lib/services/email/send-lead-email';
-import { appendSyncMessage, syncLeadChange } from '@/lib/services/sync';
 import type { EmailType, LeadStatus } from '@/lib/supabase/database.types';
 
 export interface ActionResult {
@@ -100,12 +99,7 @@ export async function updateLead(_prev: ActionResult, formData: FormData): Promi
   revalidatePath('/leads');
   revalidatePath(`/leads/${id}`);
 
-  // Push the edit outward through the sync layer (Google Sheet today, whatever
-  // is registered tomorrow). Best-effort on purpose: the CRM is the system of
-  // record, so a Sheets outage must not make the save look like it failed but
-  // the outcome is appended to the message, so it can never fail silently.
-  const report = await syncLeadChange(id, ['identity', 'research', 'personalization', 'status']);
-  return { ok: true, message: appendSyncMessage('Lead saved.', report) };
+  return { ok: true, message: 'Lead saved.' };
 }
 
 async function setStatus(id: string, status: LeadStatus, successMessage: string): Promise<ActionResult> {
@@ -189,7 +183,6 @@ export async function sendEmail(id: string, emailType: EmailType = 'initial'): P
       detail: result.messageId ? `Provider message id: ${result.messageId}` : null,
       actorId: session.user.id,
     });
-    await syncLeadChange(id, ['status', 'stage']);
   }
 
   revalidatePath(`/leads/${id}`);

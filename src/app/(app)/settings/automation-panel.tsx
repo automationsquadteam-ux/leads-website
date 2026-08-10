@@ -99,7 +99,7 @@ export function AutomationPanel({
   );
 }
 
-/** The three scheduled jobs, what they do, and the exact cron entries. */
+/** The two scheduled jobs, what they do, and the exact cron entries. */
 const SCHEDULED_JOBS: Array<{
   path: string;
   title: string;
@@ -107,13 +107,6 @@ const SCHEDULED_JOBS: Array<{
   cron: string;
   what: string;
 }> = [
-  {
-    path: '/api/cron/sheet-sync',
-    title: 'Sheet sync',
-    when: 'Daily, 23:59 Asia/Karachi',
-    cron: '59 23 * * *',
-    what: 'Pulls the Google Sheet in after n8n has finished appending for the day. Identical to the Sync button on the leads page.',
-  },
   {
     path: '/api/cron/approve-drafts',
     title: 'Clean and approve drafts',
@@ -144,7 +137,7 @@ function ScheduleNotice({ cronConfigured }: { cronConfigured: boolean }) {
         </p>
         <p className="mt-1">
           Each endpoint answers <strong>202 Accepted</strong> immediately and then does the work,
-          because a sheet sync and a draft sweep both outlast the ~30 second timeout most cron
+          because a draft sweep over a full queue outlasts the ~30 second timeout most cron
           services allow. That means <strong>a green tick from your scheduler only says the job
           started</strong> the outcome of every run, success or failure, is the list below.
         </p>

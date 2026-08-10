@@ -514,6 +514,6 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
   );
 }
 
-// SMTP, Gmail and Google Sheets credentials are configured in
+// SMTP and Gmail credentials are configured in
 // ./integrations-panel.tsx, which stores them encrypted. Nothing on this form
 // is a secret.

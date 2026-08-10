@@ -273,6 +273,8 @@ export interface Database {
           reviewed_by: string | null;
           reviewed_at: string | null;
           review_note: string | null;
+          /** 0030. Set when a sweep examined this version and it still had a blocking issue. NULL on every new version. */
+          sweep_checked_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -289,6 +291,7 @@ export interface Database {
           reviewed_by?: string | null;
           reviewed_at?: string | null;
           review_note?: string | null;
+          sweep_checked_at?: string | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['email_versions']['Insert']>;

@@ -8,7 +8,6 @@ import { createServiceClient } from '@/lib/supabase/service-client';
 import { searchLeadsForPicker, type LeadOption } from '@/lib/data/inbox';
 import { createReply } from '@/lib/services/inbound/ingest';
 import { guessSentiment } from '@/lib/services/inbound/classify';
-import { syncLeadChange } from '@/lib/services/sync';
 import type { ActionResult } from './leads';
 
 /**
@@ -112,7 +111,6 @@ export async function assignInboundMessage(
 
   if (error) return { ok: false, message: error.message };
 
-  await syncLeadChange(leadId, ['status', 'stage']);
   revalidateInbox(leadId);
 
   return { ok: true, message: 'Reply assigned. The lead is now marked as replied.' };

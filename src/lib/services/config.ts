@@ -11,15 +11,6 @@ import { createServiceClient } from '@/lib/supabase/service-client';
  */
 
 export interface IntegrationConfig {
-  sheets: {
-    spreadsheetId: string;
-    sheetName: string;
-    headerRow: number;
-    authMode: 'api_key' | 'service_account';
-    updateExisting: boolean;
-    /** Push CRM edits back to the sheet. Requires service-account auth. */
-    writeBack: boolean;
-  };
   email: {
     provider: 'smtp' | 'gmail';
     fromName: string;
@@ -76,19 +67,10 @@ export async function getIntegrationConfig(): Promise<IntegrationConfig> {
   const map = new Map((data ?? []).map((row) => [row.key, row.value as unknown]));
   const get = (key: string) => map.get(key);
 
-  const authMode = asString(get('sheets.auth_mode'), 'api_key');
   const provider = asString(get('email.provider'), 'smtp');
   const aiProvider = asString(get('ai.provider'), 'template');
 
   return {
-    sheets: {
-      spreadsheetId: asString(get('sheets.spreadsheet_id')),
-      sheetName: asString(get('sheets.sheet_name'), 'Sheet1'),
-      headerRow: asNumber(get('sheets.header_row'), 1),
-      authMode: authMode === 'service_account' ? 'service_account' : 'api_key',
-      updateExisting: asBoolean(get('sheets.update_existing'), true),
-      writeBack: asBoolean(get('sheets.write_back'), false),
-    },
     email: {
       provider: provider === 'gmail' ? 'gmail' : 'smtp',
       fromName: asString(get('email.default_from_name'), 'Leads CRM'),

@@ -5024,3 +5024,357 @@ comment on view public.pipeline_board is
   'Admin-only pipeline rows with the derived next_step, verification state and send priority. Contains contact data — never grant to anon.';
 
 grant select on public.pipeline_board to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 0029 — dedupe_key computes itself on INSERT.
+--
+-- Every existing writer (the workbook importer, the Google Sheet sync)
+-- computes dedupe_key in TypeScript before the INSERT, via buildDedupeKey()
+-- in lib/import/dedupe.ts. That was fine while Postgres was only ever reached
+-- through those two paths. It stops being fine the moment something else
+-- inserts a lead directly — n8n, writing straight to Supabase instead of the
+-- Google Sheet the CRM used to sync from (2026-08-10: the sheet is being
+-- retired as the ingestion layer).
+--
+-- leads.dedupe_key is NOT NULL with a CHECK that it is non-blank, so a direct
+-- insert that leaves it out is simply rejected, and a direct insert that gets
+-- the formula slightly wrong (different case, different trimming, a stray
+-- www.) creates exactly the duplicate-key mess 0028 spent a migration
+-- cleaning up — except this time nothing would ever notice, because there is
+-- no sheet_row_number pairing to catch it by.
+--
+-- Mirrors buildDedupeKey()'s priority order exactly: email, then website,
+-- then business name + city. Only fires when the caller left dedupe_key
+-- blank (NULL or '') — every existing writer, which already computes its own
+-- key, is untouched by this. Website normalization here is deliberately
+-- simpler than the TypeScript version (strip scheme and www, drop a trailing
+-- slash, no query string handling) — plpgsql has no URL type — but it agrees
+-- with it on every plain "https://example.com" style website already in the
+-- table, which is what matters: the two must never compute two different
+-- keys for the same input.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.assign_dedupe_key_on_insert()
+returns trigger
+language plpgsql
+as $$
+declare
+  email_norm   text := lower(btrim(coalesce(new.email, '')));
+  website_norm text;
+  name_norm    text;
+  city_norm    text;
+begin
+  if new.dedupe_key is not null and length(btrim(new.dedupe_key)) > 0 then
+    return new;
+  end if;
+
+  if email_norm <> '' then
+    new.dedupe_key := 'email:' || email_norm;
+    return new;
+  end if;
+
+  if new.website is not null and length(btrim(new.website)) > 0 then
+    website_norm := lower(btrim(new.website));
+    website_norm := regexp_replace(website_norm, '^https?://', '');
+    website_norm := regexp_replace(website_norm, '^www\.', '');
+    website_norm := regexp_replace(website_norm, '/+$', '');
+    new.dedupe_key := 'site:' || website_norm;
+    return new;
+  end if;
+
+  name_norm := lower(regexp_replace(coalesce(new.business_name, ''), '[^[:alnum:][:space:]]', ' ', 'g'));
+  name_norm := btrim(regexp_replace(name_norm, '\s+', ' ', 'g'));
+  city_norm := lower(regexp_replace(coalesce(new.city, ''), '[^[:alnum:][:space:]]', ' ', 'g'));
+  city_norm := btrim(regexp_replace(city_norm, '\s+', ' ', 'g'));
+  new.dedupe_key := 'name:' || name_norm || '|' || city_norm;
+  return new;
+end;
+$$;
+
+comment on function public.assign_dedupe_key_on_insert() is
+  'Computes dedupe_key (email > website > name+city, same priority as buildDedupeKey() in lib/import/dedupe.ts) for any INSERT that leaves it blank — the case a direct writer like n8n hits that the sheet sync and the workbook importer never did, since both already set it themselves before the insert.';
+
+drop trigger if exists leads_assign_dedupe_key on public.leads;
+create trigger leads_assign_dedupe_key
+  before insert on public.leads
+  for each row execute function public.assign_dedupe_key_on_insert();
+
+comment on trigger leads_assign_dedupe_key on public.leads is
+  'Fires before leads_rekey_on_email_change (0028) on UPDATE and independently of it — this one only ever runs on INSERT.';
+
+-- ---------------------------------------------------------------------------
+-- 0030 — the draft sweep stops re-examining the same stuck drafts forever.
+--
+-- runDraftSweep() (the "Clean and approve drafts" button in Settings, and the
+-- 0/7/14/21-hourly cron) re-reads every email_versions row with
+-- status = 'draft' on every single run. A draft it cannot fully clean stays
+-- status = 'draft' forever — that is the whole point of leaving it for a
+-- human — so the same handful (roughly 10, per the 2026-08-05 sweep entry in
+-- the changelog, "no answer in the database and stay blocked on purpose")
+-- were being re-parsed and re-reported as newly blocked four times a day,
+-- indefinitely, with no way to tell a genuinely new block from the same rows
+-- surfacing again.
+--
+-- sweep_checked_at is set on the ACTIVE version row the moment a sweep
+-- examines it and it still has a blocking issue afterwards. The sweep query
+-- excludes anything already flagged. It is deliberately NOT set when a draft
+-- gets approved — an approved version already leaves status = 'draft', so the
+-- existing status filter excludes it on its own; the flag only has a job for
+-- the ones left behind.
+--
+-- No reset mechanism is needed: editing a draft, or the sweep repairing one,
+-- always creates a NEW email_versions row — versioning's whole premise is
+-- that nothing is ever overwritten — and a new row starts with
+-- sweep_checked_at NULL. A human who wants a flagged draft looked at again
+-- edits it or writes a fresh version; that is already how every other "try
+-- this again" works in this app, so this needs no new UI.
+-- ---------------------------------------------------------------------------
+
+alter table public.email_versions
+  add column if not exists sweep_checked_at timestamptz;
+
+comment on column public.email_versions.sweep_checked_at is
+  'Set by runDraftSweep() when this version was examined and still had a blocking issue afterwards. Excludes it from future sweeps. NULL again on any new version (an edit or a repair), which is what lets a human ask for another pass just by touching the draft.';
+
+-- Matches the sweep's own WHERE clause, so the partial index is exactly the
+-- rows scanned rather than a broader one PostgREST would filter after the
+-- fact.
+create index if not exists email_versions_sweep_pending_idx
+  on public.email_versions (type, active, status)
+  where sweep_checked_at is null;
+
+-- ---------------------------------------------------------------------------
+-- 0031 — blank optional fields normalize to NULL before the CHECK constraints
+-- see them.
+--
+-- A direct writer (n8n, since 2026-08-10) that has no value for an optional
+-- field understandably sends an empty string rather than omitting the key or
+-- explicitly sending null — that is what "no data" looks like coming out of
+-- most upstream nodes and expressions. leads.email and leads.website both
+-- have a format CHECK that only exempts NULL, not '':
+--
+--   leads_email_format    check (email   is null or email   ~* '...')
+--   leads_website_scheme  check (website is null or website ~* '^https?://')
+--
+-- so an empty string trips the constraint with an opaque Postgres error and
+-- the whole row is rejected. Observed live: n8n's very first lead with no
+-- email failed the insert outright.
+--
+-- Every writer that goes through the application already avoids this —
+-- cleanText() in lib/import/normalize.ts turns blank into null before
+-- anything reaches Postgres. A direct writer has no such layer in front of
+-- it, and asking every n8n expression, in every workflow, forever, to get
+-- this right is the same mistake REFRESHABLE_FIELDS already avoids elsewhere
+-- in this codebase: one rule, enforced once, in the one place every path
+-- goes through.
+--
+-- business_name is deliberately NOT touched here. It is required; a blank
+-- one should fail loudly against leads_business_name_not_blank, not silently
+-- become NULL and fail against the column's NOT NULL constraint instead with
+-- a less specific error.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.normalize_blank_lead_fields()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.email is not null and length(btrim(new.email)) = 0 then
+    new.email := null;
+  end if;
+  if new.website is not null and length(btrim(new.website)) = 0 then
+    new.website := null;
+  end if;
+  if new.phone is not null and length(btrim(new.phone)) = 0 then
+    new.phone := null;
+  end if;
+  if new.city is not null and length(btrim(new.city)) = 0 then
+    new.city := null;
+  end if;
+  if new.country is not null and length(btrim(new.country)) = 0 then
+    new.country := null;
+  end if;
+  if new.niche is not null and length(btrim(new.niche)) = 0 then
+    new.niche := null;
+  end if;
+  return new;
+end;
+$$;
+
+comment on function public.normalize_blank_lead_fields() is
+  'Turns an empty/whitespace-only string into NULL for the optional identity fields, before leads_email_format / leads_website_scheme (and dedupe key computation) see the row. Protects any direct writer that sends "" for "no value" instead of omitting the field or sending null — n8n''s direct-insert workflow being the reason this exists.';
+
+drop trigger if exists leads_normalize_blank_fields on public.leads;
+create trigger leads_normalize_blank_fields
+  before insert or update on public.leads
+  for each row execute function public.normalize_blank_lead_fields();
+
+comment on trigger leads_normalize_blank_fields on public.leads is
+  'Runs before leads_assign_dedupe_key and leads_rekey_on_email_change (trigger order does not matter between them — both already coalesce a null/blank email the same way), so email/website/phone/city/country/niche are already clean by the time either reads them.';
+
+-- ---------------------------------------------------------------------------
+-- 0032 — social_links normalizes to an OBJECT before leads_social_links_is_object
+-- sees it.
+--
+-- MUST be pasted AFTER 0031 (20260810110000_normalize_blank_leads_fields.sql).
+-- Both use `create or replace function public.normalize_blank_lead_fields()`
+-- on the SAME function name — this migration's version below is a superset
+-- (adds the social_links branch, keeps every existing branch unchanged), but a
+-- trigger always runs whatever the function currently resolves to, not a
+-- snapshot from when the trigger was created. Paste 0031 then 0032, in that
+-- order, or 0031 pasted second would silently overwrite this one and the
+-- social_links fix would vanish having appeared to apply cleanly.
+--
+-- Root cause: `leads.social_links` is `jsonb not null default '{}'::jsonb`
+-- with `check (jsonb_typeof(social_links) = 'object')` — an empty object is
+-- already fine, always was. What trips the constraint is anything that is
+-- valid jsonb but NOT an object: n8n's "Update a row" node, or the AI step
+-- feeding it, can hand this column a JSON STRING instead of a JSON OBJECT —
+-- the literal characters `{}` serialized AS TEXT (`jsonb_typeof` reads that as
+-- 'string', not 'object'), or the raw "Social Links" prose from the research
+-- step passed straight through as a bare string. Either way Postgres accepts
+-- it as valid jsonb and then the CHECK rejects the whole row.
+--
+-- Mirrors normalizeSocialLinks() in lib/import/normalize.ts exactly, so a
+-- direct n8n write behaves the same as the sheet importer always has: a
+-- string that parses as a JSON object is unwrapped and used; a string that
+-- does not (real prose, a plain list of URLs) survives under a "_raw" key
+-- rather than being discarded; blank, "{}", or anything else with no sensible
+-- object reading (an array, a number, a bare JSON null) becomes {}.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.normalize_blank_lead_fields()
+returns trigger
+language plpgsql
+as $$
+declare
+  inner_text text;
+  parsed     jsonb;
+begin
+  if new.email is not null and length(btrim(new.email)) = 0 then
+    new.email := null;
+  end if;
+  if new.website is not null and length(btrim(new.website)) = 0 then
+    new.website := null;
+  end if;
+  if new.phone is not null and length(btrim(new.phone)) = 0 then
+    new.phone := null;
+  end if;
+  if new.city is not null and length(btrim(new.city)) = 0 then
+    new.city := null;
+  end if;
+  if new.country is not null and length(btrim(new.country)) = 0 then
+    new.country := null;
+  end if;
+  if new.niche is not null and length(btrim(new.niche)) = 0 then
+    new.niche := null;
+  end if;
+
+  -- social_links: always end up as a jsonb OBJECT. The column is NOT NULL
+  -- with a '{}'::jsonb default, so SQL NULL never reaches here through the
+  -- normal insert path, but a caller that sends it explicitly is covered too.
+  if new.social_links is null then
+    new.social_links := '{}'::jsonb;
+
+  elsif jsonb_typeof(new.social_links) = 'string' then
+    inner_text := btrim(coalesce(new.social_links #>> '{}', ''));
+
+    if inner_text = '' or inner_text = '{}' then
+      new.social_links := '{}'::jsonb;
+    else
+      -- The string might itself be JSON text (a double-encoded object) —
+      -- try it, and fall back to treating it as plain prose on any error.
+      begin
+        parsed := inner_text::jsonb;
+      exception when others then
+        parsed := null;
+      end;
+
+      if parsed is not null and jsonb_typeof(parsed) = 'object' then
+        new.social_links := parsed;
+      else
+        new.social_links := jsonb_build_object('_raw', left(inner_text, 2000));
+      end if;
+    end if;
+
+  elsif jsonb_typeof(new.social_links) <> 'object' then
+    -- Array, number, boolean, or a bare JSON null literal — no sensible
+    -- object reading, so it is dropped to empty rather than rejected.
+    new.social_links := '{}'::jsonb;
+  end if;
+
+  return new;
+end;
+$$;
+
+comment on function public.normalize_blank_lead_fields() is
+  'Turns an empty/whitespace-only string into NULL for the optional identity fields (0031), and normalizes social_links to a jsonb OBJECT (0032) — a JSON-object-shaped string is unwrapped, other text survives under "_raw", anything else with no sensible object reading becomes {}. Protects any direct writer (n8n) whose shape does not already match what leads_email_format / leads_website_scheme / leads_social_links_is_object require.';
+
+-- Trigger already exists from 0031 (before insert or update, same function) —
+-- recreated here too so this migration is self-sufficient regardless of
+-- paste order relative to 0031 having already run.
+drop trigger if exists leads_normalize_blank_fields on public.leads;
+create trigger leads_normalize_blank_fields
+  before insert or update on public.leads
+  for each row execute function public.normalize_blank_lead_fields();
+
+-- ---------------------------------------------------------------------------
+-- 0033 — the Google Sheet is retired.
+--
+-- n8n now writes leads and drafts straight into Supabase (0029/0031/0032 are
+-- what made that safe), so the sheet is no longer the ingestion layer and no
+-- longer a mirror of anything. The application code for it is deleted in the
+-- same change: google-sheets.ts, sheet-writer.ts, sheet-sync.ts, the whole
+-- lib/services/sync/ dispatcher, /api/cron/sheet-sync and the Sync Data button.
+--
+-- This migration removes what those left behind in the database.
+--
+-- ---------------------------------------------------------------------------
+-- WHAT IS DELIBERATELY KEPT
+--
+-- `leads.sheet_row_number` and `leads.sheet_synced_at` STAY.
+--
+-- They are provenance: 718 of the current leads came in through the sheet, and
+-- the row number is the only record of where each one came from. It is also
+-- still read by `npm run leads:duplicates`, which groups by sheet row to find
+-- the 0028 leak pairs — the pattern that grouping by email alone cannot see.
+-- Dropping them would destroy history to save two nullable columns, and
+-- nothing writes to them any more, so they simply stop changing.
+--
+-- `integration_runs` rows with integration = 'google_sheets' STAY, for the same
+-- reason: they record work that actually happened. Nothing renders them now
+-- that the Sheets triggers are gone from the Settings page, but an audit trail
+-- that deletes itself when a feature is removed is not an audit trail.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 1. Configuration rows. Six keys, all seeded by 0010/0011, all now unread —
+--    getIntegrationConfig() no longer has a `sheets` block at all, so leaving
+--    them would mean settings that appear in the table and control nothing.
+-- ---------------------------------------------------------------------------
+delete from public.settings
+ where key in (
+   'sheets.spreadsheet_id',
+   'sheets.sheet_name',
+   'sheets.header_row',
+   'sheets.auth_mode',
+   'sheets.update_existing',
+   'sheets.write_back'
+ );
+
+-- ---------------------------------------------------------------------------
+-- 2. The stored credentials.
+--
+-- This is the part that actually matters for security rather than tidiness: a
+-- Google service-account private key with Editor access to the spreadsheet is
+-- still a live credential while it sits in this table, and it now grants
+-- access this application has no reason to hold. Removing the row is the
+-- revocation this end of it can do.
+--
+-- REVOKE THE KEY AT THE GOOGLE END TOO. Deleting the ciphertext here does not
+-- invalidate the service account — delete the key (or the whole service
+-- account) in the Google Cloud console, and remove its share from the
+-- spreadsheet. See GUIDE.md section 8.
+-- ---------------------------------------------------------------------------
+delete from public.integration_secrets
+ where key in ('sheets.api_key', 'sheets.service_account_json');

@@ -7,13 +7,12 @@ import { recordActivity } from '../activity';
 import { createEmailVersion } from '../email-versions';
 import { generateEmail } from '../ai';
 import { sendLeadEmail } from '../email/send-lead-email';
-import { syncLeadChange } from '../sync';
 
 /**
  * The automatic sender.
  *
  * One pure-ish function of (database, settings, clock) with no scheduling of
- * its own, exactly like sheet-sync.ts. Something outside the app calls it —
+ * its own. Something outside the app calls it —
  * `/api/cron/outreach`, hit by a platform cron, a Windows scheduled task or
  * cron-job.org. **The website never runs a scheduler in-process**: a Next.js
  * server can be scaled to zero, restarted or duplicated at any moment, and a
@@ -511,8 +510,6 @@ export async function runOutreachCycle(
         summary: `${item.type} sent automatically`,
         detail: result.messageId ? `Provider message id: ${result.messageId}` : null,
       });
-      // Push the new state outward (status, stage, next step) best-effort.
-      await syncLeadChange(item.lead_id, ['status', 'stage']);
     } else {
       summary.failed += 1;
       summary.notes.push(`${item.lead_id}: ${result.message}`);

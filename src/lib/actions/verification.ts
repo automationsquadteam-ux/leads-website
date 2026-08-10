@@ -113,7 +113,7 @@ export async function repairAndApproveDrafts(limit = 400): Promise<DraftSweepRes
       ok: false,
       message: 'You do not have permission to do that.',
       examined: 0, repaired: 0, approved: 0, blocked: 0,
-      reasons: [], blockedLeads: [], approvedLeads: [], remaining: 0,
+      reasons: [], blockedLeads: [], approvedLeads: [], remaining: 0, flaggedStuck: 0,
     };
   }
 

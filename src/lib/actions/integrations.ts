@@ -6,8 +6,6 @@ import { z } from 'zod';
 import { assertAdmin } from '@/lib/auth/session';
 import { createClient } from '@/lib/supabase/server';
 import { finishRun, startRun } from '@/lib/services/integration-runs';
-import { syncFromGoogleSheet, type SyncSummary } from '@/lib/services/sheet-sync';
-import { testSheetsConnection } from '@/lib/services/google-sheets';
 import { getActiveProvider } from '@/lib/services/email';
 import { sendTestEmail as sendTestEmailService } from '@/lib/services/email/send-lead-email';
 import { verifyGenerator } from '@/lib/services/ai';
@@ -19,8 +17,8 @@ import type { ActionResult } from './leads';
 /**
  * Server actions for the integration control panel.
  *
- * Every one begins with assertAdmin(). The UI never talks to Google or an SMTP
- * server directly it calls these, which call the services. That keeps
+ * Every one begins with assertAdmin(). The UI never talks to an SMTP server or
+ * a model host directly it calls these, which call the services. That keeps
  * credentials on the server and gives one place to record run history.
  */
 
@@ -28,90 +26,6 @@ function refreshIntegrationViews() {
   revalidatePath('/settings');
   revalidatePath('/leads');
   revalidatePath('/dashboard');
-}
-
-/* -------------------------------------------------------------------------- */
-/* Google Sheets                                                               */
-/* -------------------------------------------------------------------------- */
-
-export interface SyncActionResult extends ActionResult {
-  summary: Pick<
-    SyncSummary,
-    'totalRows' | 'imported' | 'updated' | 'skipped' | 'invalid' | 'duplicatesInSheet' | 'durationMs'
-  > | null;
-  invalidRows: Array<{ rowNumber: number; businessName: string | null; reason: string }>;
-}
-
-export async function runGoogleSheetSync(): Promise<SyncActionResult> {
-  let session;
-  try {
-    session = await assertAdmin();
-  } catch {
-    return {
-      ok: false,
-      message: 'You do not have permission to run a sync.',
-      summary: null,
-      invalidRows: [],
-    };
-  }
-
-  const runId = await startRun('google_sheets', 'sync_data', session.user.id);
-
-  let summary: SyncSummary;
-  try {
-    summary = await syncFromGoogleSheet({ triggeredBy: session.user.id });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Sync failed unexpectedly.';
-    await finishRun(runId, 'failed', message);
-    refreshIntegrationViews();
-    return { ok: false, message, summary: null, invalidRows: [] };
-  }
-
-  await finishRun(runId, summary.ok ? 'success' : 'failed', summary.message, {
-    totalRows: summary.totalRows,
-    imported: summary.imported,
-    updated: summary.updated,
-    skipped: summary.skipped,
-    invalid: summary.invalid,
-    duplicatesInSheet: summary.duplicatesInSheet,
-  });
-
-  refreshIntegrationViews();
-
-  return {
-    ok: summary.ok,
-    message: summary.message,
-    summary: {
-      totalRows: summary.totalRows,
-      imported: summary.imported,
-      updated: summary.updated,
-      skipped: summary.skipped,
-      invalid: summary.invalid,
-      duplicatesInSheet: summary.duplicatesInSheet,
-      durationMs: summary.durationMs,
-    },
-    invalidRows: summary.invalidRows.slice(0, 25).map((row) => ({
-      rowNumber: row.rowNumber,
-      businessName: row.businessName,
-      reason: row.errors.map((e) => `${e.field}: ${e.message}`).join('; '),
-    })),
-  };
-}
-
-export async function testGoogleSheetsConnection(): Promise<ActionResult> {
-  let session;
-  try {
-    session = await assertAdmin();
-  } catch {
-    return { ok: false, message: 'You do not have permission to test this connection.' };
-  }
-
-  const runId = await startRun('google_sheets', 'test_connection', session.user.id);
-  const result = await testSheetsConnection();
-  await finishRun(runId, result.ok ? 'success' : 'failed', result.message);
-
-  revalidatePath('/settings');
-  return result;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -240,10 +154,6 @@ export async function runOutreachNow(dryRun: boolean): Promise<ActionResult> {
 /* -------------------------------------------------------------------------- */
 
 const CONFIG_SCHEMA = z.object({
-  'sheets.spreadsheet_id': z.string().trim().max(200).optional(),
-  'sheets.sheet_name': z.string().trim().max(200).optional(),
-  'sheets.header_row': z.coerce.number().int().min(1).max(50).optional(),
-  'sheets.auth_mode': z.enum(['api_key', 'service_account']).optional(),
   'email.provider': z.enum(['smtp', 'gmail']).optional(),
   'smtp.host': z.string().trim().max(300).optional(),
   'smtp.port': z.coerce.number().int().min(1).max(65535).optional(),
@@ -283,22 +193,10 @@ export async function saveIntegrationConfig(
     return { ok: false, message: `${issue?.path.join('.') ?? 'Field'}: ${issue?.message ?? 'invalid'}` };
   }
 
-  // Write-back is impossible with an API key, so refuse the combination rather
-  // than letting every later save fail with a 403 from Google.
-  if (formData.get('sheets.write_back') === 'on' && parsed.data['sheets.auth_mode'] === 'api_key') {
-    return {
-      ok: false,
-      message:
-        'Write-back requires service-account auth a Google API key is read-only. Switch auth mode to service account first.',
-    };
-  }
-
   // Checkboxes are absent from FormData when unticked, so they are read
   // explicitly rather than through the schema.
   const booleans: Record<string, boolean> = {
     'smtp.secure': formData.get('smtp.secure') === 'on',
-    'sheets.update_existing': formData.get('sheets.update_existing') === 'on',
-    'sheets.write_back': formData.get('sheets.write_back') === 'on',
   };
 
   const supabase = await createClient();

@@ -69,10 +69,10 @@ export default async function SettingsPage() {
 
         <CollapsibleSection
           title="Integrations"
-          description="Google Sheets, the email provider, and stored credentials."
+          description="The email provider, the draft generator, and stored credentials."
           badge={
-            <Badge tone={config.sheets.spreadsheetId ? 'success' : 'neutral'}>
-              {config.sheets.spreadsheetId ? `Sheet: ${config.sheets.sheetName}` : 'Not configured'}
+            <Badge tone={config.email.fromAddress ? 'success' : 'neutral'}>
+              {config.email.fromAddress ? `From: ${config.email.fromAddress}` : 'Not configured'}
             </Badge>
           }
         >

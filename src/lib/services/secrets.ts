@@ -21,18 +21,9 @@ import { createServiceClient } from '@/lib/supabase/service-client';
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
-export type SecretKey =
-  | 'smtp.password'
-  | 'gmail.app_password'
-  | 'sheets.api_key'
-  | 'sheets.service_account_json';
+export type SecretKey = 'smtp.password' | 'gmail.app_password';
 
-export const SECRET_KEYS: SecretKey[] = [
-  'smtp.password',
-  'gmail.app_password',
-  'sheets.api_key',
-  'sheets.service_account_json',
-];
+export const SECRET_KEYS: SecretKey[] = ['smtp.password', 'gmail.app_password'];
 
 function getKey(): Buffer {
   const raw = process.env.APP_ENCRYPTION_KEY;

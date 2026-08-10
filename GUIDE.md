@@ -14,9 +14,11 @@ that will bite you. `README.md` is the setup-and-usage document this one is for 
 
 ## 1. What this is
 
-A cold-outreach CRM. Leads are generated and enriched **outside** the CRM and land in a
-Google Sheet; the CRM ingests them, lets an admin review and edit drafts, and sends email
-through a pluggable provider. Edits can optionally be written back to the sheet.
+A cold-outreach CRM. Leads are generated and enriched **outside** the CRM, by n8n, which
+writes them straight into Supabase; the CRM lets an admin review and edit drafts, and sends
+email through a pluggable provider. Supabase is the only system of record — until
+2026-08-10 a Google Sheet sat in the middle as the ingestion layer and a mirror, and that is
+now removed entirely (section 8).
 
 **Stack:** Next.js 16 (App Router, Turbopack) · React 19 · TypeScript 6 · Tailwind CSS 4 ·
 Supabase (Postgres + Auth + RLS) · nodemailer · ExcelJS.
@@ -32,10 +34,10 @@ Migrations 0001 through 0023 are all applied to the live database.
 | Schema, RLS, auth, middleware | Done |
 | Workbook importer (`Leads.xlsx`) | Done |
 | Full UI (dashboard, leads, logs, replies, analytics, settings) | Done. Campaigns and templates removed in 0025 |
-| Google Sheets sync, read and write-back | Done, write-back live |
+| Google Sheets sync, read and write-back | **Removed 2026-08-10.** n8n writes Supabase directly; see section 8 |
 | Email providers (SMTP via Brevo) + real sending | Done, sending |
 | Encrypted credential storage | Done |
-| n8n | Not run by the website. It feeds the sheet; the CRM reads it |
+| n8n | Not run by the website. It now writes `leads` and `email_versions` DIRECTLY (was: fed the sheet) |
 | Admin review workflow (research/personalization/3 drafts/notes) | Done |
 | Email versioning (`email_versions`) | Done, nothing is ever overwritten |
 | Outreach lifecycle (`lead_pipeline`, derived stage + next step) | Done |
@@ -43,11 +45,11 @@ Migrations 0001 through 0023 are all applied to the live database.
 | Draft cleaning (unwraps the JSON n8n produces) | Done, at import and on demand |
 | Automatic follow-ups (`/api/cron/outreach`) | Done, driven by cron-job.org every 3 min |
 | **Reply ingestion** | Done — Cloudflare Email Worker → `/api/inbound/reply` |
-| Scheduled jobs (sheet sync, draft sweep, sender) | Done — three `/api/cron/*` endpoints, driven externally |
+| Scheduled jobs (draft sweep, sender) | Done — two `/api/cron/*` endpoints, driven externally. Sheet sync removed 2026-08-10 |
 | **Email verification** | Done — verifier CSV round trip, verify-on-send, manual verdicts |
 | Public front page at `/` (no login) | Done, anon reads six aggregate views |
 | Analytics page | Done |
-| Modular outbound sync layer | Done, `lib/services/sync/` |
+| Modular outbound sync layer | **Removed 2026-08-10** — its only target was the sheet |
 | What signed-in *viewers* may see | **Still deliberately nothing.** `/` is the public answer |
 | Deliverability (SPF/DKIM/DMARC, BIMI) | **Not addressed.** See section 11 |
 
@@ -90,11 +92,33 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0023 | `20260805140000_manual_verification_is_a_verdict.sql` | ✅ yes |
 | 0024 | `20260805160000_sheet_research_status_and_drop_category.sql` | ✅ yes (2026-08-05) |
 | 0025 | `20260805180000_stage_is_the_first_unmet_gate.sql` | ✅ yes (2026-08-05) |
-| 0026 | `20260805200000_add_dead_email_stage_value.sql` | ❌ **NOT YET** — paste `schema-update-16-dead-email-enum-value.sql` **on its own, first** |
-| 0027 | `20260805210000_dead_email_stage_and_status_views.sql` | ❌ **NOT YET** — paste `schema-update-17-dead-email-stage.sql` **after 16 has committed** |
-| 0028 | `20260806120000_verdicts_belong_to_an_address.sql` | ❌ **NOT YET** — paste `schema-update-18-address-verdicts.sql` |
+| 0026 | `20260805200000_add_dead_email_stage_value.sql` | ✅ yes — corrected 2026-08-10, this row was stale (see below) |
+| 0027 | `20260805210000_dead_email_stage_and_status_views.sql` | ✅ yes — corrected 2026-08-10 |
+| 0028 | `20260806120000_verdicts_belong_to_an_address.sql` | ✅ yes — corrected 2026-08-10 |
+| 0029 | `20260810090000_dedupe_key_default_on_insert.sql` | ✅ yes — pasted 2026-08-10 |
+| 0030 | `20260810100000_sweep_checked_flag.sql` | ✅ yes — pasted 2026-08-10 |
+| 0031 | `20260810110000_normalize_blank_leads_fields.sql` | ❌ **NOT YET** — paste `schema-update-21-normalize-blank-fields.sql` |
+| 0032 | `20260810120000_normalize_social_links_shape.sql` | ❌ **NOT YET** — paste `schema-update-22-social-links-shape.sql` **after 0031** (see note in that file — it redefines the same function; whichever is pasted last wins, so if pasted out of order just paste 22 again) |
+| 0033 | `20260810130000_retire_google_sheets.sql` | ❌ **NOT YET** — paste `schema-update-23-retire-google-sheets.sql`. Deletes the six `sheets.*` settings rows and both Google credentials. **Revoke the service-account key at the Google end too** — deleting the ciphertext does not invalidate it |
 
-**Everything through 0025 is applied.** Verified against the live database on 2026-08-05 by
+**0026–0028 were marked NOT YET in this table since they were written, but were actually pasted
+into the live database at some point before 2026-08-09** — the `leads:duplicates --merge` run
+that day read `email_verification_status` and `current_stage` off `lead_pipeline` without error,
+which only 0028 and 0026/27 respectively make possible. Probed directly on 2026-08-10 to confirm:
+a `current_stage = 'dead_email'` query and an `email_verifier_status` / `email_checked_address`
+select both succeed. The table just never got updated after whoever pasted them. **Lesson: this
+table is not evidence on its own — always probe, exactly as the next section already says.**
+
+**Everything through 0030 is applied (confirmed by the user 2026-08-10). 0031 and 0032 are new
+and are NOT.** Both live in `normalize_blank_lead_fields()`, one trigger doing two jobs: 0031
+stops a direct writer's `""` from tripping `leads_email_format` / `leads_website_scheme`, 0032
+extends the SAME function to also stop a JSON-string-shaped `social_links` (n8n sent the literal
+text `"{}"`, or raw prose) from tripping `leads_social_links_is_object`. n8n hit both, back to
+back, on its first two live executions — exactly the failure mode these exist to close. **Paste
+21 then 22, in that order** (22 fully replaces the function 21 creates; if pasted out of order,
+paste 22 again and it corrects itself, since `create or replace` always keeps whatever ran last).
+
+Verified against the live database on 2026-08-05 by
 probing for each migration's marker rather than trusting the file list — `inbound_messages`
 exists, `pipeline_board` carries the verification columns, `outreach.max_runtime_seconds` is
 present, a research-but-no-summary lead reads `research_complete = true`, and no row is left
@@ -773,8 +797,9 @@ happened to this lead" is `lead_pipeline`.
 
 ### Lead identity (the single most important rule)
 
-One definition, in `src/lib/import/dedupe.ts`, used by **both** the workbook importer and
-the Google Sheets sync:
+One definition, in `src/lib/import/dedupe.ts`, used by the workbook importer — and mirrored
+in Postgres by `assign_dedupe_key_on_insert()` (0029) for direct writers like n8n, which is
+the only other thing that creates leads now:
 
 ```
 email:<normalised email>   preferred
@@ -856,15 +881,11 @@ src/
                          analytics · public-stats (anon client)
     actions/             server actions: leads · misc · integrations · review
     services/            the only code that talks to the outside world
-      config.ts          typed reader for non-secret settings (sheets/email/ai/outreach/sending)
+      config.ts          typed reader for non-secret settings (email/ai/outreach/sending)
       secrets.ts         AES-256-GCM encrypted credential store
       activity.ts        lead_activity writer (best-effort)
       email-versions.ts  create / activate / review never overwrites
       integration-runs.ts run history
-      google-sheets.ts   Sheets reader + OAuth token (API key / service account)
-      sheet-sync.ts      sync engine (sheet → CRM) reuses lib/import
-      sheet-writer.ts    write-back (CRM → sheet row), takes a SyncSnapshot
-      sync/              MODULAR OUTBOUND SYNC: types · google-sheet-target · index
       ai/                types · prompt · template-generator · ollama · index
       outreach/          pipeline.ts (reads/asserts) · scheduler.ts (the sender)
       email/             types · smtp · gmail · index (factory) · render ·
@@ -1011,38 +1032,82 @@ about.
 All services live in `src/lib/services/` and are called only from Server Actions in
 `src/lib/actions/integrations.ts` (or `review.ts`), or from the cron route handler.
 
-**Google Sheets** (`google-sheets.ts`) reads a whole tab. Two auth modes: API key (public
-sheet) or service account (private sheet; JWT signed with `node:crypto` no `googleapis`
-dependency). Requests `UNFORMATTED_VALUE` so dates arrive as Excel serials that the existing
-normalizer already handles. The OAuth scope is the read/write `spreadsheets` scope, not
-`.readonly`, because the same token drives write-back.
+**n8n writes Supabase directly. The Google Sheet is gone (2026-08-10).**
 
-**Sheets write-back** (`sheet-writer.ts`) pushes CRM edits back to the originating row.
+The sheet used to be the ingestion layer: n8n appended rows, `sheet-sync.ts` pulled them in,
+and `sheet-writer.ts` pushed CRM edits back. All of it is deleted — `google-sheets.ts`,
+`sheet-writer.ts`, `sheet-sync.ts`, the whole `lib/services/sync/` dispatcher,
+`/api/cron/sheet-sync`, the Sync Data button and the Google Sheets settings card. Migration
+0033 removes the six `sheets.*` settings rows and both stored Google credentials.
 
-- **Requires service-account auth with Editor access.** An API key is read-only and can
-  never authorise a write; `saveIntegrationConfig` refuses the api_key + write_back
-  combination rather than letting every save fail with a 403.
-- Targets `leads.sheet_row_number`. Leads with no row number (workbook imports, manual
-  entries) are skipped, not errors.
-- Maps values onto columns by matching normalized headers, with **several candidate headers
-  per value** (`follow-up 1` / `followup 1` / `follow up 1`) because the sheet is written
-  by a process outside this codebase and its headers drift. A value whose headers are all
-  absent is skipped **columns are never created**.
-- Now writes status, stage, next step, notes and both follow-up drafts as well as the
-  original identity/research/initial-draft columns.
-- `undefined` from a value resolver means "nothing to say" and leaves the cell alone;
-  `null` means the admin cleared it and blanks the cell. A follow-up that was never drafted
-  must not wipe a column somebody filled in upstream.
-- Uses `valueInputOption: RAW`, so a draft starting with `=` or `+` lands as text instead of
-  being evaluated as a formula.
-- Best-effort, and reached only through the sync layer. A Sheets failure never makes the
-  database write look like it failed; the outcome is appended to the toast so a silent
-  failure is impossible.
+**Supabase is now the only system of record.** There is no mirror, so there is no
+write-back, no "which side wins" rule, and no sync failure to fold into a toast.
 
-**Sheet sync** (`sheet-sync.ts`) reuses `lib/import/mapping.ts` for validation and
-identity. Reports Imported / Updated / Skipped / Invalid / duplicates-in-sheet. A blank
-cell never erases existing CRM data. Pure function of (sheet, database), so a cron route
-can call it exactly as the button does. **Nothing polls.**
+### The n8n contract — what it writes, and the two rules that keep it safe
+
+**Workflow 1, lead discovery → `INSERT INTO public.leads`.** `business_name` is required;
+everything else optional. **Never send `dedupe_key`** — `assign_dedupe_key_on_insert()` (0029)
+computes it, using the same `email > website > name+city` priority as `buildDedupeKey()`. A
+direct writer computing its own key slightly differently is how you get the 0028 duplicate
+mess back, invisibly, with no `sheet_row_number` left to catch it by. Use
+`Prefer: resolution=merge-duplicates` with `?on_conflict=dedupe_key` so a re-run upserts
+instead of erroring. `source` should say where it came from (`n8n:lead-gen`).
+
+**Workflow 2, research + draft → an UPDATE and an INSERT, not one write.**
+
+- Research fields go onto `leads` (`research_summary`, `website_observations`,
+  `automation_opportunities`, `ai_chatbot_opportunities`,
+  `website_improvement_opportunities`, `personalization`, `interesting_facts`,
+  `outreach_angle`, `social_links`), plus `researched_at` — that timestamp is what 0024 made
+  authoritative for "research is done", and is the direct replacement for the sheet's
+  "research status: Done" column.
+- **The draft goes into `email_versions`, never onto `leads.subject_line` / `draft_email`.**
+  `mirror_active_initial_draft()` only ever copies FROM an active version ONTO `leads`;
+  there is no trigger the other way. A draft written straight onto `leads` sets
+  `draft_ready` (that gate reads `leads.draft_email`) but is invisible to `runDraftSweep()`,
+  to the review UI and to version history, and can never become `approved`, because
+  `sync_pipeline_from_version()` is the only thing that sets that flag. Insert
+  `type='initial'`, `status='draft'`, `active=true`, `generated_by='n8n:ollama'`; leave
+  `version_number` out (a trigger assigns it). The mirror onto `leads` is then automatic.
+
+Blank strings are safe in both workflows: `normalize_blank_lead_fields()` (0031/0032) turns
+`""` into NULL for the optional identity fields and forces `social_links` to a JSON object,
+which is what stopped n8n's first two live runs failing on `leads_email_format` and
+`leads_social_links_is_object`.
+
+`sheet_row_number` and `sheet_synced_at` are left NULL for n8n leads. **The columns are kept
+deliberately** — they are the only provenance for the 762 leads that did come in through the
+sheet, and `leads:duplicates` still groups by row number to find 0028-style pairs.
+
+### What happens to an n8n draft after it lands
+
+Nothing has to be told about it; four triggers and one cron do the whole thing:
+
+1. `set_email_version_number()` assigns the version number, `enforce_single_active_version()`
+   deactivates any previous active draft for that (lead, type).
+2. `mirror_active_initial_draft()` copies subject/content onto `leads`, so the sender, the
+   CSV exports and the dashboards — all of which predate versioning — keep working unchanged.
+3. `sync_pipeline_from_version()` sets `lead_pipeline.draft_ready`.
+4. The stage re-derives to the **first unmet gate**, so the lead shows what is actually
+   blocking it (usually `need_email` or `need_verification`, not `review`).
+5. `/api/cron/approve-drafts` (00:00, 07:00, 14:00, 21:00) runs `runDraftSweep()`, which
+   repairs the draft into a NEW version and approves it **only if zero blocking issues
+   remain**. Anything still broken gets `sweep_checked_at` set (0030) and is left alone until
+   a human edits it into a new version.
+6. Approval sets `lead_pipeline.approved`. Ready to Send additionally requires an address and
+   `email_verification_status = 'valid'`, so an approved draft still cannot leave until the
+   address is proven.
+
+**Follow-ups are NOT n8n's job.** It only writes `initial`. `followup1` / `followup2` are
+generated by the CRM's own generator (`ai.provider`, currently `template`) when the scheduler
+finds one due and none drafted.
+
+**What the sweep can and cannot catch.** `inspectDraft()` is a STRUCTURAL check —
+placeholders, stray braces, code fences, escaped newlines, wrapping quotes, missing subject.
+It has no idea what the email *says*. A grammatical, well-formed draft that pitches the wrong
+industry to the wrong business passes every check and gets auto-approved. See the 2026-08-10
+changelog entry: all 39 of n8n's first drafts were structurally repairable and **none** were
+semantically correct.
 
 **Email** (`email/`) `EmailProvider` is `verify()` + `send()`. One provider active at a
 time via the `email.provider` setting. SMTP uses any relay; Gmail uses an App Password over
@@ -1119,12 +1184,6 @@ It does **not** touch `lead_pipeline`. The `email_logs` trigger does that.
 `prompt.ts` is provider-independent on purpose: switching engines changes *how* text is
 produced, never *what the model was told*. `parseGeneratedEmail()` is forgiving models
 drift from any output contract, and a usable body should not be discarded over formatting.
-
-**Outbound sync** (`sync/`) `syncLeadChange(leadId, fields)` resolves one snapshot (lead
-+ pipeline + next step + active draft per step) and fans it out to every enabled
-`SyncTarget`. A throwing target cannot take the others down with it. Adding an API target
-later is a new file plus one registry line; the snapshot already carries everything an
-outbound webhook would want.
 
 **The scheduled sender** (`outreach/scheduler.ts`, `POST /api/cron/outreach`):
 
@@ -1803,18 +1862,21 @@ now says so outright:
 An unsubscribe closes the workflow automatically and sets `auto_followups = false` as well;
 `replied` on its own only changes the next step, which is why a reply still needs a decision.
 
-### Three scheduled jobs, none of them scheduled by this app
+### Two scheduled jobs, neither of them scheduled by this app
 
-`/api/cron/outreach` was joined by two more. All three take the same shared-secret check —
-`guardCronRequest()` in `lib/cron/authorize.ts`, moved out of the outreach route the moment
-there was a second caller, because a security check copied three times is a security check that
-ends up subtly different in one of them.
+Both take the same shared-secret check — `guardCronRequest()` in `lib/cron/authorize.ts`,
+moved out of the outreach route the moment there was a second caller, because a security
+check copied three times is a security check that ends up subtly different in one of them.
 
 | Endpoint | Cron | Does |
 | --- | --- | --- |
-| `/api/cron/sheet-sync` | `59 23 * * *` Asia/Karachi | The same `syncFromGoogleSheet()` as the Sync button, once n8n has finished appending for the day |
 | `/api/cron/approve-drafts` | `0 0,7,14,21 * * *` | The same `runDraftSweep()` as the Clean-and-approve button |
 | `/api/cron/outreach` | `*/3 * * * *` | Sends what is due |
+
+**There was a third, `/api/cron/sheet-sync` at `59 23 * * *` Asia/Karachi.** It is deleted
+along with the rest of the Sheets code (2026-08-10). **Delete its schedule in cron-job.org
+too** — the endpoint now 404s, so an orphaned schedule is a job that fails every night
+forever and trains you to ignore the failure mail.
 
 **Cron cannot express "every 7 hours."** `0 */7 * * *` restarts its count at midnight, so it
 fires at 00, 07, 14, 21 and then waits three hours rather than seven. The explicit hour list is
@@ -1822,8 +1884,8 @@ the same four times and says outright what it does.
 
 **`vercel.json` was deliberately left alone.** It already declares one cron; Vercel's Hobby plan
 allows two, and adding two more would fail the deploy rather than degrade. cron-job.org is what
-actually drives these — it also speaks timezones, so 23:59 can be set as 23:59 Asia/Karachi
-instead of being hand-converted to 18:59 UTC and silently breaking at a DST boundary somewhere.
+actually drives these — it also speaks timezones, so a schedule can be set in Asia/Karachi
+instead of being hand-converted to UTC and silently breaking at a DST boundary somewhere.
 
 ### Every cron route answers before it works, and why that is a trade
 
@@ -1877,6 +1939,11 @@ holes. Fixed by rebalancing rather than by padding:
 
 | Date | Change |
 | --- | --- |
+| 2026-08-10 | **The Google Sheet is retired.** n8n now writes `leads` and `email_versions` straight into Supabase, so the sheet is neither the ingestion layer nor a mirror. Deleted outright: `google-sheets.ts`, `sheet-writer.ts`, `sheet-sync.ts`, the entire `lib/services/sync/` dispatcher, `/api/cron/sheet-sync`, the Sync Data button on the leads toolbar, the Google Sheets settings card and both `runGoogleSheetSync` / `testGoogleSheetsConnection` actions. **The sync layer went with it, not just its target** — `syncLeadChange()` had exactly one `SyncTarget`, so with the sheet gone every one of its ~20 call sites was spending four queries to resolve a snapshot for nobody, and `appendSyncMessage()` could only ever return its input unchanged. **0033** removes the six `sheets.*` settings rows and both stored Google credentials; `leads.sheet_row_number` / `sheet_synced_at` are deliberately KEPT as provenance for the 762 leads that arrived that way and because `leads:duplicates` still groups by row number. Remember to delete the sheet-sync schedule in cron-job.org and revoke the service-account key at the Google end |
+| 2026-08-10 | **n8n's first 39 drafts are structurally perfect and semantically wrong.** Verified by running the real `repairDraft()` / `inspectDraft()` over every live `generated_by = 'n8n:ollama'` version: all 39 repair cleanly and **would be auto-approved by the next sweep**. But 36 of 39 pitch *travel industry* services to New Orleans plumbers and HVAC companies, 26 leak literal schema words into the prose (`Niche`, `City, Country`, `Business Name` used as if they were values), and 27 never name the actual business. Zero were correct. The lesson worth keeping: **`inspectDraft()` is a STRUCTURAL check only** — placeholders, braces, fences, quotes, missing subject. A fluent, well-formed email selling the wrong thing to the wrong person passes every gate the sweep has. The prompt in n8n's Workflow 2 is not receiving the lead's own `niche`/`city`/`country`/`business_name`; that is an n8n-side fix, and nothing in this codebase can detect it. **All 39 were set to `status = 'rejected'`** with the reason in `review_note`, which takes them out of the sweep queue permanently (rejected is not `draft`) while keeping them readable in version history; 0 leads were left flagged `approved`. A corrected rerun inserts fresh versions that supersede them normally |
+| 2026-08-10 | **0032 — `social_links` normalizes to an object too.** Same trigger as 0031, same day, second failure from the same source: n8n's "Update a row" node (Workflow 2, writing research back onto `leads`) sent `social_links` a JSON *string* — the literal text `"{}"`, or the raw "Social Links" prose un-parsed — which is valid jsonb but not an object, tripping `leads_social_links_is_object`. `normalize_blank_lead_fields()` now also handles this: a string that parses as a JSON object is unwrapped and used, a string that does not (real prose) survives under `_raw` — mirroring `normalizeSocialLinks()` in `lib/import/normalize.ts` exactly — and anything with no sensible object reading (blank, an array, a bare JSON null) becomes `{}`. Redefines the SAME function 0031 created rather than a second trigger, so paste order matters: 0031 then 0032 |
+| 2026-08-10 | **0031 — blank fields from a direct writer stopped tripping the format checks.** n8n's very first live insert (Workflow 1, a lead with no email) failed with `leads_email_format` violated: n8n sends `""` for "no value", and the CHECK constraint only exempts `NULL`. `normalize_blank_lead_fields()`, a BEFORE INSERT OR UPDATE trigger, turns blank/whitespace-only email, website, phone, city, country and niche into NULL before the CHECK constraints (and dedupe-key computation) ever see them — the same one-rule-enforced-once fix as 0029, rather than asking every n8n expression to remember `\|\| null`. `business_name` is deliberately left alone; a blank one should fail loudly. 0029 and 0030 (previous entry) confirmed pasted and live the same day |
+| 2026-08-10 | **Groundwork for n8n writing directly to Supabase, plus the draft sweep stops re-checking itself forever.** Two new migrations, both pending (§2 has the paste instructions): **0029** adds `assign_dedupe_key_on_insert()`, a BEFORE INSERT trigger that computes `leads.dedupe_key` in Postgres whenever a caller leaves it blank — needed because a direct writer (n8n) has no reason to replicate `buildDedupeKey()` correctly, and getting it wrong silently reproduces the 0028 duplicate-key bug with no `sheet_row_number` to ever catch it. **0030** adds `email_versions.sweep_checked_at`, set by `runDraftSweep()` the moment a draft is examined and still has a blocking issue afterwards; the sweep's query now excludes anything already flagged, so the same permanently-stuck ~10 drafts stop being re-parsed and re-reported as newly blocked four times a day. No manual reset needed — any new version (an edit, or a repair) starts NULL again. Also discovered and corrected while doing this: the migration status table had 0026–0028 marked NOT YET despite being live on the database since before 2026-08-09 (confirmed by direct probe) — a stale row that outlived whoever actually pasted them in |
 | 2026-08-09 | **Archiving never stopped the sender — fixed.** `archiveLead()` only ever set `leads.status`, on the stated theory that archiving is "a visibility choice" and the pipeline row should stay untouched. But `findDueWork()` reads `lead_pipeline` (and `pipeline_board` for initial sends) directly and never checked `leads.status`, so an archived lead with a live `followup1_due`/`followup2_due` — exactly what `leads:duplicates --merge` leaves on every loser — was still picked up by the `*/3 * * * *` cron and mailed on schedule, usually to the SAME address as the surviving lead. Confirmed live: 6 of the 8 leads archived by today's merge were still armed, one (`Lanka Safe Tours`) sitting due since 2026-08-06. Fixed in the one place every send path goes through: `sendLeadEmail()` now refuses an archived lead outright, and `findDueWork()`'s three candidate queries (followup1, followup2, initial) all exclude `status = 'archived'` too, so the cron's `considered`/`skipped` counts stay honest instead of quietly retrying forever. The 8 already-archived leads had their `lead_pipeline` row closed directly (`closed` set, `auto_followups = false`) so the fix doesn't wait on a deploy. **Archiving a lead now actually stops it being contacted — not just hides it from the list.** |
 | 2026-08-09 | **Audit: DB vs the live Google Sheet, then `leads:duplicates -- --merge`.** Confirmed the count the user was seeing (724 active + 2 archived = 726 leads, sheet at 723 rows) was fully explained by two known, already-documented effects — nothing new was broken. (1) The eight 0028 leak pairs (see 2026-08-06 below) were never fully cleaned up: two (rows 672 `Lanka Safe Tours`, 674 `Vacation Sri Lanka`) were already archived one-sided; the other six (rows 121 `Modern Mart`, 371 `YourColombia`, 666 `Olanka Travels`, 679 `Three Travels`, 686 `Ali & Sons Contracting`, 723 `Apatchi Cars`) were still two live, active leads apiece, several emailed twice. Every pair matched on email + city + country + niche, i.e. all four fields, not just email. (2) Five sheet rows (3, 216, 286, 472, 662) have no lead of their own — not deletions, but the documented same-email-collapses-two-businesses-into-one-lead behavior (§10), verified by confirming each row's email resolves to a DB lead under a *different* business name at a *different* row. 718 distinct sheet rows were represented + 5 collapsed elsewhere = all 723 sheet rows accounted for; zero sheet rows pointed at nothing. Ran `npm run leads:duplicates -- --merge`, which archived the 6 remaining duplicate losers (evidence moved onto the richer/keep side first). **Active leads now 718, archived 8, total 726** — 718 matches the sheet's 723 populated rows minus the 5 by-design collapses exactly |
 | 2026-08-06 | `PAGE_SIZES` moved to `lib/pagination.ts`. It lived in the `'use client'` pagination component, so importing it into the email-log server page produced a client reference rather than an array and threw at request time — a class of bug `next build` cannot see on a dynamic page. Four copies of the list collapsed into one, with shared `parsePageSize` / `parsePageNumber` helpers |

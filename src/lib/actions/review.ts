@@ -13,7 +13,6 @@ import {
   setActiveVersion,
 } from '@/lib/services/email-versions';
 import { closeWorkflow, gateFlagPatch, reopenWorkflow, updatePipeline } from '@/lib/services/outreach/pipeline';
-import { appendSyncMessage, syncLeadChange, type SyncField } from '@/lib/services/sync';
 import { EMAIL_TYPE_LABELS, VERIFICATION_META } from '@/lib/pipeline/labels';
 import {
   EMAIL_VERIFICATION_STATUSES,
@@ -25,14 +24,18 @@ import type { ActionResult } from './leads';
 /**
  * The admin review workflow.
  *
- * Every action here follows the same three beats:
+ * Every action here follows the same two beats:
  *
  *   1. assertAdmin() middleware does NOT run for Server Actions, so this is
  *      the real authorization check. RLS underneath is the third layer.
  *   2. Write to Supabase immediately. There is no draft state held in the
  *      client and no "save all" button; each control commits on its own.
- *   3. Push the change outward through lib/services/sync, and fold the outcome
- *      into the message so a failed Google Sheet write is impossible to miss.
+ *
+ * There used to be a third beat — push the change outward through
+ * lib/services/sync to the Google Sheet. The sheet was retired as both the
+ * ingestion and the mirror layer on 2026-08-10 (n8n now writes Supabase
+ * directly), so Supabase is the only system of record and there is nothing
+ * left to push to.
  *
  * Drafts are never updated in place. Editing a draft inserts a new version, the
  * same as regenerating one that is the whole point of email_versions, and it
@@ -142,10 +145,9 @@ export async function saveResearch(
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, ['research']);
   revalidateLead(leadId);
 
-  return { ok: true, message: appendSyncMessage('Research saved.', report) };
+  return { ok: true, message: 'Research saved.' };
 }
 
 const personalizationSchema = z.object({
@@ -178,10 +180,9 @@ export async function savePersonalization(
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, ['personalization']);
   revalidateLead(leadId);
 
-  return { ok: true, message: appendSyncMessage('Personalization saved.', report) };
+  return { ok: true, message: 'Personalization saved.' };
 }
 
 const notesSchema = z.object({ leadId: uuid, notes: longText });
@@ -203,10 +204,9 @@ export async function saveNotes(_prev: ActionResult, formData: FormData): Promis
 
   await recordActivity({ leadId, kind: 'notes_edited', summary: 'Notes updated', actorId: auth.userId });
 
-  const report = await syncLeadChange(leadId, ['notes']);
   revalidateLead(leadId);
 
-  return { ok: true, message: appendSyncMessage('Notes saved.', report) };
+  return { ok: true, message: 'Notes saved.' };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -265,14 +265,9 @@ export async function saveDraft(_prev: ActionResult, formData: FormData): Promis
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, [draftFieldFor(type)]);
   revalidateLead(leadId);
 
-  return { ok: true, message: appendSyncMessage(created.message, report) };
-}
-
-function draftFieldFor(type: EmailType): SyncField {
-  return type === 'initial' ? 'draft' : type === 'followup1' ? 'followup1' : 'followup2';
+  return { ok: true, message: created.message };
 }
 
 /**
@@ -315,15 +310,11 @@ export async function regenerateDraft(leadId: string, type: EmailType): Promise<
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, [draftFieldFor(type)]);
   revalidateLead(leadId);
 
   return {
     ok: true,
-    message: appendSyncMessage(
-      `${generation.message} Saved as version ${created.version.version_number}.`,
-      report,
-    ),
+    message: `${generation.message} Saved as version ${created.version.version_number}.`,
   };
 }
 
@@ -344,10 +335,9 @@ export async function activateVersion(versionId: string, leadId: string): Promis
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, [draftFieldFor(result.version.type)]);
   revalidateLead(leadId);
 
-  return { ok: true, message: appendSyncMessage(result.message, report) };
+  return { ok: true, message: result.message };
 }
 
 /**
@@ -386,10 +376,9 @@ export async function approveVersion(
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, ['status', 'stage', draftFieldFor(result.version.type)]);
   revalidateLead(leadId);
 
-  return { ok: true, message: appendSyncMessage(result.message, report) };
+  return { ok: true, message: result.message };
 }
 
 /**
@@ -426,10 +415,9 @@ export async function rejectVersion(
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, ['status', 'stage']);
   revalidateLead(leadId);
 
-  return { ok: true, message: appendSyncMessage(result.message, report) };
+  return { ok: true, message: result.message };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -482,12 +470,11 @@ export async function setVerificationStatus(
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, ['stage']);
   revalidateLead(leadId);
 
   return {
     ok: true,
-    message: appendSyncMessage(`Address marked ${VERIFICATION_META[status].label.toLowerCase()}.`, report),
+    message: `Address marked ${VERIFICATION_META[status].label.toLowerCase()}.`,
   };
 }
 
@@ -519,15 +506,11 @@ export async function setPipelineGate(
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, ['stage']);
   revalidateLead(leadId);
 
   return {
     ok: true,
-    message: appendSyncMessage(
-      value ? `${GATE_LABELS[gate]} marked complete.` : `${GATE_LABELS[gate]} cleared.`,
-      report,
-    ),
+    message: value ? `${GATE_LABELS[gate]} marked complete.` : `${GATE_LABELS[gate]} cleared.`,
   };
 }
 
@@ -565,10 +548,9 @@ export async function closeLeadWorkflow(leadId: string, reason: string): Promise
     actorId: auth.userId,
   });
 
-  const report = await syncLeadChange(leadId, ['stage', 'status']);
   revalidateLead(leadId);
 
-  return { ok: true, message: appendSyncMessage('Workflow closed.', report) };
+  return { ok: true, message: 'Workflow closed.' };
 }
 
 export async function reopenLeadWorkflow(leadId: string): Promise<ActionResult> {
@@ -579,8 +561,7 @@ export async function reopenLeadWorkflow(leadId: string): Promise<ActionResult> 
   const result = await reopenWorkflow(leadId);
   if (!result.ok) return result;
 
-  const report = await syncLeadChange(leadId, ['stage']);
   revalidateLead(leadId);
 
-  return { ok: true, message: appendSyncMessage('Workflow reopened.', report) };
+  return { ok: true, message: 'Workflow reopened.' };
 }

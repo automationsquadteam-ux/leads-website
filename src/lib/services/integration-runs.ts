@@ -15,7 +15,7 @@ import type { IntegrationRun, Json } from '@/lib/supabase/database.types';
  * expires mid-request.
  */
 
-export type IntegrationName = 'google_sheets' | 'email' | 'outreach' | 'ai';
+export type IntegrationName = 'email' | 'outreach' | 'ai';
 
 export async function startRun(
   integration: IntegrationName,
