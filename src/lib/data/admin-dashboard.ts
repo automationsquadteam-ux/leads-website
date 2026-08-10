@@ -40,6 +40,28 @@ function endOfToday(): string {
  * slightly different pile of flags, which is how a card reading 111 came to open
  * a page where only 15 leads were actually sendable.
  */
+
+type Db = Awaited<ReturnType<typeof createClient>>;
+
+/*
+ * Every pipeline count in this file goes through these two, and the reason is
+ * the whole of migration 0034.
+ *
+ * `lead_pipeline` has NO status column — the archive decision lives on `leads`
+ * — so a count against it structurally cannot exclude archived rows, while the
+ * list each tile links to queries `leads` and excludes them by default. That is
+ * how Dead Addresses read 12 against a page of 11.
+ *
+ * `pipeline_board` is the same rows plus `lead_status`, already admin-gated, so
+ * filtering here makes a tile and the page it opens resolve the same set by
+ * construction. **Never reach for `lead_pipeline` directly in this file.**
+ */
+const activePipelineCount = (db: Db) =>
+  db.from('pipeline_board').select('*', { count: 'exact', head: true }).neq('lead_status', 'archived');
+
+const activePipelineLeadIds = (db: Db) =>
+  db.from('pipeline_board').select('lead_id').neq('lead_status', 'archived');
+
 export interface DashboardWidgets {
   emailsToday: number;
   repliesToday: number;
@@ -108,15 +130,11 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
      * where the thread they belong to is visible.
      */
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .eq('current_stage', 'review'),
     ),
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .is('followup1_sent', null)
         .is('replied', null)
         .is('closed', null)
@@ -124,9 +142,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
         .lte('followup1_due', dayEnd),
     ),
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .is('followup2_sent', null)
         .is('replied', null)
         .is('closed', null)
@@ -136,17 +152,13 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     // No address at all. A dead address is its own stage since 0027, so this
     // is a plain stage count and the tile matches the stage filter exactly.
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .eq('current_stage', 'need_email'),
     ),
     // Genuinely never checked. Today this is 0 every address in the database
     // has already been through a verifier.
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .eq('current_stage', 'need_verification')
         .eq('email_verification_status', 'unverified'),
     ),
@@ -159,9 +171,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
      * they need a human decision rather than another export.
      */
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .eq('current_stage', 'need_verification')
         .in('email_verification_status', ['accept_all', 'unknown']),
     ),
@@ -176,9 +186,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
      * always said "Due before today"; the query now agrees with it.
      */
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .is('replied', null)
         .is('closed', null)
         .or(
@@ -186,15 +194,11 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
         ),
     ),
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .eq('current_stage', 'research'),
     ),
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .eq('current_stage', 'draft'),
     ),
     /*
@@ -210,9 +214,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
           .eq('type', 'initial')
           .eq('active', true)
           .eq('status', 'approved'),
-        supabase
-          .from('lead_pipeline')
-          .select('lead_id')
+        activePipelineLeadIds(supabase)
           .eq('current_stage', 'approved')
           .limit(5000),
       ]);
@@ -221,9 +223,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
       return (pipelineReady ?? []).filter((r) => withApprovedDraft.has(r.lead_id)).length;
     })(),
     countOf(() =>
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .eq('current_stage', 'dead_email'),
     ),
   ]);
@@ -278,9 +278,7 @@ export async function getVerificationCounts(): Promise<{
    */
   await Promise.all(
     statuses.map(async (status) => {
-      const { count } = await supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      const { count } = await activePipelineCount(supabase)
         .eq('email_verification_status', status);
       counts[status] = count ?? 0;
     }),
@@ -290,23 +288,17 @@ export async function getVerificationCounts(): Promise<{
 
   const [noAddress, exportable, inconclusive] = await Promise.all([
     countWhere(
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .eq('email_found', false),
     ),
     countWhere(
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .eq('email_verification_status', 'unverified')
         .eq('email_found', true)
         .is('closed', null),
     ),
     countWhere(
-      supabase
-        .from('lead_pipeline')
-        .select('*', { count: 'exact', head: true })
+      activePipelineCount(supabase)
         .in('email_verification_status', ['accept_all', 'unknown'])
         .eq('email_found', true)
         .is('closed', null),
@@ -314,9 +306,7 @@ export async function getVerificationCounts(): Promise<{
   ]);
 
   // Leads that have been emailed and are still in play.
-  const { data: sent } = await supabase
-    .from('lead_pipeline')
-    .select('lead_id')
+  const { data: sent } = await activePipelineLeadIds(supabase)
     .not('first_email_sent', 'is', null)
     .is('replied', null)
     .is('closed', null)

@@ -110,8 +110,8 @@ const SCHEDULED_JOBS: Array<{
   {
     path: '/api/cron/approve-drafts',
     title: 'Clean and approve drafts',
-    when: '00:00, 07:00, 14:00, 21:00',
-    cron: '0 0,7,14,21 * * *',
+    when: 'Every 4 hours (00:00, 04:00, 08:00, 12:00, 16:00, 20:00)',
+    cron: '0 */4 * * *',
     what: 'Identical to the Clean and approve drafts button below. Sends nothing — a draft it cannot fully clean keeps its place in the queue.',
   },
   {
