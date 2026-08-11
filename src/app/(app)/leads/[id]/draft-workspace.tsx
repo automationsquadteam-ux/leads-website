@@ -79,8 +79,19 @@ export function DraftWorkspace({ leadId, versions, hasEmail, sentTypes }: Props)
       </CardHeader>
 
       {/* Tablist: arrow keys are not intercepted, so this stays a plain,
-          predictable set of buttons rather than a half-implemented widget. */}
-      <div role="tablist" aria-label="Email steps" className="flex gap-1 border-b border-border px-4">
+          predictable set of buttons rather than a half-implemented widget.
+
+          `overflow-x-auto` because the three tabs total roughly 400px once each
+          carries its version chip and sent icon — wider than a 386px phone. In a
+          plain `flex` they overflowed the card, and the shell clips horizontally
+          rather than scrolling, so "Follow-up 2" was simply unreachable. Tabs
+          scroll rather than wrap: a wrapped tab strip moves the row the content
+          is attached to, which is worse than a short sideways swipe. */}
+      <div
+        role="tablist"
+        aria-label="Email steps"
+        className="scrollbar-thin flex gap-1 overflow-x-auto overscroll-x-contain border-b border-border px-4"
+      >
         {EMAIL_TYPES.map((type) => {
           const active = byType[type].find((v) => v.active);
           const selected = tab === type;
@@ -92,7 +103,7 @@ export function DraftWorkspace({ leadId, versions, hasEmail, sentTypes }: Props)
               aria-selected={selected}
               onClick={() => setTab(type)}
               className={cn(
-                'relative -mb-px cursor-pointer border-b-2 px-3 py-2.5 text-sm font-medium transition-colors',
+                'relative -mb-px shrink-0 cursor-pointer border-b-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
                 selected
                   ? 'border-primary text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground',

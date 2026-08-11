@@ -38,25 +38,46 @@ export function CollapsibleSection({
       open={defaultOpen}
       className="group rounded-lg border border-border bg-surface [&[open]]:bg-transparent"
     >
+      {/*
+        The badge STACKS BELOW the title on a phone, and only sits beside it
+        from `sm` up.
+        
+        It was `shrink-0` next to a `min-w-0 flex-1` title, and every Badge is
+        `whitespace-nowrap`. On a 386px screen a badge reading
+        "From: send@team-automationsolutions.me" therefore kept its full ~250px
+        and the title absorbed everything left — about 30px, which rendered
+        "Integrations" as "Int / eg / rat / io / ns" straight down the card.
+        
+        `flex-wrap` alone does NOT fix this: the title has `min-w-0`, so the
+        browser can always satisfy the row by shrinking the title to nothing
+        rather than wrapping the badge. The two have to be told to stack.
+      */}
       <summary
         className={cn(
-          'flex cursor-pointer list-none items-center gap-3 rounded-lg px-4 py-3',
-          'hover:bg-surface-hover',
+          'flex cursor-pointer list-none items-start gap-3 rounded-lg px-4 py-3',
+          'hover:bg-surface-hover sm:items-center',
           // Safari renders a disclosure triangle unless this is suppressed.
           '[&::-webkit-details-marker]:hidden',
         )}
       >
         <ChevronRight
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 sm:mt-0"
           aria-hidden="true"
         />
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">{title}</span>
-          {description ? (
-            <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
-          ) : null}
+        <span className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">{title}</span>
+            {description ? (
+              <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
+            ) : null}
+          </span>
+          {/*
+            `max-w-full` with `truncate` on the badge itself: alone on its own
+            line it has the whole card to work with, but a from-address long
+            enough to exceed even that must clip rather than widen the page.
+          */}
+          {badge ? <span className="min-w-0 max-w-full shrink-0 truncate">{badge}</span> : null}
         </span>
-        {badge ? <span className="shrink-0">{badge}</span> : null}
       </summary>
 
       <div className="space-y-4 px-1 pt-1 pb-4 sm:px-2">{children}</div>

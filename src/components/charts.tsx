@@ -15,24 +15,37 @@ export interface SeriesPoint {
 }
 
 function DataTableFallback({ caption, points }: { caption: string; points: SeriesPoint[] }) {
+  /*
+   * The `sr-only` class goes on a WRAPPER, never on the <table> itself.
+   *
+   * `sr-only` hides by setting `width: 1px; height: 1px; overflow: hidden`, and
+   * a table refuses to shrink below its min-content width — `width: 1px` on a
+   * table is a suggestion it ignores. So this "invisible" fallback was really
+   * ~400px wide and absolutely positioned, which pushed the document's
+   * scrollWidth past the viewport and gave /analytics and the public page a
+   * horizontal scrollbar with nothing visible in it. A plain <div> honours the
+   * 1px and clips the table inside it.
+   */
   return (
-    <table className="sr-only">
-      <caption>{caption}</caption>
-      <thead>
-        <tr>
-          <th scope="col">Period</th>
-          <th scope="col">Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        {points.map((p) => (
-          <tr key={p.label}>
-            <th scope="row">{p.label}</th>
-            <td>{p.value}</td>
+    <div className="sr-only">
+      <table>
+        <caption>{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Period</th>
+            <th scope="col">Value</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {points.map((p) => (
+            <tr key={p.label}>
+              <th scope="row">{p.label}</th>
+              <td>{p.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
