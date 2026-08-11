@@ -7,7 +7,18 @@ import { cn } from '@/lib/utils';
  * density scale so every table in the app shares one rhythm.
  */
 export function TableWrap({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('scrollbar-thin w-full overflow-x-auto', className)} {...props} />;
+  /*
+   * `overscroll-x-contain` stops a horizontal swipe that reaches the end of
+   * this scroller from chaining to the page and triggering the browser's
+   * back-navigation gesture, which on a phone is how "scroll the table" turns
+   * into "leave the page".
+   */
+  return (
+    <div
+      className={cn('scrollbar-thin w-full overflow-x-auto overscroll-x-contain', className)}
+      {...props}
+    />
+  );
 }
 
 /**

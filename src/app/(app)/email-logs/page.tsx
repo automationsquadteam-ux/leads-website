@@ -60,51 +60,109 @@ export default async function EmailLogsPage({
               description="Email delivery is not connected. Once the sending worker runs, every attempt delivered, bounced or failed is logged here, with which step of the sequence it was."
             />
           ) : (
-            <TableWrap>
-              <Table>
-                <THead>
-                  <tr>
-                    <TH>Recipient</TH>
-                    <TH>Business</TH>
-                    <TH>Subject</TH>
-                    <TH>Step</TH>
-                    <TH>Status</TH>
-                    <TH>Date</TH>
-                    <TH>Error</TH>
-                  </tr>
-                </THead>
-                <TBody>
-                  {rows.map((log) => (
-                    <TR key={log.id}>
-                      <TD className="font-mono text-xs">{log.recipient ?? '—'}</TD>
-                      <TD>{log.businessName ?? '—'}</TD>
-                      <TD className="max-w-[280px] truncate">{log.subject ?? '—'}</TD>
-                      {/*
-                        Which email this was, not which relay carried it. The
-                        provider is the same string on every row (one provider is
-                        configured at a time), so the column was a constant taking
-                        up space, while "was this the first email or a follow-up"
-                        is the thing you actually want when reading a send log.
-                        The provider is still on the row and in the message id if
-                        a delivery ever needs chasing.
-                      */}
-                      <TD>
-                        <Badge tone={log.email_type === 'initial' ? 'primary' : 'neutral'}>
-                          {EMAIL_TYPE_LABELS[log.email_type]}
-                        </Badge>
-                      </TD>
-                      <TD>
-                        <EmailStatusBadge status={log.status} />
-                      </TD>
-                      <TD className="tabular text-muted-foreground">
+            <>
+              {/*
+                Two renderings of one list, not a table that tries to be both.
+
+                Seven columns cannot be squeezed into a phone: under
+                `table-fixed` they end up ~45px each and every cell becomes an
+                ellipsis, which is the "congested" complaint. Horizontal
+                scrolling would keep the data but makes the reader drag
+                sideways to answer "did this one bounce?" — the single most
+                common question of this page.
+
+                So below `md` each attempt is a card with the same facts in
+                reading order, and the table returns at `md` where it fits.
+                Both render the same `rows`; there is no second query and no
+                second definition of what a log row is.
+              */}
+              <ul className="divide-y divide-border md:hidden">
+                {rows.map((log) => (
+                  <li key={log.id} className="space-y-1.5 px-4 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 wrap-break-word text-sm font-medium">
+                        {log.businessName ?? '—'}
+                      </span>
+                      <EmailStatusBadge status={log.status} />
+                    </div>
+
+                    <p className="text-sm wrap-break-word text-muted-foreground">{log.subject ?? '—'}</p>
+
+                    <p className="font-mono text-xs break-all text-muted-foreground">
+                      {log.recipient ?? '—'}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <Badge tone={log.email_type === 'initial' ? 'primary' : 'neutral'}>
+                        {EMAIL_TYPE_LABELS[log.email_type]}
+                      </Badge>
+                      <span className="tabular text-xs text-muted-foreground">
                         {formatDateTime(log.sent_at ?? log.created_at)}
-                      </TD>
-                      <TD className="max-w-[240px] truncate text-danger">{log.error ?? ''}</TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </TableWrap>
+                      </span>
+                    </div>
+
+                    {/*
+                      Not truncated here. On the table an error is a hint that
+                      something went wrong and the row can be widened; on a
+                      phone there is nowhere to widen to, and a clipped error
+                      message is the one field where the tail carries the
+                      answer.
+                    */}
+                    {log.error ? (
+                      <p className="text-xs wrap-break-word text-danger">{log.error}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="hidden md:block">
+                <TableWrap>
+                  <Table style={{ minWidth: 1000 }}>
+                    <THead>
+                      <tr>
+                        <TH style={{ width: 200 }}>Recipient</TH>
+                        <TH style={{ width: 180 }}>Business</TH>
+                        <TH style={{ width: 240 }}>Subject</TH>
+                        <TH style={{ width: 110 }}>Step</TH>
+                        <TH style={{ width: 110 }}>Status</TH>
+                        <TH style={{ width: 160 }}>Date</TH>
+                        <TH>Error</TH>
+                      </tr>
+                    </THead>
+                    <TBody>
+                      {rows.map((log) => (
+                        <TR key={log.id}>
+                          <TD className="font-mono text-xs">{log.recipient ?? '—'}</TD>
+                          <TD>{log.businessName ?? '—'}</TD>
+                          <TD>{log.subject ?? '—'}</TD>
+                          {/*
+                            Which email this was, not which relay carried it. The
+                            provider is the same string on every row (one provider is
+                            configured at a time), so the column was a constant taking
+                            up space, while "was this the first email or a follow-up"
+                            is the thing you actually want when reading a send log.
+                            The provider is still on the row and in the message id if
+                            a delivery ever needs chasing.
+                          */}
+                          <TD>
+                            <Badge tone={log.email_type === 'initial' ? 'primary' : 'neutral'}>
+                              {EMAIL_TYPE_LABELS[log.email_type]}
+                            </Badge>
+                          </TD>
+                          <TD>
+                            <EmailStatusBadge status={log.status} />
+                          </TD>
+                          <TD className="tabular text-muted-foreground">
+                            {formatDateTime(log.sent_at ?? log.created_at)}
+                          </TD>
+                          <TD className="text-danger">{log.error ?? ''}</TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                  </Table>
+                </TableWrap>
+              </div>
+            </>
           )}
 
           {total > 0 ? <LogPagination page={page} pageSize={pageSize} total={total} /> : null}

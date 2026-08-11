@@ -710,6 +710,8 @@ export interface Database {
           reply_rate_pct: number | null;
           avg_response_hours: number | null;
           dead_email: number;
+          /** 0036. Distinct non-archived leads with an initial send — businesses reached, not messages sent. */
+          leads_contacted: number;
         };
         Relationships: [];
       };

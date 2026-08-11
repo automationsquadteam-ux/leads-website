@@ -103,14 +103,15 @@ export async function PublicStatsPage() {
               </h1>
               <p className="mt-3 text-base leading-relaxed text-muted-foreground text-pretty">
                 Every figure below is read straight from the live pipeline research completed,
-                emails sent, replies received. Nothing is rounded up and nothing is a mock-up. Lead
-                identities and contact details are never published here.
+                businesses contacted, replies received. Outreach is counted per business, not per
+                message, so a follow-up never inflates the total. Nothing is rounded up and nothing
+                is a mock-up. Lead identities and contact details are never published here.
               </p>
 
               <dl className="mt-8 grid grid-cols-2 gap-6 sm:grid-cols-4">
                 {[
                   ['Leads tracked', formatNumber(overview?.total_leads ?? 0)],
-                  ['Emails sent', formatNumber(overview?.emails_sent ?? 0)],
+                  ['Businesses contacted', formatNumber(overview?.leads_contacted ?? 0)],
                   ['Replies', formatNumber(overview?.replies ?? 0)],
                   ['Reply rate', formatPercent(overview?.reply_rate_pct)],
                 ].map(([label, value]) => (
@@ -168,7 +169,20 @@ export async function PublicStatsPage() {
               icon={CheckCircle2}
               tone="success"
             />
-            <MetricCard label="Emails Sent" value={formatNumber(overview?.emails_sent ?? 0)} icon={Send} />
+            {/*
+              Businesses reached, not messages sent (0036). One lead in a full
+              three-step sequence is three rows in email_logs; publishing that
+              as "Emails Sent" described our activity rather than our reach —
+              ten businesses read as 25. The raw message count is still in the
+              view as `emails_sent` and still drives Bounce Rate, where
+              per-message really is the right denominator.
+            */}
+            <MetricCard
+              label="Businesses Contacted"
+              value={formatNumber(overview?.leads_contacted ?? 0)}
+              hint="Unique businesses emailed at least once"
+              icon={Send}
+            />
             <MetricCard
               label="Replies"
               value={formatNumber(overview?.replies ?? 0)}
@@ -193,8 +207,8 @@ export async function PublicStatsPage() {
               label="Reply Rate"
               value={formatPercent(overview?.reply_rate_pct)}
               hint={
-                overview && overview.emails_sent > 0
-                  ? `${formatNumber(overview.replies)} of ${formatNumber(overview.emails_sent)}`
+                overview && overview.leads_contacted > 0
+                  ? `${formatNumber(overview.replies)} of ${formatNumber(overview.leads_contacted)} contacted`
                   : 'No sends yet'
               }
               icon={TrendingUp}

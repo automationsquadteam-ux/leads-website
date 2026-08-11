@@ -26,6 +26,9 @@ const EMPTY_WIDTHS: Record<string, number> = {};
 const MIN_COLUMN_WIDTH = 72;
 const MAX_COLUMN_WIDTH = 900;
 
+/** Assumed width of a column that declares none, for the scroll floor below. */
+const DEFAULT_COLUMN_WIDTH = 150;
+
 export interface Column<T> {
   key: string;
   header: string;
@@ -132,9 +135,27 @@ export function DataTable<T>({
   if (isLoading) return <TableSkeleton rows={10} columns={columns.length + (selectable ? 1 : 0)} />;
   if (rows.length === 0 && emptyState) return <>{emptyState}</>;
 
+  /*
+   * The table's natural width, so it SCROLLS on a narrow screen instead of
+   * being crushed into it.
+   *
+   * `table-fixed` + `w-full` means the browser treats the per-column widths as
+   * a ratio once they no longer fit: on a 360px phone, ten columns declared at
+   * 130-240px each were rendered ~30px wide, so every cell was an ellipsis and
+   * the page looked broken rather than scrollable. TableWrap has always had
+   * overflow-x-auto; what was missing was a floor for it to scroll against.
+   *
+   * Set on the table, not on the cells: a minWidth on each TH would re-create
+   * the resize floor that MIN_COLUMN_WIDTH exists to avoid (see the note on
+   * the TH style below).
+   */
+  const naturalWidth =
+    columns.reduce((total, column) => total + (widthFor(column) ?? DEFAULT_COLUMN_WIDTH), 0) +
+    (selectable ? 40 : 0);
+
   return (
     <TableWrap>
-      <Table>
+      <Table style={{ minWidth: naturalWidth }}>
         <THead>
           <tr>
             {selectable ? (

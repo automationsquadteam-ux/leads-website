@@ -37,8 +37,15 @@ export function MetricCard({
 
   const body = (
     <>
-      <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="flex items-start justify-between gap-2">
+        {/*
+          Wraps on a phone, truncates from `sm` up.
+          Two-column grid on a 360px screen leaves ~150px per card, which cuts
+          "Initial Approval Queue" to "Initial Appr…" — a label that no longer
+          says what the number is. On a wide screen the row rhythm matters more
+          and every label fits anyway, so truncation returns there.
+        */}
+        <p className="text-xs font-medium text-muted-foreground sm:truncate">{label}</p>
         {href ? (
           <ArrowUpRight
             className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
@@ -48,8 +55,12 @@ export function MetricCard({
           <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         ) : null}
       </div>
-      <p className={cn('tabular mt-1.5 text-2xl font-semibold tracking-tight', toneClass)}>{value}</p>
-      {hint ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</p> : null}
+      <p className={cn('tabular mt-1.5 text-xl font-semibold tracking-tight sm:text-2xl', toneClass)}>
+        {value}
+      </p>
+      {hint ? (
+        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground sm:truncate">{hint}</p>
+      ) : null}
     </>
   );
 
