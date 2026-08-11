@@ -89,8 +89,19 @@ export function SecretField({
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <Label htmlFor={fieldId}>{label}</Label>
+      {/*
+        `flex-wrap` + `min-w-0` on the label.
+
+        The badge beside it is `whitespace-nowrap` (every Badge is), so in a
+        non-wrapping row it kept its full width and the label absorbed all the
+        squeeze — "Service account JSON" rendered two or three letters per line
+        down a column a few pixels wide. Letting the row wrap puts the badge on
+        its own line instead, which costs one line and keeps the label readable.
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Label htmlFor={fieldId} className="min-w-0">
+          {label}
+        </Label>
         {configured ? (
           <Badge tone="success">
             <Check className="size-3" aria-hidden="true" />
@@ -133,7 +144,7 @@ export function SecretField({
             />
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button type="button" size="sm" variant="primary" loading={pending} onClick={save}>
               <KeyRound className="size-3.5" aria-hidden="true" />
               Save
@@ -155,7 +166,7 @@ export function SecretField({
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" variant="secondary" onClick={() => setEditing(true)}>
             Replace
           </Button>

@@ -202,7 +202,7 @@ export function LeadDetail({ lead, stage }: { lead: Lead; stage: PipelineStage |
           <PanelError state={state} />
 
           {editing ? (
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
                 <X className="size-4" aria-hidden="true" />
                 Cancel

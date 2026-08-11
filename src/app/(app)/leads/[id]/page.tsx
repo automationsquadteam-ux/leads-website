@@ -102,8 +102,24 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         )}
       </div>
 
+      {/*
+        `min-w-0` on BOTH columns is what makes this page usable on a phone.
+
+        A grid child defaults to `min-width: auto`, meaning it refuses to shrink
+        below its widest unbreakable content. One long draft body, email address
+        or generated_by string therefore widened the column, which widened the
+        grid past the viewport — and because `main` clips with
+        `overflow-x-hidden` rather than scrolling, the right-hand edge of every
+        card was cut off and unreachable. The Save / Cancel row sits at
+        `justify-end`, so the button you most need was the first thing to
+        disappear.
+
+        This is the same trap already documented on the shell's own container in
+        components/shell/app-shell.tsx; it just had to be repeated here, because
+        every nested grid re-introduces it.
+      */}
       <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+        <div className="min-w-0 space-y-4 lg:col-span-2">
           <LeadDetail lead={lead} stage={pipeline?.current_stage ?? null} />
           <ResearchPanel lead={lead} />
           <PersonalizationPanel lead={lead} />
@@ -116,7 +132,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           <NotesPanel lead={lead} />
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {pipeline ? <PipelinePanel pipeline={pipeline} /> : null}
           <EnrichmentDetail lead={lead} />
 
@@ -155,7 +171,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           </Card>
         </div>
 
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader>
             <CardTitle>Email history</CardTitle>
           </CardHeader>

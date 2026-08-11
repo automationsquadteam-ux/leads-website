@@ -14,7 +14,17 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('flex items-center justify-between gap-3 border-b border-border px-4 py-3', className)}
+      /*
+       * `flex-wrap` by default: a header is a title on the left and controls on
+       * the right, and on a narrow screen that pair has to become two rows
+       * rather than one row wider than the card. Without it the controls
+       * overflow the card, and because the app shell clips horizontally they
+       * become unreachable rather than merely ugly.
+       */
+      className={cn(
+        'flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3',
+        className,
+      )}
       {...props}
     />
   );

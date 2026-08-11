@@ -138,6 +138,7 @@ export async function runOutreachNow(dryRun: boolean): Promise<ActionResult> {
     generated: summary.generated,
     skipped: summary.skipped,
     failed: summary.failed,
+    closed: summary.closed,
   });
 
   refreshIntegrationViews();

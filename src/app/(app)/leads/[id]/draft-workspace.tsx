@@ -183,7 +183,7 @@ function DraftIssues({ subject, content }: { subject: string | null; content: st
             <li key={issue.kind}>
               {issue.message}
               {issue.sample ? (
-                <code className="ml-1.5 rounded bg-surface px-1 py-0.5 font-mono">
+                <code className="ml-1.5 rounded bg-surface px-1 py-0.5 font-mono break-all">
                   {issue.sample.slice(0, 60)}
                 </code>
               ) : null}

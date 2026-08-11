@@ -41,6 +41,11 @@ export interface IntegrationConfig {
     maxSendsPerRun: number;
     /** Wall-clock ceiling for one scheduled run, including gap waits. */
     maxRuntimeSeconds: number;
+    /**
+     * Close a lead this many days after follow-up 2 when it never replied.
+     * 0 disables the sweep. Paused leads are never closed this way.
+     */
+    closeAfterFollowup2Days: number;
   };
   sending: {
     /** Global kill switch. Nothing leaves the system while this is true. */
@@ -108,6 +113,7 @@ export async function getIntegrationConfig(): Promise<IntegrationConfig> {
       // 50s keeps a Vercel Hobby function (killed at 60s) safely inside its
       // limit. Raise it towards 280 on Pro to fit more gap waits per run.
       maxRuntimeSeconds: asNumber(get('outreach.max_runtime_seconds'), 50),
+      closeAfterFollowup2Days: asNumber(get('outreach.close_after_followup2_days'), 14),
     },
     sending: {
       paused: asBoolean(get('sending.paused'), false),

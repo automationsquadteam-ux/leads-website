@@ -365,6 +365,22 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
           </Field>
 
           <Field
+            label="Close unanswered leads this many days after follow-up 2"
+            htmlFor="close-after"
+            hint="The sequence is exhausted, so the lead leaves every queue and dashboard figure. Paused leads are never closed this way. 0 turns it off."
+          >
+            <Input
+              id="close-after"
+              name="number:outreach.close_after_followup2_days"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={365}
+              defaultValue={num('outreach.close_after_followup2_days', 14)}
+            />
+          </Field>
+
+          <Field
             label="Only send to verified addresses"
             htmlFor="require-verified"
             hint="Applies to automatic initial sends."
@@ -500,9 +516,17 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
         </CardContent>
       </Card>
 
-      {/* Sticky save bar so the action is always reachable on a long form. */}
-      <div className="sticky bottom-0 flex items-center justify-between gap-3 rounded-lg border border-border bg-surface/95 px-4 py-3 backdrop-blur-sm">
-        <p className="text-xs text-muted-foreground">
+      {/*
+        Sticky save bar so the action is always reachable on a long form.
+
+        `flex-wrap` + `min-w-0` for the same reason as SecretField's header: the
+        button is `whitespace-nowrap`, so in a non-wrapping row it held its
+        width and this paragraph took all the squeeze — two or three words per
+        line down a narrow column. Wrapping puts the button on its own line on a
+        phone and keeps them side by side everywhere else.
+      */}
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface/95 px-4 py-3 backdrop-blur-sm">
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
           Saved immediately. The scheduled sender reads these on every run.
         </p>
         <Button type="submit" variant="primary" loading={pending}>

@@ -63,6 +63,7 @@ async function handle(request: NextRequest) {
       generated: summary.generated,
       skipped: summary.skipped,
       failed: summary.failed,
+      closed: summary.closed,
     });
   });
 

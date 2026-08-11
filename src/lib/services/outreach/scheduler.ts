@@ -44,6 +44,8 @@ export interface OutreachRunSummary {
   generated: number;
   failed: number;
   skipped: number;
+  /** Leads whose sequence ran out and were closed by this run (0037). */
+  closed: number;
   /** Reasons the run did nothing, so a quiet cron is explainable. */
   notes: string[];
   durationMs: number;
@@ -142,6 +144,50 @@ async function sendsToday(): Promise<number> {
     .gte('sent_at', startOfDay.toISOString());
 
   return count ?? 0;
+}
+
+/**
+ * Close leads whose sequence is exhausted.
+ *
+ * A lead that got follow-up 2 and never answered has nothing left to do —
+ * `compute_next_step()` already says `close_workflow` — but nothing ever
+ * performed the close, so they accumulated at stage `followup2_sent` inside
+ * every figure describing live prospects.
+ *
+ * ONE atomic UPDATE, not a select-then-close loop. A reply can land between a
+ * read and a write, and closing a lead that has just answered is the single
+ * outcome here that actually costs a conversation. `replied is null` belongs
+ * in the WHERE clause, where Postgres evaluates it against the row it is
+ * about to lock.
+ *
+ * `auto_followups` is the other load-bearing condition. Pause means "not right
+ * now, try me next quarter"; close means the sequence is over. A timer must
+ * not turn one into the other — see "Pause versus close" in GUIDE.md.
+ *
+ * Returns the ids closed so the caller can write the audit trail. Never
+ * throws: housekeeping failing must not take a sending run down with it.
+ */
+async function closeExhaustedSequences(config: IntegrationConfig): Promise<string[]> {
+  const days = config.outreach.closeAfterFollowup2Days;
+  if (days <= 0) return [];
+
+  const admin = createServiceClient();
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+
+  const { data, error } = await admin
+    .from('lead_pipeline')
+    .update({
+      closed: new Date().toISOString(),
+      closed_reason: `No reply ${days} days after follow-up 2. Closed automatically.`,
+    })
+    .lt('followup2_sent', cutoff)
+    .is('replied', null)
+    .is('closed', null)
+    .eq('auto_followups', true)
+    .select('lead_id');
+
+  if (error) return [];
+  return (data ?? []).map((row) => row.lead_id);
 }
 
 /**
@@ -358,6 +404,7 @@ export async function runOutreachCycle(
     generated: 0,
     failed: 0,
     skipped: 0,
+    closed: 0,
     notes: [],
     durationMs: 0,
   };
@@ -374,8 +421,18 @@ export async function runOutreachCycle(
    */
   const maxRuntimeMs = options.maxRuntimeMs ?? config.outreach.maxRuntimeSeconds * 1000;
 
+  /*
+   * Every return path goes through here, which is what makes the close sweep
+   * reportable. It runs before most of the guards, so a run that then bails on
+   * "Nothing is due" may still have closed leads — and a housekeeping action
+   * nobody is told about is indistinguishable from a bug when 56 leads quietly
+   * leave the dashboard.
+   */
   const finish = (message: string): OutreachRunSummary => {
-    summary.message = message;
+    summary.message =
+      summary.closed > 0
+        ? `${message} Closed ${summary.closed} exhausted sequence${summary.closed === 1 ? '' : 's'}.`
+        : message;
     summary.durationMs = Date.now() - started;
     return summary;
   };
@@ -383,6 +440,37 @@ export async function runOutreachCycle(
   if (config.sending.paused) {
     return finish('Sending is paused (sending.paused). Nothing was sent.');
   }
+
+  /*
+   * Housekeeping first, and deliberately ABOVE the working-hours and
+   * daily-limit guards (0037).
+   *
+   * Closing an exhausted sequence sends nothing, so neither guard has any
+   * bearing on it: the sending window exists so mail does not arrive at 3am,
+   * and the daily limit caps messages. Placing the sweep below them would mean
+   * an operator who narrows the window to two hours a day also, silently,
+   * narrows when leads can be closed.
+   *
+   * It IS below `sending.paused`, because that switch is documented as a
+   * global kill switch — an operator who pauses expects the whole machine to
+   * stop, not just the part that sends.
+   *
+   * Skipped on a dry run: a dry run reports what WOULD happen and must not
+   * write.
+   */
+  if (!dryRun) {
+    const closedIds = await closeExhaustedSequences(config);
+    summary.closed = closedIds.length;
+    for (const leadId of closedIds) {
+      await recordActivity({
+        leadId,
+        kind: 'stage_completed',
+        summary: 'Workflow closed automatically',
+        detail: `No reply ${config.outreach.closeAfterFollowup2Days} days after follow-up 2. Reopen from the lead page if this was wrong.`,
+      });
+    }
+  }
+
   if (!config.outreach.autoFollowups && !config.outreach.autoSendInitial) {
     return finish('Automatic sending is switched off for both follow-ups and initial emails.');
   }
