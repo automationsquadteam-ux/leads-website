@@ -125,7 +125,7 @@ export default async function EmailLogsPage({
                         <TH style={{ width: 240 }}>Subject</TH>
                         <TH style={{ width: 110 }}>Step</TH>
                         <TH style={{ width: 110 }}>Status</TH>
-                        <TH style={{ width: 160 }}>Date</TH>
+                        <TH style={{ width: 180 }}>Date</TH>
                         <TH>Error</TH>
                       </tr>
                     </THead>
