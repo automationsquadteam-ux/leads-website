@@ -26,6 +26,86 @@ export interface SendLeadEmailResult {
 }
 
 /**
+ * Stable codes for why a send never reached (or was rejected by) the
+ * provider. Read by the Send Failures page (0040) to group raw error text
+ * into "why", not just list it. Keep these in sync with the branches below
+ * every one of them is written by `logRefusal`.
+ */
+export type SendFailureReason =
+  | 'archived'
+  | 'no_email'
+  | 'email_invalid'
+  | 'verifier_invalid'
+  | 'unverified'
+  | 'no_draft'
+  | 'no_subject'
+  | 'provider_config'
+  | 'unresolved_placeholder'
+  | 'send_rejected';
+
+/**
+ * How long one refusal, for the same lead and the same reason, stays logged
+ * before another occurrence is allowed to write a fresh row.
+ *
+ * The scheduler runs every few minutes and, per its own note above this
+ * function's caller, has already once hammered the same stuck leads "on
+ * every 3-minute tick for hours". Logging every refusal unthrottled would
+ * recreate that exact problem in email_logs instead of integration_runs one
+ * blocked lead could write hundreds of near-identical rows a day and bury
+ * the page meant to reveal patterns under noise from a single cause. A
+ * six-hour window still shows a refusal is ONGOING (new rows keep appearing
+ * across the day) without duplicating it every tick.
+ */
+const REFUSAL_THROTTLE_HOURS = 6;
+
+/**
+ * Record a send that was refused before it ever reached the provider — every
+ * branch below used to just `return` here, leaving zero trace in email_logs.
+ * That is exactly why a bracketed business name could silently block its own
+ * lead for days with nothing in the database to find (0040).
+ *
+ * `provider` is deliberately left null, unlike a genuine SMTP-level failure
+ * (which always carries `provider.id`) — that is how the two are told apart
+ * later: null means the send never got that far.
+ */
+async function logRefusal(
+  admin: ReturnType<typeof createServiceClient>,
+  params: {
+    leadId: string;
+    userId: string | null;
+    emailType: EmailType;
+    reason: SendFailureReason;
+    message: string;
+    subject?: string | null;
+    emailVersionId?: string | null;
+  },
+): Promise<void> {
+  const since = new Date(Date.now() - REFUSAL_THROTTLE_HOURS * 3_600_000).toISOString();
+  const { data: recent } = await admin
+    .from('email_logs')
+    .select('id')
+    .eq('lead_id', params.leadId)
+    .eq('email_type', params.emailType)
+    .eq('failure_reason', params.reason)
+    .gte('created_at', since)
+    .limit(1)
+    .maybeSingle();
+  if (recent) return;
+
+  await admin.from('email_logs').insert({
+    lead_id: params.leadId,
+    status: 'failed',
+    provider: null,
+    subject: params.subject ?? null,
+    sent_by: params.userId,
+    email_type: params.emailType,
+    email_version_id: params.emailVersionId ?? null,
+    failure_reason: params.reason,
+    error: params.message.slice(0, 2000),
+  });
+}
+
+/**
  * Why a send was refused, phrased for the person reading the toast rather than
  * as the enum value. 'valid' and 'invalid' are absent: one is never refused and
  * the other has its own, blunter message.
@@ -84,16 +164,15 @@ export async function sendLeadEmail(
    * the verification and placeholder gates below.
    */
   if (lead.status === 'archived') {
-    return {
-      ok: false,
-      message: 'This lead is archived and cannot be emailed. Restore it first if that was not intended.',
-      messageId: null,
-      logId: null,
-    };
+    const message = 'This lead is archived and cannot be emailed. Restore it first if that was not intended.';
+    await logRefusal(admin, { leadId: lead.id, userId, emailType, reason: 'archived', message });
+    return { ok: false, message, messageId: null, logId: null };
   }
 
   if (!lead.email) {
-    return { ok: false, message: 'This lead has no email address.', messageId: null, logId: null };
+    const message = 'This lead has no email address.';
+    await logRefusal(admin, { leadId: lead.id, userId, emailType, reason: 'no_email', message });
+    return { ok: false, message, messageId: null, logId: null };
   }
 
   const config = await getIntegrationConfig();
@@ -128,14 +207,11 @@ export async function sendLeadEmail(
    * the system keep mailing an address it knows is dead.
    */
   if (verification === 'invalid') {
-    return {
-      ok: false,
-      message:
-        `${lead.email} was proved undeliverable, so sending to it would bounce. ` +
-        'Find a new address for this lead first.',
-      messageId: null,
-      logId: null,
-    };
+    const message =
+      `${lead.email} was proved undeliverable, so sending to it would bounce. ` +
+      'Find a new address for this lead first.';
+    await logRefusal(admin, { leadId: lead.id, userId, emailType, reason: 'email_invalid', message });
+    return { ok: false, message, messageId: null, logId: null };
   }
 
   /*
@@ -150,26 +226,20 @@ export async function sendLeadEmail(
    * bounce".
    */
   if (pipeline?.email_verifier_status === 'invalid') {
-    return {
-      ok: false,
-      message:
-        `A verifier proved ${lead.email} undeliverable, and that has not been ` +
-        'overruled by correcting the address. Change the address to the right one ' +
-        'and the verdict clears by itself.',
-      messageId: null,
-      logId: null,
-    };
+    const message =
+      `A verifier proved ${lead.email} undeliverable, and that has not been ` +
+      'overruled by correcting the address. Change the address to the right one ' +
+      'and the verdict clears by itself.';
+    await logRefusal(admin, { leadId: lead.id, userId, emailType, reason: 'verifier_invalid', message });
+    return { ok: false, message, messageId: null, logId: null };
   }
 
   if (config.outreach.requireVerifiedEmail && !pipeline?.email_verified) {
-    return {
-      ok: false,
-      message:
-        `${lead.email} ${VERIFICATION_REASON[verification] ?? 'is not verified'}. ` +
-        'Verify the address, or turn off "Require a verified email" in Settings, then send.',
-      messageId: null,
-      logId: null,
-    };
+    const message =
+      `${lead.email} ${VERIFICATION_REASON[verification] ?? 'is not verified'}. ` +
+      'Verify the address, or turn off "Require a verified email" in Settings, then send.';
+    await logRefusal(admin, { leadId: lead.id, userId, emailType, reason: 'unverified', message });
+    return { ok: false, message, messageId: null, logId: null };
   }
 
   const { data: version } = await admin
@@ -184,23 +254,32 @@ export async function sendLeadEmail(
   const rawBody = version?.content ?? (emailType === 'initial' ? lead.draft_email : null);
 
   if (!rawBody?.trim()) {
-    return {
-      ok: false,
-      message:
-        emailType === 'initial'
-          ? 'This lead has no active initial draft. Write or generate one before sending.'
-          : `This lead has no active ${emailType === 'followup1' ? 'follow-up 1' : 'follow-up 2'} draft. Generate one before sending.`,
-      messageId: null,
-      logId: null,
-    };
+    const message =
+      emailType === 'initial'
+        ? 'This lead has no active initial draft. Write or generate one before sending.'
+        : `This lead has no active ${emailType === 'followup1' ? 'follow-up 1' : 'follow-up 2'} draft. Generate one before sending.`;
+    await logRefusal(admin, {
+      leadId: lead.id,
+      userId,
+      emailType,
+      reason: 'no_draft',
+      message,
+      subject: rawSubject,
+      emailVersionId: version?.id,
+    });
+    return { ok: false, message, messageId: null, logId: null };
   }
   if (!rawSubject?.trim()) {
-    return {
-      ok: false,
-      message: 'That draft has no subject line. Add one before sending.',
-      messageId: null,
-      logId: null,
-    };
+    const message = 'That draft has no subject line. Add one before sending.';
+    await logRefusal(admin, {
+      leadId: lead.id,
+      userId,
+      emailType,
+      reason: 'no_subject',
+      message,
+      emailVersionId: version?.id,
+    });
+    return { ok: false, message, messageId: null, logId: null };
   }
 
   let provider;
@@ -211,6 +290,15 @@ export async function sendLeadEmail(
       error instanceof EmailConfigError
         ? error.message
         : 'The email provider is not configured correctly.';
+    await logRefusal(admin, {
+      leadId: lead.id,
+      userId,
+      emailType,
+      reason: 'provider_config',
+      message,
+      subject: rawSubject,
+      emailVersionId: version?.id,
+    });
     return { ok: false, message, messageId: null, logId: null };
   }
 
@@ -241,14 +329,19 @@ export async function sendLeadEmail(
   ];
   if (unresolved.length > 0) {
     const shown = [...new Set(unresolved)].slice(0, 5).join(', ');
-    return {
-      ok: false,
-      message:
-        `This draft still contains placeholder text (${shown}) which would be sent literally. ` +
-        'Edit the draft or regenerate it, then send.',
-      messageId: null,
-      logId: null,
-    };
+    const message =
+      `This draft still contains placeholder text (${shown}) which would be sent literally. ` +
+      'Edit the draft or regenerate it, then send.';
+    await logRefusal(admin, {
+      leadId: lead.id,
+      userId,
+      emailType,
+      reason: 'unresolved_placeholder',
+      message,
+      subject,
+      emailVersionId: version?.id,
+    });
+    return { ok: false, message, messageId: null, logId: null };
   }
 
   // Record the attempt first see the note at the top of this file.
@@ -289,6 +382,7 @@ export async function sendLeadEmail(
         message_id: result.messageId,
         sent_at: result.ok ? now : null,
         error: result.ok ? null : `${result.message}${result.detail ? ` ${result.detail}` : ''}`.slice(0, 2000),
+        failure_reason: result.ok ? null : 'send_rejected',
       })
       .eq('id', logId);
   }

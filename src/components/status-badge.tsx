@@ -43,6 +43,36 @@ export function EmailStatusBadge({ status }: { status: EmailLogStatus }) {
   );
 }
 
+/**
+ * Labels for `email_logs.failure_reason` (0040). Keyed loosely by string,
+ * not by the `SendFailureReason` union in send-lead-email.ts — that module is
+ * `server-only` and this file renders in the browser, so importing even a
+ * type from it is worth avoiding. An unrecognised or null reason (any row
+ * logged before this column existed) falls back to the raw value.
+ */
+const FAILURE_REASON: Record<string, { label: string; tone: BadgeTone }> = {
+  archived: { label: 'Lead archived', tone: 'neutral' },
+  no_email: { label: 'No email address', tone: 'warning' },
+  email_invalid: { label: 'Address proved invalid', tone: 'danger' },
+  verifier_invalid: { label: 'Verifier says invalid', tone: 'danger' },
+  unverified: { label: 'Not verified', tone: 'warning' },
+  no_draft: { label: 'No draft', tone: 'warning' },
+  no_subject: { label: 'No subject line', tone: 'warning' },
+  provider_config: { label: 'Provider misconfigured', tone: 'danger' },
+  unresolved_placeholder: { label: 'Unresolved placeholder', tone: 'danger' },
+  send_rejected: { label: 'Rejected by provider', tone: 'danger' },
+};
+
+export function failureReasonLabel(reason: string | null): string {
+  if (!reason) return 'Unknown (logged before this was tracked)';
+  return FAILURE_REASON[reason]?.label ?? reason;
+}
+
+export function FailureReasonBadge({ reason }: { reason: string | null }) {
+  const config = reason ? FAILURE_REASON[reason] : undefined;
+  return <Badge tone={config?.tone ?? 'neutral'}>{failureReasonLabel(reason)}</Badge>;
+}
+
 const SENTIMENT: Record<ReplySentiment, { label: string; tone: BadgeTone }> = {
   positive: { label: 'Positive', tone: 'success' },
   neutral: { label: 'Neutral', tone: 'neutral' },

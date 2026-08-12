@@ -46,6 +46,7 @@ const PUBLIC_PATHS = ['/', '/login', '/auth/callback', '/stats', '/api/cron', '/
 const ADMIN_PREFIXES = [
   '/leads',
   '/email-logs',
+  '/send-failures',
   '/replies',
   '/settings',
   '/analytics',

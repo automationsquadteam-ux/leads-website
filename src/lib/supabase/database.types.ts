@@ -233,6 +233,8 @@ export interface Database {
           created_at: string;
           email_type: EmailType;
           email_version_id: string | null;
+          /** 0040. Short stable code for why a failed send never reached (or was rejected by) the provider, e.g. 'archived', 'no_email', 'send_rejected'. Null for non-failed rows. */
+          failure_reason: string | null;
         };
         Insert: {
           id?: string;
@@ -247,6 +249,7 @@ export interface Database {
           created_at?: string;
           email_type?: EmailType;
           email_version_id?: string | null;
+          failure_reason?: string | null;
         };
         Update: Partial<Database['public']['Tables']['email_logs']['Insert']>;
         Relationships: [];
