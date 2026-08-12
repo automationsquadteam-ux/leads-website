@@ -73,9 +73,20 @@ const leadUpdateSchema = z.object({
   research_summary: optionalText,
   personalization: optionalText,
   outreach_angle: optionalText,
-  subject_line: optionalText,
-  draft_email: optionalText,
   notes: optionalText,
+  /*
+   * `subject_line` and `draft_email` are deliberately ABSENT (0039).
+   *
+   * This action must never write the draft. It used to accept both from hidden
+   * inputs on the lead form, which meant every save of the Business-information
+   * card rewrote leads.draft_email with a CRLF-normalised copy of itself — and
+   * `version_lead_draft()` correctly read that as an external edit, spawning a
+   * new active version and demoting the approved one.
+   *
+   * The draft's owner is email_versions, edited through DraftWorkspace, which
+   * creates a version per change. Accepting it here was a second writer for
+   * something that already had one.
+   */
 });
 
 export async function updateLead(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -313,5 +324,158 @@ export async function bulkApproveDrafts(ids: string[]): Promise<ActionResult> {
     message:
       `${approvable.length} draft${approvable.length === 1 ? '' : 's'} approved.` +
       (skipped > 0 ? ` ${skipped} had no draft awaiting approval and were skipped.` : ''),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Bulk address editing and verification                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Mark the selected leads' addresses as verified, by hand.
+ *
+ * This is a VERDICT about the address, and it is a different thing entirely
+ * from `bulkApproveDrafts()`, which is a judgement about the WORDS. A lead
+ * needs both before it can be sent, and conflating them in one button is how
+ * you end up approving copy for an address nobody has checked.
+ *
+ * Recorded as source `manual`, so `email_verifier_status` is left alone and
+ * send priority can still tell "a verifier proved this" from "a human said so"
+ * (0028). Only ever raises unproven addresses: a lead a verifier has already
+ * called `invalid` is skipped rather than overridden, because a hard bounce is
+ * evidence and a tick box is not.
+ */
+export async function bulkMarkEmailVerified(ids: string[]): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+  } catch {
+    return { ok: false, message: 'You do not have permission to perform this action.' };
+  }
+  if (ids.length === 0) return { ok: false, message: 'No leads selected.' };
+
+  const admin = createServiceClient();
+
+  // An address has to exist before it can be called good.
+  const { data: withEmail } = await admin
+    .from('leads')
+    .select('id')
+    .in('id', ids)
+    .not('email', 'is', null);
+
+  const candidates = (withEmail ?? []).map((l) => l.id);
+  if (candidates.length === 0) {
+    return { ok: false, message: 'None of the selected leads has an email address to verify.' };
+  }
+
+  const { data: updated, error } = await admin
+    .from('lead_pipeline')
+    .update({
+      email_verification_status: 'valid',
+      email_verification_source: 'manual',
+      email_checked_at: new Date().toISOString(),
+    })
+    .in('lead_id', candidates)
+    .neq('email_verification_status', 'invalid')
+    .select('lead_id');
+
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath('/leads');
+  revalidatePath('/dashboard');
+
+  const n = updated?.length ?? 0;
+  const skipped = ids.length - n;
+  return {
+    ok: true,
+    message:
+      `${n} address${n === 1 ? '' : 'es'} marked verified.` +
+      (skipped > 0
+        ? ` ${skipped} skipped — no address, already verified, or proved undeliverable.`
+        : ''),
+  };
+}
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
+
+/**
+ * Write addresses for several leads at once, from the leads table.
+ *
+ * Every address written here is NEW information, so the verdict that was true
+ * of the old one cannot survive it: each updated lead is put back to
+ * `unverified` ("never checked") in the same call. 0028's trigger does this
+ * too, but only for leads whose verdict recorded which address it was about —
+ * so it is done explicitly here rather than relied upon, and the outcome is the
+ * same whether or not 0038 has been applied.
+ *
+ * One lead at a time, deliberately. `leads.dedupe_key` is UNIQUE and is
+ * recomputed from the address by trigger (0028), so a typo that collides with
+ * an existing lead must fail that ONE row and report which, rather than
+ * aborting a batch of thirty and leaving the operator to guess.
+ */
+export async function bulkUpdateEmails(
+  entries: Array<{ id: string; email: string }>,
+): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+  } catch {
+    return { ok: false, message: 'You do not have permission to edit leads.' };
+  }
+  if (entries.length === 0) return { ok: false, message: 'No addresses to save.' };
+
+  const admin = createServiceClient();
+  let saved = 0;
+  const failures: string[] = [];
+
+  for (const entry of entries) {
+    const email = entry.email.trim().toLowerCase();
+    if (email !== '' && !EMAIL_RE.test(email)) {
+      failures.push(`${email || '(blank)'}: not a valid address`);
+      continue;
+    }
+
+    const { error } = await admin
+      .from('leads')
+      .update({ email: email === '' ? null : email })
+      .eq('id', entry.id);
+
+    if (error) {
+      failures.push(
+        error.code === '23505'
+          ? `${email}: already belongs to another lead`
+          : `${email}: ${error.message}`,
+      );
+      continue;
+    }
+
+    /*
+     * Back to "never checked". Written after the address, never before: if the
+     * address write fails, the old verdict is still true of the old address and
+     * must not be thrown away.
+     */
+    await admin
+      .from('lead_pipeline')
+      .update({
+        email_verification_status: 'unverified',
+        email_verification_source: null,
+        email_verifier_status: null,
+        email_checked_at: null,
+        email_checked_address: null,
+      })
+      .eq('lead_id', entry.id);
+
+    saved += 1;
+  }
+
+  revalidatePath('/leads');
+  revalidatePath('/dashboard');
+
+  if (saved === 0) {
+    return { ok: false, message: `Nothing saved. ${failures.join('; ')}` };
+  }
+  return {
+    ok: true,
+    message:
+      `${saved} address${saved === 1 ? '' : 'es'} saved and set back to never checked.` +
+      (failures.length > 0 ? ` ${failures.length} failed — ${failures.join('; ')}` : ''),
   };
 }

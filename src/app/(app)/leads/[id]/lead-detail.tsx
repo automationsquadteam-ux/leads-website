@@ -195,8 +195,18 @@ export function LeadDetail({ lead, stage }: { lead: Lead; stage: PipelineStage |
           <input type="hidden" name="research_summary" value={lead.research_summary ?? ''} />
           <input type="hidden" name="personalization" value={lead.personalization ?? ''} />
           <input type="hidden" name="outreach_angle" value={lead.outreach_angle ?? ''} />
-          <input type="hidden" name="subject_line" value={lead.subject_line ?? ''} />
-          <input type="hidden" name="draft_email" value={lead.draft_email ?? ''} />
+          {/*
+            The draft is NOT round-tripped through this form (0039).
+            
+            `subject_line` and `draft_email` used to ride along as hidden
+            inputs, so saving the Business-information card re-submitted the
+            whole draft body — and HTML form submission normalises line breaks
+            to CRLF, so the value came back differing from the stored LF text.
+            `version_lead_draft()` read that as an external edit, created a new
+            version and made it active, which silently demoted the approved
+            draft on four leads. The form does not edit the draft; the draft
+            belongs to DraftWorkspace, which versions it properly.
+          */}
           <input type="hidden" name="notes" value={lead.notes ?? ''} />
 
           <PanelError state={state} />

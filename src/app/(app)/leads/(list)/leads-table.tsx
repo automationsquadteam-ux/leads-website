@@ -3,7 +3,9 @@
 import * as React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Users, ExternalLink, Archive, CheckCircle2, Download, Search, Trash2 } from 'lucide-react';
+import {
+  Users, ExternalLink, Archive, CheckCircle2, Download, Search, Trash2, MailCheck, Pencil, Save, X,
+} from 'lucide-react';
 
 import { DataTable, type Column } from '@/components/data-table';
 import { SearchBar } from '@/components/search-bar';
@@ -11,11 +13,14 @@ import { FilterPanel, ActiveFilters } from '@/components/filter-panel';
 import { Pagination } from '@/components/pagination';
 import { EmptyState } from '@/components/empty-state';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import { NextStepBadge, StageBadge } from '@/components/pipeline-badge';
-import { archiveLeads, bulkApproveDrafts, deleteLeads } from '@/lib/actions/leads';
+import {
+  archiveLeads, bulkApproveDrafts, bulkMarkEmailVerified, bulkUpdateEmails, deleteLeads,
+} from '@/lib/actions/leads';
 import { VERIFICATION_META } from '@/lib/pipeline/labels';
 import type { LeadRow } from '@/lib/data/leads';
 import {
@@ -76,6 +81,39 @@ export function LeadsTable({
     },
     [params, pathname, router],
   );
+
+  /*
+   * Inline address editing.
+   *
+   * `editingEmails` holds the drafts by lead id while the operator types, so a
+   * re-render (a toast, a router refresh) cannot lose half-typed input. It is
+   * cleared on Save and on Cancel, never on a selection change — the selection
+   * is what says WHICH rows are editable, and clearing one on the other would
+   * throw away typing the moment somebody ticks one more box.
+   */
+  const [emailEdits, setEmailEdits] = React.useState<Record<string, string> | null>(null);
+  const editingEmails = emailEdits !== null;
+
+  const saveEmails = React.useCallback(async (): Promise<void> => {
+    if (!emailEdits) return;
+    // Only rows the operator actually changed. Sending the untouched ones would
+    // reset their verification for no reason.
+    const changed = Object.entries(emailEdits)
+      .filter(([id, value]) => value.trim() !== (rows.find((r) => r.id === id)?.email ?? ''))
+      .map(([id, email]) => ({ id, email }));
+
+    if (changed.length === 0) {
+      toast('No addresses were changed.', 'error');
+      return;
+    }
+    const result = await bulkUpdateEmails(changed);
+    toast(result.message, result.ok ? 'success' : 'error');
+    if (result.ok) {
+      setEmailEdits(null);
+      // Selection deliberately survives, so Verify can run on the same rows.
+      startTransition(() => router.refresh());
+    }
+  }, [emailEdits, rows, toast, router]);
 
   const columns: Column<LeadRow>[] = React.useMemo(
     () => [
@@ -141,12 +179,45 @@ export function LeadsTable({
         key: 'email',
         header: 'Email',
         width: 220,
-        render: (lead) =>
-          lead.email ? (
+        /*
+         * Editable in place, but ONLY for selected rows while Edit addresses is
+         * on. Sourcing addresses is a batch job — you sit with a list of tabs
+         * open and type twenty of them — and making that twenty round trips
+         * through the lead page is the difference between doing it and not.
+         *
+         * `stopPropagation` on every interaction because the row itself
+         * navigates to the lead; without it the first click into the field
+         * would leave the page.
+         */
+        render: (lead) => {
+          if (editingEmails && selected.has(lead.id)) {
+            return (
+              <Input
+                value={emailEdits?.[lead.id] ?? lead.email ?? ''}
+                onChange={(e) =>
+                  setEmailEdits((prev) => ({ ...(prev ?? {}), [lead.id]: e.target.value }))
+                }
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') void saveEmails();
+                }}
+                type="email"
+                inputMode="email"
+                spellCheck={false}
+                autoComplete="off"
+                placeholder="name@business.com"
+                aria-label={`Email address for ${lead.business_name}`}
+                className="h-7 font-mono text-xs"
+              />
+            );
+          }
+          return lead.email ? (
             <span className="font-mono text-xs">{lead.email}</span>
           ) : (
             <span className="text-muted-foreground">{DASH}</span>
-          ),
+          );
+        },
       },
       {
         key: 'verification',
@@ -241,7 +312,14 @@ export function LeadsTable({
         ),
       },
     ],
-    [],
+    /*
+     * These deps are load-bearing, not tidiness. The array was `[]`, which was
+     * correct while every cell was a pure function of its row — but the Email
+     * cell now renders an input driven by `emailEdits` and `selected`, and a
+     * memo that never re-runs would hand it first-render values: the edit mode
+     * would never appear and typing would go nowhere.
+     */
+    [editingEmails, emailEdits, selected, saveEmails],
   );
 
   async function runBulk(action: () => Promise<{ ok: boolean; message: string }>): Promise<void> {
@@ -413,14 +491,56 @@ export function LeadsTable({
             on the lead page sets — so the button changed a label and no
             behaviour. It is gone rather than reimplemented in bulk.
           */}
+          {/*
+            Two approvals, and they are NOT the same decision.
+
+            "Approve drafts" is a judgement about the WORDS — it approves the
+            active initial draft. "Mark verified" is a verdict about the
+            ADDRESS. A lead needs both before it can be sent, and the old single
+            "Approve" button read as though it did both, which is how copy gets
+            signed off for an address nobody has checked. The labels say which
+            is which; the titles say what each one writes.
+          */}
           <Button
             size="sm"
             variant="secondary"
+            title="Approves the active initial DRAFT — the wording. Does not touch the address."
             onClick={() => runBulk(() => bulkApproveDrafts([...selected]))}
           >
             <CheckCircle2 className="size-3.5" aria-hidden="true" />
-            Approve
+            Approve drafts
           </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            title="Marks the ADDRESS verified by hand. Does not touch the draft. Skips leads with no address and ones a verifier proved undeliverable."
+            onClick={() => runBulk(() => bulkMarkEmailVerified([...selected]))}
+          >
+            <MailCheck className="size-3.5" aria-hidden="true" />
+            Mark verified
+          </Button>
+          {editingEmails ? (
+            <>
+              <Button size="sm" variant="primary" onClick={() => void saveEmails()}>
+                <Save className="size-3.5" aria-hidden="true" />
+                Save addresses
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setEmailEdits(null)}>
+                <X className="size-3.5" aria-hidden="true" />
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="secondary"
+              title="Type addresses straight into the Email column for the selected rows. Saving sets each one back to never checked."
+              onClick={() => setEmailEdits({})}
+            >
+              <Pencil className="size-3.5" aria-hidden="true" />
+              Edit addresses
+            </Button>
+          )}
           <Button size="sm" variant="secondary" onClick={() => setConfirmArchive(true)}>
             <Archive className="size-3.5" aria-hidden="true" />
             Archive
@@ -434,7 +554,15 @@ export function LeadsTable({
             <Trash2 className="size-3.5" aria-hidden="true" />
             Delete
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Drops the selection and any unsaved addresses."
+            onClick={() => {
+              setSelected(new Set());
+              setEmailEdits(null);
+            }}
+          >
             Clear
           </Button>
         </div>
