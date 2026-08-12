@@ -229,9 +229,15 @@ export async function sendLeadEmail(
    * refused send is one edit, the cost of mailing "Hi [Business Owner's Name]"
    * to a prospect is that prospect, permanently.
    */
+  // The lead's own real values, so a bracketed tag genuinely part of its
+  // name — "Emirates Dermatology & Cosmetology Center [EDCC]" — is not
+  // mistaken for an unfilled `[Business Owner]`. See findUnresolvedPlaceholders.
+  const knownValues = [lead.business_name, lead.niche, lead.city, lead.country].filter(
+    (v): v is string => Boolean(v),
+  );
   const unresolved = [
-    ...findUnresolvedPlaceholders(subject),
-    ...findUnresolvedPlaceholders(body),
+    ...findUnresolvedPlaceholders(subject, knownValues),
+    ...findUnresolvedPlaceholders(body, knownValues),
   ];
   if (unresolved.length > 0) {
     const shown = [...new Set(unresolved)].slice(0, 5).join(', ');

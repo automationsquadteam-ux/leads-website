@@ -594,8 +594,28 @@ export async function runOutreachCycle(
   }
 
   summary.ok = summary.failed === 0;
+
+  /*
+   * The failure reason goes IN THE MESSAGE, not just in `summary.notes`.
+   *
+   * Every one of `summary.notes` was already computed above — `ensureDraft()`
+   * and `sendLeadEmail()` both return a specific, human-readable reason, and
+   * this loop dutifully pushes `${leadId}: ${reason}` for every failure. But
+   * only one caller (the Settings "Run now" button) ever read that array back
+   * out; the cron route passed `summary.message` straight to `finishRun()` and
+   * the reason was gone the moment this function returned. The result: three
+   * leads failed on EVERY 3-minute tick for hours, `integration_runs` recorded
+   * nothing but "1 failed" next to a run id, and finding out why required
+   * reading the database by hand.
+   *
+   * Put here instead of in each caller, because "the cron and the button must
+   * behave identically" is the same argument section 8 already makes for the
+   * draft sweep. A caller that wants brevity can still take `summary.message`
+   * alone; nobody has to remember to ask for the reason.
+   */
+  const detail = summary.failed > 0 && summary.notes.length > 0 ? ` ${summary.notes[0]}` : '';
   return finish(
     `${summary.sent} sent, ${summary.generated} draft(s) generated, ` +
-      `${summary.skipped} skipped, ${summary.failed} failed (of ${summary.considered} due).`,
+      `${summary.skipped} skipped, ${summary.failed} failed (of ${summary.considered} due).${detail}`,
   );
 }

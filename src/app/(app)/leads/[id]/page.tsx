@@ -128,6 +128,12 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             versions={versions}
             hasEmail={Boolean(lead.email)}
             sentTypes={sentTypes}
+            context={{
+              businessName: lead.business_name,
+              niche: lead.niche,
+              city: lead.city,
+              country: lead.country,
+            }}
           />
           <NotesPanel lead={lead} />
         </div>

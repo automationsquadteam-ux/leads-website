@@ -418,10 +418,23 @@ export interface DraftIssue {
 export function inspectDraft(input: {
   subject: string | null | undefined;
   content: string | null | undefined;
+  /**
+   * The lead's own real values, so a bracketed tag genuinely part of its name
+   * ("Emirates Dermatology & Cosmetology Center [EDCC]") is not flagged as an
+   * unfilled `[Business Owner]`. Optional because several callers (the
+   * standalone "is this draft well-formed" checks) have no lead in hand;
+   * omitting it means those checks are slightly more conservative, never less.
+   */
+  context?: DraftContext;
 }): DraftIssue[] {
   const issues: DraftIssue[] = [];
   const content = (input.content ?? '').trim();
   const subject = (input.subject ?? '').trim();
+  const knownValues = input.context
+    ? [input.context.businessName, input.context.niche, input.context.city, input.context.country].filter(
+        (v): v is string => Boolean(v),
+      )
+    : [];
 
   if (content === '') {
     return [{ kind: 'empty', message: 'The draft is empty.', blocking: true }];
@@ -484,8 +497,8 @@ export function inspectDraft(input: {
   }
 
   const placeholders = [
-    ...findUnresolvedPlaceholders(content),
-    ...findUnresolvedPlaceholders(subject),
+    ...findUnresolvedPlaceholders(content, knownValues),
+    ...findUnresolvedPlaceholders(subject, knownValues),
   ];
   if (placeholders.length > 0) {
     issues.push({
@@ -541,7 +554,7 @@ export function repairDraft(
   issuesBefore: DraftIssue[];
   issuesAfter: DraftIssue[];
 } {
-  const issuesBefore = inspectDraft(input);
+  const issuesBefore = inspectDraft({ ...input, context });
   const normalised = normaliseDraft(input.content, input.subject);
 
   // The subject gets the same treatment: it comes from its own sheet column and
@@ -558,6 +571,6 @@ export function repairDraft(
     content,
     repaired,
     issuesBefore,
-    issuesAfter: inspectDraft({ subject, content }),
+    issuesAfter: inspectDraft({ subject, content, context }),
   };
 }

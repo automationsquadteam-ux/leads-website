@@ -26,7 +26,7 @@ import {
 } from '@/lib/actions/review';
 import { sendEmail } from '@/lib/actions/leads';
 import { EMAIL_TYPE_LABELS } from '@/lib/pipeline/labels';
-import { inspectDraft } from '@/lib/services/drafts/quality';
+import { inspectDraft, type DraftContext } from '@/lib/services/drafts/quality';
 import { cn, formatDateTime, formatRelative } from '@/lib/utils';
 import { EMAIL_TYPES, type EmailType, type EmailVersion } from '@/lib/supabase/database.types';
 
@@ -48,6 +48,15 @@ import { EMAIL_TYPES, type EmailType, type EmailVersion } from '@/lib/supabase/d
 
 interface Props {
   leadId: string;
+  /**
+   * The lead's own real values, threaded down to the placeholder check so a
+   * bracketed tag genuinely part of its name — "…Center [EDCC]" — is not
+   * flagged as an unfilled `[Business Owner]`. Same context the send path and
+   * the sweep use (0040); without it here the review UI would show a blocking
+   * warning for a draft that sends fine, which is the inconsistency this
+   * exists to prevent.
+   */
+  context: DraftContext;
   versions: EmailVersion[];
   /** Send buttons are pointless without an address; say so rather than fail. */
   hasEmail: boolean;
@@ -55,7 +64,7 @@ interface Props {
   sentTypes: EmailType[];
 }
 
-export function DraftWorkspace({ leadId, versions, hasEmail, sentTypes }: Props) {
+export function DraftWorkspace({ leadId, versions, hasEmail, sentTypes, context }: Props) {
   const [tab, setTab] = React.useState<EmailType>('initial');
 
   const byType = React.useMemo(() => {
@@ -133,6 +142,7 @@ export function DraftWorkspace({ leadId, versions, hasEmail, sentTypes }: Props)
           versions={byType[tab]}
           hasEmail={hasEmail}
           alreadySent={sentTypes.includes(tab)}
+          context={context}
         />
       </CardContent>
     </Card>
@@ -152,10 +162,10 @@ export function DraftWorkspace({ leadId, versions, hasEmail, sentTypes }: Props)
  * warning costs a glance, under-reporting costs a prospect.
  */
 /** Blocking issues, used to disable Send and explain why. */
-function useBlockingIssues(subject: string | null, content: string) {
+function useBlockingIssues(subject: string | null, content: string, context: DraftContext) {
   return React.useMemo(
-    () => inspectDraft({ subject, content }).filter((issue) => issue.blocking),
-    [subject, content],
+    () => inspectDraft({ subject, content, context }).filter((issue) => issue.blocking),
+    [subject, content, context],
   );
 }
 
@@ -166,8 +176,19 @@ function useBlockingIssues(subject: string | null, content: string) {
  * is answered right here instead of being a mystery. Blocking issues also
  * disable Send, matching what the send path enforces anyway.
  */
-function DraftIssues({ subject, content }: { subject: string | null; content: string }) {
-  const issues = React.useMemo(() => inspectDraft({ subject, content }), [subject, content]);
+function DraftIssues({
+  subject,
+  content,
+  context,
+}: {
+  subject: string | null;
+  content: string;
+  context: DraftContext;
+}) {
+  const issues = React.useMemo(
+    () => inspectDraft({ subject, content, context }),
+    [subject, content, context],
+  );
   if (issues.length === 0) return null;
 
   const blocking = issues.filter((issue) => issue.blocking);
@@ -250,12 +271,14 @@ function DraftEditor({
   versions,
   hasEmail,
   alreadySent,
+  context,
 }: {
   leadId: string;
   type: EmailType;
   versions: EmailVersion[];
   hasEmail: boolean;
   alreadySent: boolean;
+  context: DraftContext;
 }) {
   const [state, formAction, saving] = useActionState(saveDraft, EMPTY_ACTION_RESULT);
   const { busy, run } = useAsyncAction();
@@ -264,7 +287,7 @@ function DraftEditor({
   const active = versions.find((v) => v.active) ?? versions[0] ?? null;
   // Hooks cannot sit behind the early return below, so this runs for the
   // empty-state case too hence the null-safe arguments.
-  const blocking = useBlockingIssues(active?.subject ?? null, active?.content ?? '');
+  const blocking = useBlockingIssues(active?.subject ?? null, active?.content ?? '', context);
 
   if (!active) {
     return (
@@ -342,7 +365,7 @@ function DraftEditor({
         </p>
       ) : null}
 
-      <DraftIssues subject={active.subject} content={active.content} />
+      <DraftIssues subject={active.subject} content={active.content} context={context} />
 
       <DraftForm
         key={active.id}

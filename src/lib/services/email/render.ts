@@ -67,19 +67,44 @@ export function renderPlaceholders(template: string, lead: Lead, signature: stri
  * placeholder and drops the aside. Numeric citations such as `[1]` never match.
  *
  * Returns the offending strings, de-duplicated, in the order found.
+ *
+ * `knownValues` is the lead's own real field values (business_name, niche,
+ * city, country) — text that is legitimately IN the draft because it was
+ * merged in, not a placeholder nobody filled. Found live: leads whose actual
+ * name carries a bracketed tag —
+ *
+ *     Emirates Dermatology & Cosmetology Center [EDCC]
+ *     [UNEC] United Engineering Construction Company
+ *     Shiny Smile Aesthetic Dental Clinic [Pasang Behel dan Implan Gigi]
+ *
+ * — trip the `[Title Case]` rule below on every field it appears in,
+ * indistinguishable from a genuine `[Business Owner]`. Blocking is
+ * unconditional and every send path goes through it, so these three leads
+ * failed their follow-up on EVERY cron tick, forever, with no way to fix the
+ * data (the bracket is the business's real name) and no send attempted to
+ * even reach `email_logs` — the block fires before that write. A match is
+ * only excluded when its bracket CONTENT (not the brackets) appears
+ * case-insensitively inside one of the known values, so a coincidental
+ * one-word overlap cannot mask an unrelated genuine placeholder.
  */
-export function findUnresolvedPlaceholders(rendered: string): string[] {
+export function findUnresolvedPlaceholders(rendered: string, knownValues: string[] = []): string[] {
   const found: string[] = [];
+  const haystacks = knownValues.filter((v) => v.trim() !== '').map((v) => v.toLowerCase());
 
   const push = (value: string) => {
     const trimmed = value.trim();
-    if (trimmed !== '' && !found.includes(trimmed)) found.push(trimmed);
+    if (trimmed === '' || found.includes(trimmed)) return;
+    found.push(trimmed);
   };
 
   for (const match of rendered.matchAll(/\{\{\s*[^}\n]{1,60}\s*\}\}/g)) push(match[0]);
 
   // Title Case of any length, or one bare lower-case word. Single line only.
-  for (const match of rendered.matchAll(/\[(?:[A-Z][^\]\n]{0,60}|[a-z_]{1,30})\]/g)) push(match[0]);
+  for (const match of rendered.matchAll(/\[(?:[A-Z][^\]\n]{0,60}|[a-z_]{1,30})\]/g)) {
+    const inner = match[0].slice(1, -1).trim().toLowerCase();
+    if (inner !== '' && haystacks.some((h) => h.includes(inner))) continue;
+    push(match[0]);
+  }
 
   return found;
 }

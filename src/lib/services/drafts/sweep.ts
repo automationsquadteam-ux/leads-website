@@ -191,7 +191,9 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
       }
     }
 
-    const issues = inspectDraft({ subject, content });
+    // Same context repairDraft() above already used, so a bracketed tag that
+    // is genuinely part of the lead's own name never blocks here either.
+    const issues = inspectDraft({ subject, content, context: contextById.get(draft.lead_id) ?? {} });
     const blocking = issues.filter((issue) => issue.blocking);
 
     // The version id may have changed if a repair created a new one, so

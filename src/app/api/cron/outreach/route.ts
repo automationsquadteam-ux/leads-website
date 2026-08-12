@@ -64,6 +64,17 @@ async function handle(request: NextRequest) {
       skipped: summary.skipped,
       failed: summary.failed,
       closed: summary.closed,
+      /*
+       * The full list, not just the reason `summary.message` already carries
+       * for the first one. This is the ONLY caller that runs unattended every
+       * 3 minutes, so it is the one place a silent, permanently-repeating
+       * failure would otherwise leave no trace at all — three leads did
+       * exactly that for hours: a bracketed tag in their own business name
+       * tripped the placeholder guard on every tick, `failed` incremented
+       * next to a bare run id, and finding out why meant reading the database
+       * by hand. See the comment in runOutreachCycle().
+       */
+      notes: summary.notes,
     });
   });
 
