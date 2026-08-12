@@ -68,6 +68,64 @@ export function LeadsTable({
   const [confirmArchive, setConfirmArchive] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
+  /*
+   * Selected-but-filtered-out rows stay visible until Clear.
+   *
+   * The list is a live query, not a snapshot — every filter/stage/verify
+   * param in the URL is re-run on the server on every refresh, on purpose,
+   * so the numbers never lie. But that collides with a workflow this table
+   * exists to support: select a batch of catch-all addresses, fix one,
+   * save. Saving resets its verification to "never checked" (deliberately —
+   * so Mark verified can run on the corrected address next), which is a
+   * DIFFERENT filter value than the one that put it on screen. The next
+   * `router.refresh()` re-runs the current filter, the lead no longer
+   * matches it, and the row vanishes from `rows` — while `selected` still
+   * names it, on purpose, so the next bulk action can still reach it. The
+   * result without this cache: a "1 selected" chip with nothing on screen
+   * to point it at.
+   *
+   * `rowCache` accumulates the last known full row for every id this table
+   * has ever rendered, so a selected id the server's `rows` no longer
+   * contains can still be resurrected below.
+   *
+   * `cachedFromRows` tracks which `rows` array is already folded into it, and
+   * the comparison runs DURING RENDER, not inside a `useEffect` — the same
+   * idiom `pipeline-panel.tsx` and `lead-detail.tsx` use for the identical
+   * reason: React explicitly supports a conditional `setState` call in the
+   * render body as a "bail out and re-render before committing" step, so the
+   * cache is already correct on the render that just received new `rows`.
+   * Doing this in an effect would cost an extra full commit-then-rerender
+   * cycle for something that only needs to be ready in time for THIS render's
+   * `pinnedIds`/`displayRows` below — and, separately, this project's lint
+   * config rejects `setState` inside an effect entirely (`react-hooks/set-
+   * state-in-effect`), so an effect was never the sanctioned option here.
+   */
+  const [rowCache, setRowCache] = React.useState<Map<string, LeadRow>>(() => {
+    const initial = new Map<string, LeadRow>();
+    for (const row of rows) initial.set(row.id, row);
+    return initial;
+  });
+  const [cachedFromRows, setCachedFromRows] = React.useState(rows);
+  if (rows !== cachedFromRows) {
+    setCachedFromRows(rows);
+    setRowCache((prev) => {
+      const next = new Map(prev);
+      for (const row of rows) next.set(row.id, row);
+      return next;
+    });
+  }
+
+  const pinnedIds = React.useMemo(() => {
+    const present = new Set(rows.map((r) => r.id));
+    return [...selected].filter((id) => !present.has(id) && rowCache.has(id));
+  }, [rows, selected, rowCache]);
+
+  const displayRows = React.useMemo(() => {
+    if (pinnedIds.length === 0) return rows;
+    const pinned = pinnedIds.map((id) => rowCache.get(id)!);
+    return [...rows, ...pinned];
+  }, [rows, pinnedIds, rowCache]);
+
   const update = React.useCallback(
     (changes: Record<string, string | null>) => {
       const next = new URLSearchParams(params.toString());
@@ -123,13 +181,23 @@ export function LeadsTable({
         sortable: true,
         width: 240,
         render: (lead) => (
-          <Link
-            href={`/leads/${lead.id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="font-medium text-foreground hover:text-primary hover:underline"
-          >
-            {lead.business_name}
-          </Link>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Link
+              href={`/leads/${lead.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="min-w-0 truncate font-medium text-foreground hover:text-primary hover:underline"
+            >
+              {lead.business_name}
+            </Link>
+            {pinnedIds.includes(lead.id) ? (
+              <span
+                title="Selected, but this lead no longer matches the current filter — likely from your own edit. It stays on screen until you Clear."
+                className="shrink-0 rounded border border-warning/40 bg-warning-subtle px-1 py-0.5 text-[10px] font-medium text-warning"
+              >
+                filtered out
+              </span>
+            ) : null}
+          </span>
         ),
       },
       {
@@ -319,7 +387,7 @@ export function LeadsTable({
      * memo that never re-runs would hand it first-render values: the edit mode
      * would never appear and typing would go nowhere.
      */
-    [editingEmails, emailEdits, selected, saveEmails],
+    [editingEmails, emailEdits, selected, saveEmails, pinnedIds],
   );
 
   async function runBulk(action: () => Promise<{ ok: boolean; message: string }>): Promise<void> {
@@ -482,6 +550,12 @@ export function LeadsTable({
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary-subtle px-3 py-2">
           <span className="tabular text-sm font-medium text-primary">
             {formatNumber(selected.size)} selected
+            {pinnedIds.length > 0 ? (
+              <span className="ml-1 font-normal text-muted-foreground">
+                ({pinnedIds.length} no longer match this filter — pinned below, marked
+                &quot;filtered out&quot;)
+              </span>
+            ) : null}
           </span>
           <div className="flex-1" />
           {/*
@@ -571,7 +645,7 @@ export function LeadsTable({
       <div className="overflow-hidden rounded-lg border border-border bg-surface">
         <DataTable
           columns={columns}
-          rows={rows}
+          rows={displayRows}
           getRowId={(lead) => lead.id}
           resizeStorageKey="leads"
           selectable
@@ -581,6 +655,11 @@ export function LeadsTable({
           direction={direction}
           onSortChange={(column, dir) => update({ sort: column, dir })}
           onRowClick={(lead) => router.push(`/leads/${lead.id}`)}
+          rowClassName={(lead) =>
+            pinnedIds.includes(lead.id)
+              ? 'bg-warning-subtle/40 hover:bg-warning-subtle/60'
+              : undefined
+          }
           emptyState={
             <EmptyState
               icon={Users}

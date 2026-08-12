@@ -25,9 +25,11 @@ Supabase (Postgres + Auth + RLS) · nodemailer · ExcelJS.
 
 Node 20.9+. Windows dev box; PowerShell is the primary shell.
 
-### Current state (2026-08-05)
+### Current state (2026-08-12)
 
-Migrations 0001 through 0023 are all applied to the live database.
+Migrations 0001 through 0039 are all applied to the live database (see section 2 — every one
+from 0031 onward was confirmed by a live functional probe on 2026-08-12, not assumed from this
+table).
 
 | Area | Status |
 | --- | --- |
@@ -53,8 +55,14 @@ Migrations 0001 through 0023 are all applied to the live database.
 | What signed-in *viewers* may see | **Still deliberately nothing.** `/` is the public answer |
 | Deliverability (SPF/DKIM/DMARC, BIMI) | **Not addressed.** See section 11 |
 
-Live figures at the time of writing: 701 leads, 394 with an address, 202 verified, 28 emails
-sent from the CRM, 89 emailed in total (the rest upstream), 1 reply.
+Live figures at the time of writing (all excluding archived, per the standing rule below): 1003
+leads, 13 archived, 611 with an address, 281 verified, 270 businesses contacted (348 messages —
+215 initial, 76 follow-up 1, 57 follow-up 2), 3 replies, 0% bounce rate. **Never report a figure
+for this project without excluding `status = 'archived'` first** — `leads`, `lead_pipeline` and
+`email_versions` all carry archived rows, and only the views rebuilt in 0034
+(`public_stats_overview` and friends) or app code that explicitly joins `leads.status` exclude
+them; a raw `count(*)` on `lead_pipeline` does not, because that table has no status column of
+its own to filter on (see 0034 and 0035 in the changelog for what that gap actually cost).
 
 > **See section 12 first.** A read-only audit on 2026-08-05 found twelve open problems in
 > the dashboard, the send gates and the verification model. None of them is fixed.
@@ -97,42 +105,51 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0028 | `20260806120000_verdicts_belong_to_an_address.sql` | ✅ yes — corrected 2026-08-10 |
 | 0029 | `20260810090000_dedupe_key_default_on_insert.sql` | ✅ yes — pasted 2026-08-10 |
 | 0030 | `20260810100000_sweep_checked_flag.sql` | ✅ yes — pasted 2026-08-10 |
-| 0031 | `20260810110000_normalize_blank_leads_fields.sql` | ❌ **NOT YET** — paste `schema-update-21-normalize-blank-fields.sql` |
-| 0032 | `20260810120000_normalize_social_links_shape.sql` | ❌ **NOT YET** — paste `schema-update-22-social-links-shape.sql` **after 0031** (see note in that file — it redefines the same function; whichever is pasted last wins, so if pasted out of order just paste 22 again) |
-| 0033 | `20260810130000_retire_google_sheets.sql` | ✅ yes — pasted 2026-08-10 |
-| 0034 | `20260810140000_exclude_archived_everywhere.sql` | ✅ yes — pasted 2026-08-10 |
-| 0035 | `20260810150000_send_queue_view.sql` | ✅ yes — pasted 2026-08-10 |
-| 0036 | `20260810160000_public_leads_contacted.sql` | ❌ **NOT YET** — paste `schema-update-26-leads-contacted.sql`. **Until it runs the public page shows `Businesses Contacted: 0`**, because the column it reads does not exist yet |
-| 0037 | `20260810170000_close_stale_after_followup2.sql` | ❌ **NOT YET** — paste `schema-update-27-close-after-followup2.sql`. The sweep runs at the code default of 14 days without it; the row is what lets the Settings field persist a different number |
-| 0038 | `20260810180000_stamp_checked_address.sql` | ❌ **NOT YET** — paste `schema-update-28-stamp-checked-address.sql`. Until it runs, every NEW verdict is immune to the address-change reset |
-| 0039 | `20260812080000_approved_version_stays_active.sql` | ❌ **NOT YET** — paste `schema-update-29-approved-stays-active.sql`. The 4 affected leads are already repaired by hand; this stops it recurring |
+| 0031 | `20260810110000_normalize_blank_leads_fields.sql` | ✅ yes — confirmed 2026-08-12 by functional probe |
+| 0032 | `20260810120000_normalize_social_links_shape.sql` | ✅ yes — confirmed 2026-08-12 |
+| 0033 | `20260810130000_retire_google_sheets.sql` | ✅ yes — confirmed 2026-08-12 |
+| 0034 | `20260810140000_exclude_archived_everywhere.sql` | ✅ yes — confirmed 2026-08-12 |
+| 0035 | `20260810150000_send_queue_view.sql` | ✅ yes — confirmed 2026-08-12 |
+| 0036 | `20260810160000_public_leads_contacted.sql` | ✅ yes — confirmed 2026-08-12 |
+| 0037 | `20260810170000_close_stale_after_followup2.sql` | ✅ yes — confirmed 2026-08-12 |
+| 0038 | `20260810180000_stamp_checked_address.sql` | ✅ yes — confirmed 2026-08-12 |
+| 0039 | `20260812080000_approved_version_stays_active.sql` | ✅ yes — confirmed 2026-08-12 |
 
-**0026–0028 were marked NOT YET in this table since they were written, but were actually pasted
-into the live database at some point before 2026-08-09** — the `leads:duplicates --merge` run
-that day read `email_verification_status` and `current_stage` off `lead_pipeline` without error,
-which only 0028 and 0026/27 respectively make possible. Probed directly on 2026-08-10 to confirm:
-a `current_stage = 'dead_email'` query and an `email_verifier_status` / `email_checked_address`
-select both succeed. The table just never got updated after whoever pasted them. **Lesson: this
-table is not evidence on its own — always probe, exactly as the next section already says.**
+**Everything through 0039 is applied.** This table had drifted stale more than once by this point
+— 0026–0028 sat marked NOT YET for days after they had actually run, and on 2026-08-12 the same
+thing had happened again to 0031, 0032, 0036, 0037 and 0038. **A "NOT YET" row is not evidence a
+migration is pending; it only means nobody re-probed since it was written.** The row means
+nothing on its own — what changed this time is HOW it was confirmed: not by re-deriving from
+context (asking "did anyone mention pasting this recently") but by a real functional test against
+the live database for every single migration from 0031 onward, in the same session, right before
+writing this table:
 
-**Everything through 0035 is applied (confirmed 2026-08-10). 0036 is new and is NOT.**
-Historical note on 0031/0032, kept because the ordering trap still applies if they are ever
-re-run: Both live in `normalize_blank_lead_fields()`, one trigger doing two jobs: 0031
-stops a direct writer's `""` from tripping `leads_email_format` / `leads_website_scheme`, 0032
-extends the SAME function to also stop a JSON-string-shaped `social_links` (n8n sent the literal
-text `"{}"`, or raw prose) from tripping `leads_social_links_is_object`. n8n hit both, back to
-back, on its first two live executions — exactly the failure mode these exist to close. **Paste
-21 then 22, in that order** (22 fully replaces the function 21 creates; if pasted out of order,
-paste 22 again and it corrects itself, since `create or replace` always keeps whatever ran last).
+- **0031/0032**: inserted a throwaway lead with `email: ''` and `social_links: '{}'` (a JSON
+  string, not an object) — both used to violate a CHECK constraint outright; both now insert
+  cleanly, which only happens if `normalize_blank_lead_fields()` is live.
+- **0033**: `settings` no longer has a `sheets.spreadsheet_id` row.
+- **0034**: `public_stats_overview.total_leads` equals a direct `count(*) where status <> 'archived'` exactly.
+- **0035**: `lead_send_queue` is readable by the service-role client (it would return zero rows,
+  not an error, if 0035 had not run — see the gotcha table for why that specific failure mode is
+  the dangerous one).
+- **0036**: `public_stats_overview.leads_contacted` selects without error.
+- **0037**: the `outreach.close_after_followup2_days` settings row exists.
+- **0038**: set a throwaway lead's `email_verification_status` WITHOUT setting
+  `email_checked_address`, and confirmed the trigger stamped it anyway.
+- **0039**: created an approved, active v1; wrote different-CRLF-but-same-text to
+  `leads.draft_email` (exactly what the old lead-detail form round trip did); confirmed v1 was
+  still the active version afterward, not silently demoted.
 
-Verified against the live database on 2026-08-05 by
-probing for each migration's marker rather than trusting the file list — `inbound_messages`
-exists, `pipeline_board` carries the verification columns, `outreach.max_runtime_seconds` is
-present, a research-but-no-summary lead reads `research_complete = true`, and no row is left
-with `email_verified` set while its status still says `unverified` (which is what 0023 fixed).
+**The lesson, stated plainly because it cost real time twice:** for anything this table claims is
+applied, prefer a probe that would FAIL in an observable way if it were not — a raw `select` that
+merely returns zero rows (like querying an `is_admin()`-gated view with the wrong client) proves
+nothing, because "empty" and "doesn't exist yet" look identical from the client. An insert that
+should be rejected without the migration, or a value that should differ without it, is real
+evidence; a table existing is not.
 
-**The next migration is 0028.** Add the file, regenerate `schema.sql` and a
-`schema-update-18-*.sql` bundle, and leave its row as NOT YET until it has actually run.
+**The next migration is 0040.** Add the file, regenerate `schema.sql` and a
+`schema-update-30-*.sql` bundle, and leave its row as NOT YET until it has actually been probed —
+not just pasted, and not just remembered as pasted.
 
 ### 0026 and 0027 are ONE change split in two, and the order is not optional
 
@@ -483,8 +500,11 @@ every credential.
 ```
 profiles     id (=auth.users.id), role (admin|viewer), full_name
 leads        identity · pipeline status · research · draft · notes · scheduling
-             dedupe_key UNIQUE  ← makes every import/sync idempotent
-             sheet_row_number   ← provenance back to the Google Sheet row
+             dedupe_key UNIQUE  ← makes every import/insert idempotent, auto-computed
+             on INSERT when left blank (0029) — email > website > name+city, the same
+             rule for the workbook importer, a direct writer (n8n), and a hand upsert
+             sheet_row_number   ← provenance back to a Google Sheet row, from the era
+             before 2026-08-10; NULL for anything inserted since. Kept, never backfilled
              (campaigns and templates were dropped in 0025; every lead had
               campaign_id = NULL, so the generator never used them)
 email_logs   lead_id, status, provider, message_id, sent_at, error, email_type
@@ -494,13 +514,24 @@ integration_secrets  key → ciphertext (service-role only)
 integration_runs     integration, action, status, stats, timings
 
 email_versions  lead_id, type, version_number, subject, content, status, active,
-                generated_by, reviewed_by/at, review_note
+                generated_by, reviewed_by/at, review_note, sweep_checked_at (0030)
                 UNIQUE (lead_id, type, version_number)
                 partial UNIQUE (lead_id, type) WHERE active
 lead_pipeline   lead_id PK, current_stage (DERIVED), 4 gate flags + their _at stamps,
                 first_email_sent, followup1_due/sent, followup2_due/sent,
-                replied, closed, closed_reason, auto_followups
+                replied, closed, closed_reason, auto_followups,
+                email_verifier_status, email_checked_address (0028 — which address
+                a verdict was about; see "The flag and the status" in section 2)
 lead_activity   lead_id, kind, summary, detail, actor_id  (append-only audit)
+
+lead_send_queue  VIEW (0035). Machine-facing mirror of lead_pipeline + leads, archived
+                 excluded, computed send_priority. Protected by GRANTS (revoked from
+                 anon/authenticated, granted to service_role) rather than by
+                 is_admin() — the scheduler runs on the service-role key, which
+                 satisfies no is_admin() predicate, so pipeline_board (the admin
+                 equivalent) returns ZERO ROWS to it. Read from a service-role
+                 context (scripts, the scheduler); pipeline_board from a session-
+                 bound admin context (the dashboard, the leads list).
 ```
 
 `lead_status`: `new · researching · ready · approved · sending · sent · replied · bounced ·
@@ -846,6 +877,9 @@ vercel.json          declares the hourly cron that hits /api/cron/outreach
 
 scripts/
   import-leads.ts    workbook import CLI (tsx)
+  find-duplicates.ts leads sharing an email/sheet row -- --merge archives the loser
+  purge-leads.ts     delete leads with a restorable JSON backup
+  verify-emails.ts   verifier CSV round trip: export / import / status
 
 src/
   proxy.ts           route-protection middleware (Next 16 naming)
@@ -858,7 +892,9 @@ src/
     stats/           PUBLIC statistics page no session, anon client only
     api/
       admin/leads/[id]/regenerate/  POST { type } → new version (assertAdmin)
-      cron/outreach/                scheduled sender (CRON_SECRET bearer)
+      cron/outreach/                scheduled sender + exhausted-sequence close (CRON_SECRET bearer)
+      cron/approve-drafts/          scheduled draft sweep, same CRON_SECRET check
+      inbound/reply/                Cloudflare Email Worker → reply ingestion
     (app)/           authenticated shell (sidebar + topbar)
       layout.tsx     requireUser() → AppShell
       dashboard/     operational widgets; viewers get ViewerRestricted
@@ -901,7 +937,11 @@ src/
       email-versions.ts  create / activate / review never overwrites
       integration-runs.ts run history
       ai/                types · prompt · template-generator · ollama · index
-      outreach/          pipeline.ts (reads/asserts) · scheduler.ts (the sender)
+      drafts/            quality.ts (inspectDraft/repairDraft, the placeholder+shape
+                         checks every send path shares) · sweep.ts (runDraftSweep,
+                         button and cron call this, never re-implement it)
+      outreach/          pipeline.ts (reads/asserts) · scheduler.ts (the sender AND
+                         the exhausted-sequence close, 0037)
       email/             types · smtp · gmail · index (factory) · render ·
                          send-lead-email
     import/
@@ -1312,7 +1352,12 @@ build.
 
 ---
 
-## 10. Known data quirks (`Leads.xlsx`, Sheet2)
+## 10. Known data quirks (`Leads.xlsx` workbook importer)
+
+`npm run import:leads` (`scripts/import-leads.ts`) is the only thing left that reads this file —
+the Google Sheet it used to share an identity rule with is retired (section 8). Kept for the rare
+occasion someone runs it again, and because the identity rule below is not actually workbook-
+specific.
 
 - Headers carry stray leading spaces and inconsistent casing.
 - `Date Added` mixes Excel serials, `DD-MM-YYYY` text, and real dates. The serial converter
@@ -1320,30 +1365,16 @@ build.
 - 19 rows carry scraper-junk emails (`…@sentry-next.wixpress.com`, `user@domain.com`).
   These are discarded; identity falls back to website or name. Without this, nine unrelated
   businesses would collapse under one Wix error-reporting address.
-- **5 pairs of genuinely different businesses share one contact email** (two Chiang Mai
-  agencies both on `info@faranghomes.com`). Under the email-identity rule they collapse:
-  703 rows → 698 leads. This is intended; every collapse is reported.
+- **Genuinely different businesses sharing one contact email collapse into one lead** (two
+  Chiang Mai agencies both on `info@faranghomes.com` was the original example). This is
+  intended, not a bug: the identity rule is `email > website > name+city`, so two rows with the
+  same email are, as far as this system can tell, the same business until proven otherwise.
+  `buildDedupeKey()` in `lib/import/dedupe.ts` is the TypeScript half of this rule, used by the
+  workbook importer; `assign_dedupe_key_on_insert()` (0029) is the SAME rule enforced in
+  Postgres for any direct writer — n8n included — so a collision collapses a lead the same way
+  regardless of which path it came in through.
 - Sheet1 (687 Pakistan leads, no research/drafts) is **excluded** by user decision.
-  `--sheet=Sheet1` imports it if ever wanted; overlap with Sheet2 is only 9 rows.
-
-### The live Google Sheet has the same trap (2026-08-04)
-
-Document `1D0IlVsbD1zl4mxlQ7lfyjZ8__QXGD0V_KoYC4WRNke4`, title "Leads":
-
-| Tab | Populated rows | Columns | Research | Drafts |
-| --- | --- | --- | --- | --- |
-| Sheet1 | 687 | 12 | **none no such column** | none |
-| **Sheet2** | **703** | 26 | 456 | 139 |
-| Sheet3 | 0 (headers only) | 26 | | |
-
-`sheets.sheet_name` shipped defaulting to `Sheet1`, so the first sync pulled 468 leads with
-no research and no drafts and mixed them in with the enriched workbook import. **It is now
-set to `Sheet2`.** If leads ever appear with empty research, check this setting first.
-
-Note the discrepancy worth knowing about: the workbook `Leads.xlsx` carries **698 drafts**,
-the live Sheet2 only **139**. The two are not the same snapshot. Re-syncing the sheet will
-not reproduce the workbook's drafts `npm run import:leads` is the only way to get those
-back (and it sets no `sheet_row_number`, so those leads cannot write back to the sheet).
+  `--sheet=Sheet1` imports it if ever wanted.
 
 ---
 
@@ -1377,232 +1408,42 @@ should start at `p=none` with reporting until the reports come back clean.
 Order of value for a cold-outreach sender: SPF and DKIM aligned → DMARC at `p=none` →
 DMARC at enforcement → BIMI → VMC. The avatar is the last and least of these.
 
-## 12. Audit 2026-08-05 — open findings, NOTHING FIXED YET
+## 12. Historical debugging notes — deeper reasoning behind changelog entries
 
-Read-only probe of the live database plus a pass over every dashboard tile and the paths that
-feed them. **None of this is fixed.** It is written down so the next session does not
-re-derive it. Live figures at the time of the probe: 701 leads, 701 pipeline rows, 743
-versions, 28 sends recorded in `email_logs`, 89 leads emailed in total (the rest upstream),
-1 reply.
+The Changelog (section 13) is the terse, one-line-per-day record of what shipped. This section
+is the small number of past investigations worth more than one line — the reasoning, not just the
+outcome, kept because the SAME class of bug tends to recur in a new place (see 0034 and 0035:
+"archived leads leak into a count" and "service-role gets zero rows from an is_admin() view" each
+happened more than once, in different tables, months apart).
 
-### What the tiles actually count right now
+**Everything below is resolved.** None of it describes a current problem. If a subsection reads
+like it is reporting something broken, that is the state AS FOUND, on the date given, before the
+fix in the same subsection.
 
-| Tile | Shows | Composition |
-| --- | --- | --- |
-| Approval Queue | 351 | `draft_ready & !approved` — 159 have no address, 13 are dead addresses |
-| Emails Waiting Review | 375 | the SAME 351 initial drafts + 12 followup1 + 12 followup2 |
-| Awaiting Verification | 173 | 78 catch-all + 95 unknown. **Zero** never-checked addresses exist |
-| Needs Research | 0 | requires `email_verified`, and only 202 leads are verified |
-| Needs Draft | 207 | 58 already emailed, 84 have no address |
-| Ready to Send | 111 | 62 have **no address**, 4 are **dead**, 18 unknown, 12 catch-all, **15 verified** |
-| Leads Missing Email | 307 | correct |
-| Dead Addresses | 19 | correct |
+### The 2026-08-05 audit, compressed
 
-### The findings
+A full read-only pass over the live database and every dashboard tile, on a 701-lead dataset,
+found twelve disagreements between what a tile showed and what its own linked page actually
+contained — the root cause in every case was one of two things: **an ad-hoc flag query standing
+in for the derived pipeline stage** (so a tile and a page could each apply a slightly different
+definition of "ready"), or **a boolean collapsing a wider enum** (`email_verified` hiding the
+difference between "nobody has checked" and "a verifier tried and could not tell either way").
 
-1. **Ready to Send counts leads that cannot be sent.** `idsForView('ready_to_send')` and the
-   matching widget check `pipeline.approved` + an approved active `initial` version +
-   `first_email_sent is null`. Neither checks `email_found` or `email_verified`, so 96 of the
-   111 are unsendable. The cron then refuses them (`requireVerifiedEmail` is on), which is
-   why the tile never moves.
-2. **The manual Send button has no verification gate.** `sendLeadEmail()` checks a placeholder
-   and an address being present, and nothing else. `requireVerifiedEmail` is enforced only in
-   `findDueWork()` in the scheduler. Pressing Send on a lead whose address a verifier proved
-   dead will mail it.
-3. **The approve sweep signs off leads with no address.** `repairAndApproveDrafts()` and
-   `bulkApproveDrafts()` filter on the draft only. That is how 62 address-less leads reached
-   Ready to Send.
-4. **"Awaiting Verification" conflates never-checked with checked-inconclusive.** It counts
-   `email_verified = false` minus `invalid`, which today is 100 % catch-all and unknown —
-   addresses a verifier HAS already answered on. The Settings panel says 0 to check, the
-   dashboard says 173 awaiting, and both are reading the same rows.
-5. **The pipeline panel gate is the same conflation.** `email_verified` is a boolean over a
-   five-value enum, so catch-all and unknown render as an empty circle indistinguishable from
-   "nobody has looked". This is the "it says verification wasn't done when it was" report.
-6. **`saveResearch()` wipes `researched_at`.** It writes
-   `researched_at: values.research_summary ? now : null`, so saving any research edit with an
-   empty summary nulls the column — which is exactly the carrier 0024 makes authoritative.
-7. **Follow-up Due Today tile and its link disagree.** The widget counts `followup1_due`
-   BETWEEN today's start and end; `idsForView('followup1_due')` counts everything `<= end of
-   today`. Both are 0 today so it is invisible; the first overdue follow-up makes the tile and
-   the page disagree, and double-counts against Overdue Follow-ups.
-8. **The dashboard "Ready to send" list card does not match its own tile.** It queries
-   `pipeline_board` by `next_step` and adds `updated_at <= end of today`, a filter that is
-   true for essentially every row and answers nothing.
-9. **`current_stage` hides a missing address.** The CASE is ordered newest-fact-first, so
-   `approved` / `draft_ready` / `research_complete` all outrank `email_found`. 307 leads have
-   no address; only 2 read `need_email`. The rest read "Draft Ready" or "Approved".
-10. **348 leads are marked `Skip` upstream and the CRM ignores it.** `category` was removed
-    from every code path in 0024 but the data is still there: 158 Skip leads sit in the
-    approval queue, 60 in Ready to Send, and **54 have already been emailed**.
-11. **`outreach.auto_send_initial` is `true` in the live settings.** Initial emails go out
-    unattended. Sections 1 and 8 describe it as off by default; it is not.
-12. **`leads.status` and `current_stage` disagree at scale.** `status = 'researching'` on 472
-    leads while 695 read `research_complete`; `status = 'invalid'` on 15 against 19 dead
-    addresses. Status is a label someone sets; stage is derived. Only
-    `sync_pipeline_from_lead()` reads status (for `approved`), and the importer overwrites it.
+The fix, in one sentence: **every dashboard tile became a `current_stage` or `next_step` query**,
+so a count and the page it links to resolve through the same derivation by construction, and
+`compute_pipeline_stage()` was reordered from "newest fact wins" to "first unmet gate wins" — a
+stage now names what is BLOCKING a lead, not the last thing that happened to it. This shipped as
+migrations 0025 (the funnel reorder, every tile rebuilt) and 0026/0027 (a `dead_email` stage split
+out from `need_email`, because "no address" and "address proved dead" are different jobs that had
+been sharing one bucket). `leads.category` (the stale upstream "Skip" marking) and the unused
+`campaigns`/`templates` tables were dropped in the same pass — confirmed structurally empty
+(every lead had `campaign_id = NULL`) rather than assumed.
 
-### Dead code and dead schema
-
-| Thing | Evidence | Verdict |
-| --- | --- | --- |
-| `src/lib/data/dashboard.ts` | imported by nothing | dead module |
-| `dashboard_overview`, `dashboard_leads_by_country`, `dashboard_leads_by_niche`, `dashboard_reply_activity_daily`, `dashboard_reply_stats` | only consumed by that dead module | droppable |
-| `dashboard_leads_created_daily` | no consumer at all | droppable |
-| `dashboard_leads_safe` | built for the viewer role that was never given a scope | keep only if viewers are coming |
-| `dashboard_leads_by_category` | no consumer; blocks `alter table leads drop column category` | drop with the column, not before |
-| `settings` rows `ai.default_model`, `provider.name`, `followup.default_delay_days` | seeded in 0006, read by nothing | droppable |
-| `leads.next_followup_at` | 0 rows populated, never read or written | droppable |
-| `campaigns` / `templates` | 1 seed row each; **all 701 leads have `campaign_id = NULL`** | so `dashboard_campaign_stats`, `analytics_template_performance` and `public_stats_campaigns` are structurally empty |
-| `leads.category` | 348 Skip / 241 Needs Automation / 112 No Website | **droppable** — the Skip marks were confirmed stale on 2026-08-05 |
-
-### Decisions taken 2026-08-05 — the target design
-
-Eight decisions, all made by the user. **This is the spec; none of it is built yet.**
-
-**1. Stage becomes a strict funnel.** `compute_pipeline_stage()` is reordered from *newest fact
-wins* to **first unmet gate wins**, so a stage names what is BLOCKING a lead rather than the
-last thing that happened to it. Sent leads stay pinned at the top — a lead already emailed
-never falls back, even if its address later goes dead.
-
-```
-closed > replied > followup2_sent > followup1_sent > initial_sent   (facts, pinned)
-  then: no address        -> need_email
-        status = invalid  -> need_email
-        not verified      -> need_verification
-        no research       -> research
-        no draft          -> draft
-        not approved      -> review
-        else              -> ready
-```
-
-Modelled against live data, 497 leads move backwards: 172 `review -> need_email`,
-89 `review -> need_verification`, 86 `draft -> need_email`, 54 `draft -> need_verification`,
-66 `approved -> need_email`, 30 `approved -> need_verification`. **Nothing is deleted** —
-drafts and approvals stay attached, so a lead jumps straight to `ready` the moment its address
-is found and verified.
-
-The uncomfortable fact this exposes: 304 of the 307 address-less leads already have research
-done, 159 have drafts awaiting review and 62 have approved drafts. The upstream pipeline
-researched and drafted for hundreds of businesses it never found an address for. The funnel
-does not create that; it stops "Approval Queue: 351" from hiding it.
-
-**2. Every dashboard tile becomes a stage or next-step query,** not an ad-hoc flag query. This
-is the permanent fix for the "tile says 114, page shows 97" class of bug — the count and the
-link resolve through the same derivation by construction.
-
-| Tile | Now | Target |
-| --- | --- | --- |
-| Leads Missing Email | 307 | 307 (`stage = need_email`, excluding dead) |
-| Dead Addresses | 19 | 19 |
-| Awaiting Verification | 173 | **0** — never-checked WITH an address |
-| **Checked, inconclusive** | — | **173** — new tile, catch-all + unknown |
-| Needs Research | 0 | 0 |
-| Needs Draft | 207 | **9** |
-| Approval Queue | 351 | **90** (`stage = review`, initial only) |
-| Emails Waiting Review | 375 | **removed** — it was the same 351 drafts + 24 follow-ups |
-| Ready to Send | 111 | **9** |
-
-**3. Ready to Send means verified.** Address present + `email_verification_status = 'valid'` +
-active `initial` version approved + not sent. The tile, the named view and the sender all read
-the same conditions.
-
-**4. Catch-all and unknown get their own queue.** 78 + 95 = 173 addresses a verifier HAS
-answered on and could not prove either way, of which 30 already have an approved draft and 89
-have one awaiting review. They stop being counted as "awaiting verification", which was the
-"it says verification wasn't done when it was" complaint. The lead-page tick box becomes a real
-five-state control over the enum, because a boolean over five values is what caused this.
-
-**5. The verification gate moves into `sendLeadEmail()`** — the one function every send path
-goes through. Refuses no-address, refuses `invalid`, and refuses unverified while
-`outreach.require_verified_email` is on. A gate that lives only in `findDueWork()` protects the
-cron and nothing else; the Send button on the lead page currently has no gate at all.
-
-**6. Stage wins, status mirrors.** `sync_pipeline_from_lead()` stops deriving `approved` from
-`leads.status`. Status remains only as the sheet's label for write-back, and comes out of the
-leads table UI. This removes the last coupling that produced the two-definitions-of-approved bug.
-
-**7. The approve sweep is left alone — deliberately.** The first draft of this plan had
-`repairAndApproveDrafts()` and `bulkApproveDrafts()` skipping leads with no address or a dead
-one. The user reversed that, and the reversal is right: approving a draft is a judgement about
-the WORDS, and it stays valid whether or not an address has turned up yet. Gate the one thing
-that actually matters — a lead can be approved and still never reach Ready to Send, because
-Ready to Send requires all four gates. One gate, in one place, instead of the same rule
-scattered across every action that can approve something.
-
-**8. `Skip` is stale.** Confirmed with the user. `leads.category` and
-`dashboard_leads_by_category` are both safe to drop, and the 54 already-emailed Skip leads are
-a non-issue.
-
-**9. Do not overcomplicate the UI.** Standing constraint on everything above, and specifically
-on the five-state verification control in chunk 3.
-
-### The questions that produced this, and the answers
-
-Kept verbatim, because the next person will otherwise re-litigate them.
-
-| # | Question | Answer |
-| --- | --- | --- |
-| 1 | What must be true for a lead to be in Ready to Send? | **All four pipeline gates**, email first: `email_verified`, `research_complete`, `draft_ready`, `approved` |
-| 2 | What happens to the 173 catch-all / unknown addresses? | Their own tile and their own decision queue. They stop counting as "awaiting verification" |
-| 3 | How do status and stage relate? | Stage wins; `leads.status` becomes a sheet mirror only |
-| 4 | What does `category = 'Skip'` mean? | Stale. The column and `dashboard_leads_by_category` are droppable |
-| 5 | Keep stage as-is, or a strict funnel? | **Strict funnel** — first unmet gate wins, even though 497 leads move backwards |
-| 6 | Where does the verification gate live? | Inside `sendLeadEmail()`, the one function every send path goes through |
-| 7 | `auto_send_initial` was on and sending — leave it? | Off until these fixes ship |
-| 8 | Approval Queue vs Emails Waiting Review? | One tile, initial drafts only. Emails Waiting Review is removed |
-
-### Chunk 1 — SHIPPED 2026-08-05
-
-Verified against the live database after the change, not assumed.
-
-| Change | Where | Effect |
-| --- | --- | --- |
-| Ready to Send requires all four gates | `data/leads.ts`, `data/admin-dashboard.ts` | **103 → 7**, and all 7 read `valid`. The two queries are duplicated on purpose (one counts, one lists) and must be edited together |
-| Verification gate | `services/email/send-lead-email.ts` | Dry run over the 103: **7 allow, 4 refused dead, 92 refused unverified**. `invalid` is refused regardless of `require_verified_email`, because a bounce is proof rather than a lack of it |
-| `researched_at` no longer wiped | `actions/review.ts` | Stamped only when the research text actually changed; never set back to NULL |
-| Follow-up buckets partition | `data/leads.ts`, `data/admin-dashboard.ts` | Overdue measured from the start of today, not `now()`. Due-today views bounded at both ends so a card and the page it links to cannot disagree |
-
-### Chunks 2 and 3 — SHIPPED 2026-08-05 (code); migration 0025 still to run
-
-**Everything above is now built.** `npm run typecheck`, `npm run lint` and `npm run build` all
-pass, and the route table no longer contains `/campaigns` or `/templates`.
-
-| Change | Where |
-| --- | --- |
-| Stage reordered to first unmet gate; `compute_next_step` matched | migration 0025 |
-| A verifier result decides the flag outright: `email_verified := (status = 'valid')` | migration 0025 |
-| `sync_pipeline_from_lead()` no longer derives `approved` from `leads.status` | migration 0025 |
-| Ten unread views dropped; `pipeline_board` and `dashboard_leads_safe` rebuilt without the dropped columns | migration 0025 |
-| `campaigns`, `templates`, `leads.category`, `leads.campaign_id`, `leads.next_followup_at`, `email_logs.campaign_id`, `email_logs.template_id`, three orphan settings rows | migration 0025 |
-| Every tile and named view is a `current_stage` query | `data/admin-dashboard.ts`, `data/leads.ts` |
-| "Emails Waiting Review" removed; Approval Queue is initial drafts only | `dashboard/page.tsx` |
-| "Checked, Inconclusive" tile added; Awaiting Verification means never checked | `dashboard/page.tsx` |
-| Leads list: Stage column and stage filter, Status column and filter gone, Archived is a toggle | `leads-table.tsx`, `filter-panel.tsx`, `(list)/page.tsx` |
-| Five-state verification dropdown replaces the tick box, revalidating `/leads` and `/dashboard` so the counts move with it | `pipeline-panel.tsx`, `setVerificationStatus()` |
-| Approval writes the version and nothing else — no `leads.status`, no lead fields | `actions/leads.ts`, `actions/verification.ts`, `actions/review.ts` |
-| `bulkApproveDrafts` filters `status = 'draft'`, so a rejected version is not silently re-approved | `actions/leads.ts` |
-
-**What `leads.status` is now.** Read in exactly two places and written in three:
-
-- **Inbound**, the important one: the sheet's "Email sent status" arrives as `status = 'sent'`,
-  and `sync_pipeline_from_lead()` turns that into `first_email_sent`. For the 89 leads n8n
-  emailed there is no `email_logs` row, so this is the only record the send ever happened.
-- **Archiving**, which is a visibility choice no derived stage can express — an archived lead
-  still sits wherever it sat.
-- `sendLeadEmail()` still moves it to sending/sent, because that is a fact about the lead.
-
-It is no longer read for approval, no longer shown in the leads table, and its outbound sheet
-mapping is deleted: it targeted headers `status` / `crm status` / `lead status`, and the sheet
-has none of them. Everything the sheet does receive comes from the pipeline.
-
-**Deliberately not done.** The approve sweep still approves drafts for leads with no address —
-the user reversed that, correctly. Approval is a judgement about the words; Ready to Send
-requires all four gates, so an unsendable lead can be approved and simply never gets there. One
-gate in one place beats the same rule copied into every action that can approve something.
-
-**Done already:** `outreach.auto_send_initial` is `false` in the live settings.
-`auto_followups` stays on.
+The verification gate — refusing to send to an address a verifier proved dead, or one nobody has
+checked while `outreach.require_verified_email` is on — moved into `sendLeadEmail()` itself, the
+one function every send path goes through (the Send button, the API, the cron sender). It used to
+live only in the scheduler's `findDueWork()`, which protected automatic sends and nothing else;
+pressing Send by hand on a dead address would have mailed it anyway.
 
 ### 0026 / 0027 — four things the user found after 0025 went live
 
@@ -1967,11 +1808,12 @@ holes. Fixed by rebalancing rather than by padding:
 
 | Date | Change |
 | --- | --- |
+| 2026-08-12 | **GUIDE.md itself audited against the live codebase.** Section 12 was still titled "Audit 2026-08-05 — open findings, NOTHING FIXED YET" a week after every finding in it had shipped, with a stale numeric snapshot (701 leads, tile counts in the hundreds) that had not been true since the day it was written — 227 lines collapsed to a ~35-line summary, the accurate historical narrative below it (0026 onward) kept as-is. Section 1's "Current state (2026-08-05)" claimed migrations stopped at 0023 and quoted week-old figures; both replaced with today's, and the "never count archived" rule — until now only in this agent's private memory, not in the project's own source of truth — is now stated in GUIDE.md itself. **Section 2's migration table was ALSO stale**, including on recent rows: 0031, 0032, 0036, 0037 and 0038 were all marked NOT YET despite being live, because "table exists" is not evidence a migration ran (0035's own lesson, forgotten one section later). Re-verified all nine — 0031 through 0039 — with a live functional probe apiece (an insert that should be rejected without the fix, a value that should differ without it — never a bare `select` that merely returns rows, since empty and doesn't-exist-yet look identical from the client). All nine confirmed applied. Section 5's directory map was missing `services/drafts/` (quality.ts, sweep.ts — a whole subsystem) and the second cron route entirely. Section 10 documented a Google Sheet that no longer exists. A changelog row from earlier today had literal unescaped newlines in the source, silently breaking that table row across three lines |
+| 2026-08-12 | **`generateMissingFollowups()` could never reach the leads it existed to fix.** Reported: the button's own copy said 166 leads needed 332 drafts, then clicking it produced "0 generated, 200 already existed" — every time, no matter how many times pressed. Cause: the candidate query fetched only the OLDEST 100 sent leads (`order(first_email_sent asc).limit(100)`, no pagination, no exclusion of already-resolved ones) and only THEN checked which needed anything. On the live queue, all 100 oldest-sent leads already had both follow-ups — so the query returned the exact same fully-resolved 100 on every click, forever, and could never see the 167 genuinely missing leads sitting at position 100 and beyond (confirmed by direct probe: `first genuinely-missing lead sits at position 100`). Restructured so the candidate query has no `.limit()` — every sent, in-play lead is fetched via `lead_send_queue` (not raw `lead_pipeline`, which has no status column and would not have excluded archived leads either — the same 0034/0035 gap, found a third time), THEN the genuinely-missing (lead, step) pairs are computed, THEN `limit` caps that real work list. `limit`'s meaning changed accordingly: drafts attempted per run, not leads considered. The message now separately reports drafts generated, ones already existing, and ones genuinely missing but deferred (by the cap or the 50s wall-clock stop) — the old message could not distinguish "done" from "the button is structurally blind to the rest of the backlog" |
+| 2026-08-12 | **"Ready to Send" dashboard card renamed Send queue, rebuilt to the scheduler's real order, question asked and answered: is the displayed order the literal send order?** It was not. The card sorted every step — initial sends AND both follow-ups — by one column, `approved_at`, which is stamped once when a lead's INITIAL draft is approved and never touched again; a follow-up waiting weeks could render below a brand-new initial candidate the real sender would not touch for hours. Rebuilt as a genuine mirror of `findDueWork()`: follow-up 2s due (oldest first), THEN follow-up 1s due (oldest first), THEN initial sends (verifier tier, then oldest-approved) — concatenated in that order, not sorted by a shared key, plus a `1. 2. 3.` position number rendered on each row so the order is visible on screen rather than asserted in a description. Initial candidates are also cross-checked against the active version's OWN approval status, not just the `lead_pipeline.approved` flag — the exact gap 0039 fixed data for; a flag that only ever ORs upward can stay stale-true after a newer, unapproved draft replaces an approved one, which is how three leads sat on this card as "next" while the real scheduler silently refused all three. `getSendQueuePreview()` never calls anything that sends — a read-only mirror, deliberately, so a dashboard preview can never itself become a second place mail leaves from. Also picked up the 0034/0035-class archived-leak this pass revealed: neither this card's query nor the Approval Queue list's had the `.neq('lead_status', 'archived')` the count tiles got in 0034 — both now do |
 | 2026-08-12 | **0040 — a business's own bracketed name permanently blocked it, and the failure had no trace anywhere.** Reported as "sometimes it sends, sometimes it doesn't — why didn't it send at 15:57 PKT". Traced to the exact run: `considered:1, sent:0, failed:1`. The lead was **Emirates Dermatology & Cosmetology Center [EDCC]** — its OWN real name carries a bracketed tag, and `findUnresolvedPlaceholders()`'s `[Title Case]` rule (fitted to catch `[Business Owner]`) cannot tell that apart from a genuine unfilled placeholder. `sendLeadEmail()` refused it, unconditionally, on every single cron tick — three leads total (`[UNEC] United Engineering...`, `Shiny Smile...[Pasang Behel dan Implan Gigi]`, and this one), forever, since the data itself can never satisfy the guard. Explains the "sometimes" perfectly: the same stuck lead fails on EVERY run, and whether a run also shows a successful send just depends on whether anything else happened to be due at that tick. **Fixed with context**: `findUnresolvedPlaceholders()` takes an optional list of the lead's own real field values (business_name, niche, city, country) and excludes a bracket match whose content is a substring of one of them — a real `[Business Owner]` still blocks against unrelated data (verified). Threaded through all four places that call it so none can disagree with the send path: `sendLeadEmail()` (the gate itself), `inspectDraft()`/`repairDraft()` in `quality.ts` (now takes an optional `context: DraftContext`), the sweep (already had the exact context built as `contextById`), and the lead-page review UI (`DraftWorkspace` → `DraftEditor` → `useBlockingIssues`/`DraftIssues`, threaded from `page.tsx` — previously would have shown a blocking warning for a draft that actually sends fine). **The bigger fix is the second half**: the scheduler computes an exact reason for every failure (`summary.notes`, e.g. `${leadId}: ${result.message}`) and had ALWAYS computed it — but the cron route (the only caller running unattended) passed `summary.message` straight to `finishRun()` without it, so the reason was discarded the moment the function returned. `integration_runs` recorded nothing but a bare `failed:1` next to a run id, forever, for a fully-diagnosable failure. Fixed in `runOutreachCycle()` itself (not each caller): the first failure's reason is now folded into `summary.message`, and the full `notes` array is persisted into `stats` by both the cron route and the settings action. Needs zero new UI — `TriggerButton` already renders `lastRun.message` in red for a failed run, so Settings → Automation now just says why, next time, without opening the database |
 | 2026-08-12 | **Leads table: two approvals, and inline address editing.** The bulk bar's single "Approve" was ambiguous — it approved the active initial DRAFT, but read as though it also blessed the address, which is how copy gets signed off for an address nobody checked. Split into **Approve drafts** (a judgement about the WORDS) and **Mark verified** (a verdict about the ADDRESS), each with a title saying exactly what it writes; a lead needs both before it can send. `bulkMarkEmailVerified()` records source `manual` so `email_verifier_status` survives (0028) and send priority can still tell a proved address from a hand-confirmed one, and it skips leads with no address or an `invalid` verdict — a hard bounce is evidence, a tick box is not. **Edit addresses** turns the Email column into an input for the SELECTED rows: sourcing addresses is a batch job, and routing twenty of them through the lead page is the difference between doing it and not. Saving writes each address and puts it back to `unverified` explicitly rather than leaning on 0028's trigger, so the result is the same whether or not 0038 has run. One lead per statement, because `dedupe_key` is UNIQUE and recomputed from the address by trigger — a typo that collides must fail that one row and name it, not abort thirty. The selection deliberately survives a save so Mark verified can run on the same rows; only Clear drops it. **The `columns` useMemo had `[]` deps** — fine while every cell was a pure function of its row, fatal once one renders an input from state, so it now depends on the editing state and `saveEmails` is a `useCallback`. Verified end to end in a real browser with a temp admin: save → `unverified`, selection kept, Mark verified → `valid`/`manual` |
-| 2026-08-12 | **0039 — saving the lead form silently demoted approved drafts.** Reported as "I changed the email status and it made another version". Verification had nothing to do with it; the timestamps showed the new version appearing 9–23 seconds BEFORE each "Address marked verified". The real chain: the Business-information form carried the whole draft body in a **hidden input**, so it was re-submitted on every save of that card — and **HTML form submission normalises line breaks to CRLF**, so the value came back with every `
-` as `
-`. `updateLead()` wrote it to `leads.draft_email`; `version_lead_draft()` (0015, built for the sheet era) compared byte-for-byte, saw a difference, inserted a new version with `active = true`; `enforce_single_active_version()` then deactivated the approved one. Proof: the replacement was identical to the approved text apart from line endings on **all four** affected leads, with length deltas exactly equal to the newline count (+13, +15, +17). Fixed in three places — the hidden inputs are gone and `subject_line`/`draft_email` are removed from `leadUpdateSchema` (that action must never write the draft; `email_versions` owns it); the trigger now compares with line endings normalised; and **a new auto-captured version no longer takes `active` from an approved one**, because the approved version is the text a human signed off and the text the sender actually sends. Explicit actions (Regenerate, Save draft, activating from history) still activate what they create — there a human asked. The 4 leads were repaired directly |
+| 2026-08-12 | **0039 — saving the lead form silently demoted approved drafts.** Reported as "I changed the email status and it made another version". Verification had nothing to do with it; the timestamps showed the new version appearing 9–23 seconds BEFORE each "Address marked verified". The real chain: the Business-information form carried the whole draft body in a **hidden input**, so it was re-submitted on every save of that card — and **HTML form submission normalises line breaks to CRLF**, so the value came back with every LF turned into a CRLF. `updateLead()` wrote it to `leads.draft_email`; `version_lead_draft()` (0015, built for the sheet era) compared byte-for-byte, saw a difference, inserted a new version with `active = true`; `enforce_single_active_version()` then deactivated the approved one. Proof: the replacement was identical to the approved text apart from line endings on **all four** affected leads, with length deltas exactly equal to the newline count (+13, +15, +17). Fixed in three places — the hidden inputs are gone and `subject_line`/`draft_email` are removed from `leadUpdateSchema` (that action must never write the draft; `email_versions` owns it); the trigger now compares with line endings normalised; and **a new auto-captured version no longer takes `active` from an approved one**, because the approved version is the text a human signed off and the text the sender actually sends. Explicit actions (Regenerate, Save draft, activating from history) still activate what they create — there a human asked. The 4 leads were repaired directly |
 | 2026-08-10 | **0038 — 0028's verdict reset had quietly stopped working for new verdicts.** Asked to confirm that changing an address resets verification to "never checked", the answer is **yes** — tested live across five branches on a throwaway lead: a verifier verdict, a manual tick and clearing the address all reset to `unverified` with source, verifier status and timestamps cleared, while re-writing the SAME address in different case or whitespace correctly does not. **But the reset is guarded on `email_checked_address is not null`, and nothing ever set that column** except 0028's own one-time backfill. `setVerificationStatus()`, the delivered-proves-valid trigger in 0017, the bounce path and the verifier CSV import all omit it, so every verdict recorded after 0028 landed with it NULL and that lead became permanently immune — correct a typo and the old verdict follows the new address, which is the exact bug 0028 exists to prevent. **125 of 522 non-unverified leads live, and growing.** Fixed centrally in `set_pipeline_stage()`, the BEFORE trigger every `lead_pipeline` write already passes through, rather than in the four callers plus whoever adds the fifth — same argument as putting the send gates in `sendLeadEmail()`. 'unverified' clears the column instead of stamping it, which is what keeps it agreeable with the reset trigger writing both in one statement. Existing gap backfilled |
 | 2026-08-10 | **Mobile, round three — measured this time, not reasoned about.** The previous two rounds fixed real bugs but missed the ones actually on screen, so this pass drove a headless Chrome at 386×800 against every page with a temp admin session and asserted `document.scrollWidth === window.innerWidth`, listing any element wider than the viewport. Four more causes, all of them the same family: **(1) `CollapsibleSection`'s badge** was `shrink-0` beside a `min-w-0 flex-1` title, and every Badge is `whitespace-nowrap` — so a badge reading "From: send@team-automationsolutions.me" (a string this codebase introduced when the sheet name was replaced in 0033) kept its full ~250px and left the title ~30px, rendering "Integrations" as `Int/eg/rat/io/ns` down the card. **`flex-wrap` does not fix this**: with `min-w-0` the browser can always satisfy the row by shrinking the title to nothing instead of wrapping the badge, so the two must be told to STACK below `sm`. **(2) The draft tablist** was a plain `flex` totalling ~400px once each tab carried its version chip and sent icon; it overflowed the card and the shell clips rather than scrolls, so "Follow-up 2" was unreachable — now `overflow-x-auto` with `shrink-0` tabs. **(3) `Card` now carries `min-w-0` itself.** A dashboard activity card measured **948px** on a 386px screen: `truncate` sets `white-space: nowrap`, whose MIN-CONTENT width is the entire string, and a grid child defaults to `min-width: auto` — so the text never truncated, it just widened the card. Setting it on the component means the next card dropped into a layout cannot reintroduce it. **(4) `sr-only` on a `<table>` does nothing** — it hides by setting `width: 1px`, and a table refuses to shrink below min-content, so the chart accessibility fallbacks were ~400px absolutely-positioned elements giving /analytics and the public page a horizontal scrollbar with nothing visible in it. The class belongs on a wrapping `<div>`. Final measurement: all eight pages report `doc = win = 386`, no element exceeding the viewport outside a deliberate `overflow-x-auto` scroller |
 | 2026-08-10 | **0037 — an exhausted sequence closes itself.** A lead that got follow-up 2 and never answered has nothing left to do (`compute_next_step()` already returns `close_workflow`), but nothing ever performed the close, so they piled up at stage `followup2_sent` inside every figure describing live prospects — 56 in the first two days of sending. `closeExhaustedSequences()` runs inside `runOutreachCycle()` rather than in a new cron route: it is one UPDATE that normally touches zero rows, so the existing 3-minute tick carries it for free and there is no third endpoint or cron-job.org schedule to register. Two predicates are load-bearing: **`replied is null` lives in the WHERE clause**, not in a prior SELECT, because a reply landing between a read and a write is the one outcome here that costs a conversation; and **`auto_followups` is required**, because Pause means "try me next quarter" and a timer must never let it decay into a Close. Placed ABOVE the working-hours and daily-limit guards (closing sends nothing, so neither has any bearing on it) but BELOW `sending.paused`, which is documented as a global kill switch. Skipped on a dry run. Threshold is `outreach.close_after_followup2_days`, default 14, 0 to disable. Verified against live data: 0 would close at 14 days, exactly the known 56 at 2 days, and the replied / paused / already-closed rows are all spared |

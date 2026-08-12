@@ -246,25 +246,39 @@ export default async function DashboardPage() {
           <Card>
             <CardHeader>
               <div>
-                <CardTitle>Ready to send</CardTitle>
-                <CardDescription>What the sender would act on next</CardDescription>
+                <CardTitle>Send queue</CardTitle>
+                {/*
+                  Not "what the sender would act on next" any more — that read
+                  as a preview, but it was sorted by when each lead's INITIAL
+                  draft was approved (a timestamp that never updates again),
+                  so a follow-up waiting weeks could show below a brand-new
+                  initial candidate. This is now the real order: follow-up 2s
+                  due, then follow-up 1s due, then initial sends by verifier
+                  tier — the exact three-part order the scheduler itself uses.
+                  Empty here with a healthy Approval Queue above means the
+                  hold-up IS the Approval Queue, not a bug in the sender.
+                */}
+                <CardDescription>In the order it will actually be sent</CardDescription>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {feeds.dueToday.length === 0 ? (
+              {feeds.sendQueue.length === 0 ? (
                 <EmptyState
                   icon={CalendarClock}
                   title="Nothing due"
-                  description="No approved email or follow-up is waiting to go out."
+                  description="Nothing is verifiably ready to send right now. If leads are waiting, look at Approval Queue above — that is the usual reason this is empty."
                 />
               ) : (
                 <ul className="divide-y divide-border">
-                  {feeds.dueToday.map((row) => (
+                  {feeds.sendQueue.map((row, index) => (
                     <li key={row.lead_id}>
                       <Link
                         href={`/leads/${row.lead_id}`}
                         className="flex flex-wrap items-center gap-2 px-4 py-2.5 hover:bg-surface-hover"
                       >
+                        <span className="tabular w-5 shrink-0 text-xs text-muted-foreground">
+                          {index + 1}
+                        </span>
                         <span className="min-w-0 flex-1 truncate text-sm font-medium">
                           {row.business_name}
                         </span>

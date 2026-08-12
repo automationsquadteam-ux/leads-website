@@ -57,6 +57,13 @@ export interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   /** localStorage key for persisted column widths. Omit to disable resizing. */
   resizeStorageKey?: string;
+  /**
+   * Extra classes for one row, e.g. to mark a selected row the current filter
+   * would no longer return on its own. `DataTable` stays domain-agnostic —
+   * this only ever forwards to the row's `className`, it never decides what
+   * "different" means.
+   */
+  rowClassName?: (row: T) => string | undefined;
 }
 
 export function DataTable<T>({
@@ -73,6 +80,7 @@ export function DataTable<T>({
   onSortChange,
   onRowClick,
   resizeStorageKey,
+  rowClassName,
 }: DataTableProps<T>) {
   // Persisted widths are the source of truth; `dragging` holds the live width
   // mid-gesture so we write to localStorage once on release, not on every move.
@@ -243,7 +251,7 @@ export function DataTable<T>({
               <TR
                 key={id}
                 data-selected={selected}
-                className={onRowClick ? 'cursor-pointer' : undefined}
+                className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row))}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {selectable ? (

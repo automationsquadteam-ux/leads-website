@@ -364,7 +364,8 @@ export interface DashboardFeeds {
   recentReplies: ReplyFeedRow[];
   recentRegenerations: RegenerationRow[];
   approvalQueue: PipelineBoardRow[];
-  dueToday: PipelineBoardRow[];
+  /** What the scheduler would actually attempt next, in the order it would attempt it. */
+  sendQueue: PipelineBoardRow[];
 }
 
 /**
@@ -387,10 +388,112 @@ async function attachNames<T extends { lead_id: string }>(
   return rows.map((row) => ({ ...row, businessName: nameById.get(row.lead_id) ?? null }));
 }
 
+/**
+ * What the scheduler would actually attempt next, in the order it would
+ * attempt it — not "looks ready", verifiably ready (0042).
+ *
+ * Deliberately mirrors `findDueWork()` in `outreach/scheduler.ts` rather than
+ * calling it: that function sends real email, and a dashboard preview must
+ * never share a code path that can. Two definitions of "due" now exist and
+ * have to be kept in step by hand if either changes — the trade is a card
+ * that cannot itself dispatch mail even by accident.
+ *
+ * Ordering is the point of this rewrite. The previous version sorted
+ * everything — initial sends AND both follow-up steps — by one column,
+ * `approved_at`, ascending. That timestamp is stamped exactly once, when the
+ * lead's INITIAL draft is approved, and never touched again. So a lead
+ * sitting in follow-up-2 territory was ordered by how long ago its original
+ * draft was approved months earlier, not by anything about its current
+ * urgency — and the card could show a brand-new initial candidate above a
+ * follow-up-2 the real sender would process first, which starves the
+ * longest-waiting lead exactly the way `findDueWork()`'s own ordering
+ * comment says it must not.
+ *
+ * The fix is the same THREE-PART order `findDueWork()` uses, concatenated
+ * rather than sorted by a shared key: follow-up 2s first (oldest due),
+ * then follow-up 1s (oldest due), then initial sends (verifier tier, then
+ * oldest-approved within a tier).
+ *
+ * Initial candidates get one more check `findDueWork()` itself does not
+ * need: the active version's OWN status, not just `lead_pipeline.approved`.
+ * That flag is derived by OR-ing upward and never resets when a newer,
+ * unapproved draft replaces an approved one (0039's root cause) — so
+ * trusting the flag alone can list a lead as "next" that `sendLeadEmail()`
+ * would actually refuse. The real scheduler gets away without this check
+ * here because `ensureDraft()` / `needsApproval` catch it downstream, in the
+ * send loop; a preview card has no downstream, so it checks here instead.
+ */
+async function getSendQueuePreview(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  limit: number,
+): Promise<PipelineBoardRow[]> {
+  const nowIso = new Date().toISOString();
+
+  const { data: requireVerifiedSetting } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'outreach.require_verified_email')
+    .maybeSingle();
+  // Same default as config.ts's own asBoolean(..., true) — missing means on.
+  const requireVerified = requireVerifiedSetting?.value !== false;
+
+  const base = () =>
+    supabase
+      .from('pipeline_board')
+      .select('*')
+      .neq('lead_status', 'archived')
+      .is('replied', null)
+      .is('closed', null)
+      .eq('auto_followups', true);
+
+  let initialQuery = base()
+    .eq('approved', true)
+    .is('first_email_sent', null)
+    .lt('send_priority', 9);
+  if (requireVerified) initialQuery = initialQuery.eq('email_verified', true);
+
+  const [followup2, followup1, initialCandidates] = await Promise.all([
+    base()
+      .not('followup1_sent', 'is', null)
+      .is('followup2_sent', null)
+      .not('followup2_due', 'is', null)
+      .lte('followup2_due', nowIso)
+      .order('followup2_due', { ascending: true })
+      .limit(limit),
+    base()
+      .not('first_email_sent', 'is', null)
+      .is('followup1_sent', null)
+      .not('followup1_due', 'is', null)
+      .lte('followup1_due', nowIso)
+      .order('followup1_due', { ascending: true })
+      .limit(limit),
+    initialQuery
+      .order('send_priority', { ascending: true })
+      .order('approved_at', { ascending: true, nullsFirst: false })
+      .limit(limit),
+  ]);
+
+  const initialIds = (initialCandidates.data ?? []).map((row) => row.lead_id);
+  const { data: approvedVersions } =
+    initialIds.length > 0
+      ? await supabase
+          .from('email_versions')
+          .select('lead_id')
+          .in('lead_id', initialIds)
+          .eq('type', 'initial')
+          .eq('active', true)
+          .eq('status', 'approved')
+      : { data: [] as Array<{ lead_id: string }> };
+  const trulyApproved = new Set((approvedVersions ?? []).map((row) => row.lead_id));
+  const initial = (initialCandidates.data ?? []).filter((row) => trulyApproved.has(row.lead_id));
+
+  return [...(followup2.data ?? []), ...(followup1.data ?? []), ...initial].slice(0, limit);
+}
+
 export async function getDashboardFeeds(limit = 8): Promise<DashboardFeeds> {
   const supabase = await createClient();
 
-  const [activity, replies, regenerations, queue, due] = await Promise.all([
+  const [activity, replies, regenerations, queue, sendQueue] = await Promise.all([
     supabase.from('lead_activity').select('*').order('created_at', { ascending: false }).limit(limit),
     supabase.from('replies').select('*').order('received_at', { ascending: false }).limit(limit),
     supabase
@@ -402,27 +505,18 @@ export async function getDashboardFeeds(limit = 8): Promise<DashboardFeeds> {
       .neq('generated_by', 'import')
       .order('created_at', { ascending: false })
       .limit(limit),
+    // `pipeline_board` carries no status filter of its own (it is gated on
+    // `is_admin()`, not on the lead) — 0034 fixed the COUNT tiles for this;
+    // this list needed the same `.neq('lead_status', 'archived')`, which it
+    // never got, so an archived lead could still turn up in the queue below.
     supabase
       .from('pipeline_board')
       .select('*')
       .eq('current_stage', 'review')
+      .neq('lead_status', 'archived')
       .order('draft_ready_at', { ascending: true })
       .limit(limit),
-    /*
-     * Anything the sender could act on right now.
-     *
-     * The `updated_at <= end of today` filter that used to be here was true for
-     * essentially every row and answered nothing, and the card disagreed with
-     * the Ready to Send tile beside it. next_step is the derived answer to
-     * "what would happen to this lead next", so asking it for the three
-     * send steps is the same question the sender asks.
-     */
-    supabase
-      .from('pipeline_board')
-      .select('*')
-      .in('next_step', ['send_initial_email', 'send_followup1', 'send_followup2'])
-      .order('approved_at', { ascending: true, nullsFirst: false })
-      .limit(limit),
+    getSendQueuePreview(supabase, limit),
   ]);
 
   const [recentActivity, recentReplies, recentRegenerations] = await Promise.all([
@@ -436,6 +530,6 @@ export async function getDashboardFeeds(limit = 8): Promise<DashboardFeeds> {
     recentReplies,
     recentRegenerations,
     approvalQueue: queue.data ?? [],
-    dueToday: due.data ?? [],
+    sendQueue,
   };
 }
