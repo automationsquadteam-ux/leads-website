@@ -197,11 +197,24 @@ async function idsForView(
        * `current_stage = 'approved'` IS all four gates.
        *
        * Reaching that stage means every earlier gate was cleared — an address
-       * exists, a verifier called it valid, research is done, a draft exists,
+       * exists, EMAIL_VERIFIED IS TRUE, research is done, a draft exists,
        * and a human signed it off — and that nothing above it has happened yet,
        * since sent / replied / closed are pinned higher in the ladder. One
        * equality replaces six conditions that used to be copied between here
        * and the dashboard, out of step twice.
+       *
+       * "A verifier called it valid" (this comment's old claim) is not the
+       * same thing as email_verified = true, and that gap is real: found live,
+       * 3 leads with email_verified = true — a HUMAN ticked it — while
+       * email_verifier_status was still 'invalid' from an earlier verifier
+       * check nobody overruled by correcting the address, only by ticking a
+       * box. compute_pipeline_stage() only ever reads the boolean, so those 3
+       * cleared this gate; compute_send_priority() reads BOTH and marks them
+       * 9 ("not sendable"), and sendLeadEmail() refuses them unconditionally
+       * ("the machine wins" once a verifier catches a real bounce). Reading
+       * from pipeline_board instead of lead_pipeline for its send_priority
+       * column closes that gap with the same computation the Send queue and
+       * the scheduler already trust, rather than re-deriving the rule here.
        *
        * The active-version check stays on top. lead_pipeline.approved is set by
        * the email_versions trigger, but a stale `true` from before that trigger
@@ -220,9 +233,10 @@ async function idsForView(
       if (withApprovedDraft.size === 0) return [];
 
       const { data: pipelineReady } = await supabase
-        .from('lead_pipeline')
+        .from('pipeline_board')
         .select('lead_id')
         .eq('current_stage', 'approved')
+        .lt('send_priority', 9)
         .limit(5000);
 
       return (pipelineReady ?? [])

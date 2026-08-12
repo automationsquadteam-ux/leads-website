@@ -205,6 +205,19 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
      * Stage 'approved' IS all four gates cleared with nothing sent yet. The
      * active-version check on top is explained in the ready_to_send view in
      * lib/data/leads.ts the two must stay identical.
+     *
+     * `send_priority < 9` on top of that, found live: 3 leads read stage
+     * 'approved' (email_verified = true, a human ticked it) while
+     * email_verifier_status was STILL 'invalid' from an earlier verifier
+     * check nobody had overruled by correcting the address, only by ticking
+     * a box. compute_pipeline_stage() only ever looks at the email_verified
+     * BOOLEAN, so the stage ladder has no way to see that — but
+     * compute_send_priority() does, and sendLeadEmail() refuses these
+     * unconditionally regardless of the setting ("the machine wins" once a
+     * verifier catches a real bounce; see its own comment). Without this,
+     * the tile counted 3 leads the sender would refuse forever, and the
+     * card whose whole job is "does the displayed count match what can
+     * actually send" (0037) disagreed with this one next to it.
      */
     (async () => {
       const [{ data: approvedVersions }, { data: pipelineReady }] = await Promise.all([
@@ -216,6 +229,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
           .eq('status', 'approved'),
         activePipelineLeadIds(supabase)
           .eq('current_stage', 'approved')
+          .lt('send_priority', 9)
           .limit(5000),
       ]);
 
