@@ -115,8 +115,9 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0038 | `20260810180000_stamp_checked_address.sql` | ✅ yes — confirmed 2026-08-12 |
 | 0039 | `20260812080000_approved_version_stays_active.sql` | ✅ yes — confirmed 2026-08-12 |
 | 0040 | `20260812190000_email_log_failure_reason.sql` | ❌ NOT YET — paste `supabase/schema-update-30-email-failure-reason.sql` |
+| 0041 | `20260812200000_realtime_publication.sql` | ⚠️ not pasted, but **already effective** — `email_logs`, `leads` and `lead_pipeline` were probed live on 2026-08-12 and all three already emit realtime events, so this project's `supabase_realtime` publication already covers them. The migration is a no-op safety net that makes all eight explicit and survives a `db reset`. |
 
-**0001 through 0039 are applied; 0040 is not yet pasted.** This table had drifted stale more than once by this point
+**0001 through 0039 are applied; 0040 and 0041 are not yet pasted.** This table had drifted stale more than once by this point
 — 0026–0028 sat marked NOT YET for days after they had actually run, and on 2026-08-12 the same
 thing had happened again to 0031, 0032, 0036, 0037 and 0038. **A "NOT YET" row is not evidence a
 migration is pending; it only means nobody re-probed since it was written.** The row means
@@ -148,15 +149,29 @@ nothing, because "empty" and "doesn't exist yet" look identical from the client.
 should be rejected without the migration, or a value that should differ without it, is real
 evidence; a table existing is not.
 
-**0040 is written but not pasted yet** — `email_logs.failure_reason` (adds one nullable text
-column, `add column if not exists`, nothing else). Paste
-`supabase/schema-update-30-email-failure-reason.sql`, then confirm with a real probe (e.g. insert
-a row with `failure_reason` set and see it succeed, or `select failure_reason` and see no "column
-does not exist" error) before flipping the row above — same rule as every other entry in this
-table.
+**0040 and 0041 are written but not pasted yet.** Paste them in order:
 
-**The next migration after that is 0041.** Add the file, regenerate `schema.sql` and a
-`schema-update-31-*.sql` bundle, and leave its row as NOT YET until it has actually been probed —
+1. `supabase/schema-update-30-email-failure-reason.sql` — adds `email_logs.failure_reason`, one
+   nullable text column, `add column if not exists`, nothing else. Probe: `select failure_reason
+   from email_logs limit 1` returns no "column does not exist" error.
+2. `supabase/schema-update-31-realtime-publication.sql` — adds eight tables to the
+   `supabase_realtime` publication. **Optional in practice, and measured rather than assumed:**
+   probing live on 2026-08-12 (subscribe, wait for the replication stream to settle, then write)
+   showed `email_logs`, `leads` and `lead_pipeline` ALREADY emitting events on this project, so
+   live updates work today without it. Paste it anyway so all eight are explicit and a
+   `db reset` or a new environment does not quietly lose them. Probe: `select tablename from
+   pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public'`.
+
+   **A probe here needs a settling delay.** Subscribing and writing immediately reports a false
+   negative — the first attempt at this said "not published" for a table that two other tests had
+   already proved live. Wait a few seconds after `SUBSCRIBED` before mutating, or you will
+   conclude the publication is missing when it is the replication stream that had not started.
+
+Then flip their rows above — after a real probe, not just after pasting, same rule as every other
+entry in this table.
+
+**The next migration after those is 0042.** Add the file, regenerate `schema.sql` and a
+`schema-update-32-*.sql` bundle, and leave its row as NOT YET until it has actually been probed —
 not just pasted, and not just remembered as pasted.
 
 ### 0026 and 0027 are ONE change split in two, and the order is not optional
@@ -882,6 +897,44 @@ exact counts, and safe against two syncs running concurrently.
 **Never write a second identity rule.** If the sync and the importer disagree, they will
 create duplicates of each other's rows.
 
+### Live updates are a SIGNAL, not a second copy of the data (0041)
+
+Pages update by themselves — a reply landing, the scheduler sending, another browser saving an
+edit — without anyone pressing refresh. The mechanism is deliberately the boring one:
+
+```
+Postgres change → supabase_realtime publication → browser subscription
+  → debounce → router.refresh() → the SAME server components and the SAME
+    src/lib/data/ functions re-run
+```
+
+**The client never patches a changed row into a table.** That is the whole design decision, and
+it follows from the rule this guide states more often than any other. The filtering that decides
+what a page shows lives in exactly one place: archived leads are excluded (0034), Ready to Send
+needs `send_priority < 9`, an initial send needs its ACTIVE version approved (0039), the send
+queue's three-part order mirrors `findDueWork()`, business names come from a keyed second query.
+Splicing a realtime row into a client table means re-deciding all of that in a browser — a second
+implementation of rules that have already gone out of step between the board and the sender more
+than once. A refresh costs one re-query and keeps one definition.
+
+`router.refresh()` rather than `location.reload()` because it preserves client state: the leads
+table keeps its selection and any half-typed inline address edit, an open dialog stays open,
+scroll position holds.
+
+**Security is inherited, not rebuilt.** Every published table already carries
+`for select to authenticated using (public.is_admin())`, and Realtime applies RLS per subscriber,
+so an admin gets events, a viewer gets nothing, anon cannot subscribe. The subscription is
+mounted for `role === 'admin'` only, in the (app) layout — one mount for the whole shell, so a
+page added later is live by default rather than live only if somebody remembered.
+
+Two things worth knowing before changing it:
+
+- **The table list is in two places and must agree** — migration 0041's publication and
+  `LIVE_TABLES` in `components/realtime-refresh.tsx`. A mismatch does not break anything, it just
+  silently means no live updates for that table.
+- **Bursts are coalesced**, with a 400ms quiet window and a 5s ceiling. The ceiling matters: a
+  pure debounce would starve under a long send run and never refresh at all.
+
 ---
 
 ## 5. Directory map
@@ -939,10 +992,15 @@ src/
     data-table.tsx   generic: sortable, selectable, resizable columns
     charts.tsx       dependency-free SVG + hidden <table> fallback; LineChart,
                      MultiLineChart (shared scale), BarList
+    realtime-refresh.tsx  the ONE live-updates subscription, mounted in the
+                          (app) layout for admins. Renders nothing.
     metric-card · status-badge · empty-state · confirm-dialog · pagination · theme-toggle
 
   lib/
     env.ts               lazy, guarded env access (+ getCronSecret → null when unset)
+    use-realtime-refresh.ts  Realtime event → debounced router.refresh(). A
+                             SIGNAL, never a client-side copy of the data —
+                             see section 4's note on why.
     pipeline/labels.ts   stage/next-step LABELS ONLY the logic lives in SQL
     auth/session.ts      requireUser / requireAdmin / assertAdmin
     supabase/
@@ -1832,6 +1890,7 @@ holes. Fixed by rebalancing rather than by padding:
 
 | Date | Change |
 | --- | --- |
+| 2026-08-12 | **Live updates — pages refresh themselves instead of waiting for a human to.** Asked for as "data is updated automatically instead of a refresh". Built as Supabase Realtime → debounced `router.refresh()`, deliberately NOT as client-side row patching. The reason is this guide's most-repeated rule: every page here is a server component whose rows come from `src/lib/data/*`, and that is where the filtering lives — archived excluded (0034), `send_priority < 9` (fixed the same day), active-version-approved (0039), the send queue's three-part order mirroring `findDueWork()`. Splicing a realtime row into a client table means re-deciding all of it in a browser, which is the "two implementations of the same rule" mistake that has already put the board and the sender out of step more than once. A refresh costs one re-query and keeps one definition; it also preserves client state (selection, half-typed inline edits, open dialogs, scroll) where a `location.reload()` would not. One subscription mounted in the (app) layout for `role === 'admin'` only, so a page added later is live by default rather than live only if somebody remembered — the same argument as putting the send gates inside `sendLeadEmail()`. Security is inherited, not rebuilt: every published table already carries `for select to authenticated using (public.is_admin())` and Realtime applies RLS per subscriber. Bursts coalesce on a 400ms quiet window with a **5s ceiling** — a pure debounce starves under a long send run and would never fire at all. **Verified end to end in headless Chrome**: logged in as a throwaway admin, opened Send Failures, then inserted a row from a SEPARATE Node process (i.e. what another user or the scheduler looks like) — it appeared in ~4s with `performance.getEntriesByType('navigation').length` still 1, proving no reload, and zero console errors. Migration 0041 publishes the eight tables, but probing found `email_logs`, `leads` and `lead_pipeline` already published on this project, so it is a no-op safety net rather than a prerequisite — and the first probe of that returned a FALSE NEGATIVE by writing before the replication stream had settled, which is now written down next to the migration so the next person does not re-learn it |
 | 2026-08-12 | **"Ready to Send" counted 3 leads the sender would refuse forever.** Asked why they weren't in the Send queue. All 3 (Regimo Zürich, Dr. Roop Saini, Thomas Barry & Co) had `email_verified = true` — a human had ticked the box — while `email_verifier_status` was still `'invalid'` from an earlier verifier check nobody had overruled by correcting the address, only by ticking a box. `compute_pipeline_stage()` only ever reads the boolean, so all three cleared the `approved` stage gate and the tile counted them; `compute_send_priority()` reads both and marks that combination 9 ("not sendable"), and `sendLeadEmail()` refuses it unconditionally — "the machine wins" once a verifier catches a real bounce, by design (see the `email_verifier_status === 'invalid'` gate in `send-lead-email.ts`). Same root cause, no migration: added `.lt('send_priority', 9)` to both the dashboard tile (`admin-dashboard.ts`) and its linked list (`leads.ts`'s `ready_to_send` case, switched from `lead_pipeline` to `pipeline_board` to read the column at all) — reusing the one computed value the Send queue and the scheduler already trust rather than re-deriving the rule a second time. Verified live: the count dropped from 3 to 0, matching the Send queue's own "0 initial candidates due" exactly. The 3 leads themselves are not a bug — they genuinely need a new address; ticking "verified" cannot undo a verifier's bounce, only replacing the address can (0028 resets the verdict on an address change) |
 | 2026-08-12 | **0040 — every send refusal is logged now, not just provider-level failures, and there is a page for it.** Asked: whenever an email fails, show why, on a new page below Email Logs. Root cause of "why" being invisible in the first place: `sendLeadEmail()` has nine return points and only the LAST — a genuine SMTP-level rejection — ever wrote to `email_logs`; the other eight (archived, no email, verifier says invalid, unverified, no draft, no subject, provider misconfigured, an unresolved placeholder) just returned. Exactly the shape of the bracketed-name bug two rows below this one: a real failure with zero trace anywhere. Added `email_logs.failure_reason` (one nullable text column, no new enum value needed — `status='failed'` already covers it) and a `logRefusal()` helper that every one of those eight branches now calls, writing `provider = NULL` (a real rejection always has `provider.id`, so the two stay distinguishable) plus a stable reason code. **Throttled to one row per lead+type+reason per six hours** — the scheduler retries a due lead every tick, and logging unthrottled would recreate the exact "failed on every 3-minute tick for hours" problem `summary.notes` hit three rows below, just in `email_logs` instead of `integration_runs`. New page **Send Failures** at `/send-failures` (sibling route, not nested under `/email-logs` — nesting it there would have doubled up the sidebar's active-link highlight, since `pathname.startsWith('${href}/')` would mark both Email Logs and the new page active at once; nav ORDER puts it directly below Email Logs instead, which is what "just below" actually asked for), added to `proxy.ts`'s `ADMIN_PREFIXES` since that gate is separate from the nav list. Shows a "why, in the last 14 days" summary (grouped counts, so a bug fixed months ago doesn't outrank what's actually failing today) above the full paginated history; both exclude archived leads, same rule as everywhere else. Migration NOT YET pasted — see section 2 |
 | 2026-08-12 | **GUIDE.md itself audited against the live codebase.** Section 12 was still titled "Audit 2026-08-05 — open findings, NOTHING FIXED YET" a week after every finding in it had shipped, with a stale numeric snapshot (701 leads, tile counts in the hundreds) that had not been true since the day it was written — 227 lines collapsed to a ~35-line summary, the accurate historical narrative below it (0026 onward) kept as-is. Section 1's "Current state (2026-08-05)" claimed migrations stopped at 0023 and quoted week-old figures; both replaced with today's, and the "never count archived" rule — until now only in this agent's private memory, not in the project's own source of truth — is now stated in GUIDE.md itself. **Section 2's migration table was ALSO stale**, including on recent rows: 0031, 0032, 0036, 0037 and 0038 were all marked NOT YET despite being live, because "table exists" is not evidence a migration ran (0035's own lesson, forgotten one section later). Re-verified all nine — 0031 through 0039 — with a live functional probe apiece (an insert that should be rejected without the fix, a value that should differ without it — never a bare `select` that merely returns rows, since empty and doesn't-exist-yet look identical from the client). All nine confirmed applied. Section 5's directory map was missing `services/drafts/` (quality.ts, sweep.ts — a whole subsystem) and the second cron route entirely. Section 10 documented a Google Sheet that no longer exists. A changelog row from earlier today had literal unescaped newlines in the source, silently breaking that table row across three lines |
