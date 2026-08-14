@@ -14,13 +14,19 @@ import type { GenerationContext } from './types';
 const STEP_BRIEF: Record<EmailType, string> = {
   initial:
     'This is the FIRST contact. They have never heard from us. Lead with something ' +
-    'specific to their business that proves this is not a mass mail, name one concrete ' +
-    'problem we could solve, and ask for a short reply not a meeting.',
+    'specific to their business that proves this is not a mass mail. Then, instead of ' +
+    'guessing what problem to pitch, ASK them directly: something like "what is one ' +
+    'problem you wish technology could take off your plate?" Say plainly that this is ' +
+    'exactly the kind of thing you help local businesses with, and that you will tell ' +
+    'them honestly whether you can help once you know what it is. Ask for a short reply, ' +
+    'not a meeting.',
   followup1:
     'This is the FIRST follow-up, about a week after an email they did not answer. ' +
     'Keep it short four sentences at most. Do not repeat the original pitch or the ' +
-    'original opening line. Add one new angle or a concrete example, and make it easy ' +
-    'to say no.',
+    'original opening line. Add one new angle or a concrete example, and close by asking ' +
+    'the same kind of direct question as the first email — what is one problem they wish ' +
+    'technology could solve for them — worded differently than the first email asked it. ' +
+    'Make it easy to say no.',
   followup2:
     'This is the FINAL follow-up, a few days after the second email. Two or three ' +
     'sentences. Acknowledge that the timing may simply be wrong, leave the door open, ' +

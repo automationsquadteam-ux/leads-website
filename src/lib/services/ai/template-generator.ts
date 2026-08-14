@@ -19,6 +19,26 @@ import type { EmailGenerator, GenerationContext, GenerationResult } from './type
  * GenerationContext to a model instead.
  */
 
+/*
+ * The closing ask, initial and follow-up 1 alike.
+ *
+ * Was "reply and I will send over what it would look like for you
+ * specifically" — a guess dressed up as an offer, and the reader has to do
+ * the work of figuring out whether the guess was even right before they can
+ * answer. Asking them to name their own problem instead is lower-effort to
+ * reply to (one sentence, no research required on their end) and gets a
+ * truer answer than a cold guess from outside the business ever could.
+ *
+ * Two different wordings, not one shared constant, because the file's own
+ * rule for follow-ups applies here too: the single most obvious tell of an
+ * automated sequence is repeating a line verbatim.
+ */
+const ASK_INITIAL = (name: string) =>
+  `But rather than guess, I would rather just ask: what is one problem you wish technology could take off your plate at ${name}? I help local businesses fix exactly that kind of thing. Tell me what is bugging you and I will tell you honestly whether I can help.`;
+
+const ASK_FOLLOWUP1 = (name: string) =>
+  `Genuine question, no pitch attached: what is one problem you wish technology could just solve for you at ${name}? I work with local businesses on exactly that. Reply with what it is and I will tell you straight whether I can help.`;
+
 /** Follow-up skeletons. Each takes one specific line from the lead's research. */
 const FOLLOWUP_SHAPES: Record<Exclude<EmailType, 'initial'>, (name: string) => string[]> = {
   followup1: (name) => [
@@ -26,7 +46,7 @@ const FOLLOWUP_SHAPES: Record<Exclude<EmailType, 'initial'>, (name: string) => s
     '',
     '{{angle}}',
     '',
-    'Worth a short reply either way? Even a "not now" is useful.',
+    ASK_FOLLOWUP1(name),
   ],
   followup2: (name) => [
     `Last note from me about ${name}.`,
@@ -74,7 +94,7 @@ function defaultInitialBody(context: GenerationContext): string {
     '',
     bestAngle(context),
     '',
-    'If that is worth ten minutes, reply and I will send over what it would look like for you specifically.',
+    ASK_INITIAL(lead.business_name),
     '',
     '{{signature}}',
   ].join('\n');
