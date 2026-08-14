@@ -212,7 +212,7 @@ export default async function AnalyticsPage() {
               <BarList
                 points={stagePoints}
                 caption="Leads by pipeline stage"
-                colorFor={() => 'var(--violet)'}
+                color="var(--violet)"
                 emptyMessage="No pipeline rows yet."
               />
             </CardContent>
@@ -276,7 +276,7 @@ export default async function AnalyticsPage() {
               <BarList
                 points={industryPoints}
                 caption="Leads by industry"
-                colorFor={() => 'var(--info)'}
+                color="var(--info)"
                 emptyMessage="No leads yet."
               />
             </CardContent>
@@ -314,7 +314,7 @@ export default async function AnalyticsPage() {
               <BarList
                 points={generatorPoints}
                 caption="Draft versions by generator"
-                colorFor={() => 'var(--primary)'}
+                color="var(--primary)"
                 emptyMessage="No drafts generated yet."
               />
             </CardContent>

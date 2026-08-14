@@ -264,7 +264,7 @@ export async function PublicStatsPage() {
                 <BarList
                   points={sequencePoints}
                   caption="Emails sent per sequence step"
-                  colorFor={() => 'var(--primary)'}
+                  color="var(--primary)"
                   emptyMessage="No emails sent yet."
                 />
               </CardContent>
@@ -289,7 +289,7 @@ export async function PublicStatsPage() {
                 <BarList
                   points={stagePoints}
                   caption="Leads by pipeline stage"
-                  colorFor={() => 'var(--violet)'}
+                  color="var(--violet)"
                   emptyMessage="No leads yet."
                 />
               </CardContent>
