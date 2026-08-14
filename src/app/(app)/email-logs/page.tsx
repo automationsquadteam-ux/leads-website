@@ -2,6 +2,7 @@ import { Mail } from 'lucide-react';
 
 import { PageHeader } from '@/components/shell/app-shell';
 import { EmptyState } from '@/components/empty-state';
+import { MetricCard } from '@/components/metric-card';
 import { EmailStatusBadge } from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Table, TBody, TD, TH, THead, TR, TableWrap } from '@/components/ui/table';
@@ -10,18 +11,24 @@ import { requireAdmin } from '@/lib/auth/session';
 import { getEmailLogs } from '@/lib/data/misc';
 import { parsePageNumber, parsePageSize } from '@/lib/pagination';
 import { formatDateTime, formatNumber } from '@/lib/utils';
+import { DateRangeFilter } from './date-range-filter';
 import { LogPagination } from './log-pagination';
 
 export const metadata = { title: 'Email Logs' };
 
+/** A bare `YYYY-MM-DD`, or '' — anything else is a hand-edited URL, ignored. */
+function parseDateParam(raw: string | undefined): string {
+  return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
+}
+
 export default async function EmailLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; size?: string }>;
+  searchParams: Promise<{ page?: string; size?: string; from?: string; to?: string }>;
 }) {
   await requireAdmin();
 
-  const { page: pageParam, size: sizeParam } = await searchParams;
+  const { page: pageParam, size: sizeParam, from: fromParam, to: toParam } = await searchParams;
   const page = parsePageNumber(pageParam);
 
   /*
@@ -32,22 +39,42 @@ export default async function EmailLogsPage({
    */
   const pageSize = parsePageSize(sizeParam);
 
-  const { rows, total, error } = await getEmailLogs(page, pageSize);
+  const from = parseDateParam(fromParam);
+  const to = parseDateParam(toParam);
+  const hasDateFilter = Boolean(from || to);
+
+  const { rows, total, stats, error } = await getEmailLogs(page, pageSize, { from, to });
 
   return (
     <>
       <PageHeader
         title="Email Logs"
         description={
-          total > 0
-            ? `${formatNumber(total)} send attempt${total === 1 ? '' : 's'} recorded, newest first`
-            : 'Every send attempt is recorded here'
+          hasDateFilter
+            ? `${formatNumber(total)} send attempt${total === 1 ? '' : 's'} in the selected ${from && to ? 'period' : 'day'}`
+            : total > 0
+              ? `${formatNumber(total)} send attempt${total === 1 ? '' : 's'} recorded, newest first`
+              : 'Every send attempt is recorded here'
         }
       />
 
-      <div className="p-4 sm:p-6">
+      <div className="space-y-3 p-4 sm:p-6">
+        <DateRangeFilter from={from} to={to} />
+
+        {/*
+          One row, same population the list below shows — every attempt in
+          the selected range, not just the ones that succeeded. Neither date
+          set means all time, so this reads the same as the page always has.
+        */}
+        <section aria-label="Send stats" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <MetricCard label="Total" value={formatNumber(stats.total)} icon={Mail} />
+          <MetricCard label={EMAIL_TYPE_LABELS.initial} value={formatNumber(stats.initial)} />
+          <MetricCard label={EMAIL_TYPE_LABELS.followup1} value={formatNumber(stats.followup1)} />
+          <MetricCard label={EMAIL_TYPE_LABELS.followup2} value={formatNumber(stats.followup2)} />
+        </section>
+
         {error ? (
-          <p className="mb-3 rounded-md border border-danger/30 bg-danger-subtle px-3 py-2.5 text-sm text-danger">
+          <p className="rounded-md border border-danger/30 bg-danger-subtle px-3 py-2.5 text-sm text-danger">
             Could not load email logs: {error}
           </p>
         ) : null}

@@ -1,9 +1,52 @@
 import { createClient } from '@/lib/supabase/server';
-import type { EmailLog, Reply, Setting } from '@/lib/supabase/database.types';
+import type { EmailLog, EmailType, Reply, Setting } from '@/lib/supabase/database.types';
+import { dayBoundsUtc } from '@/lib/utils';
 
 export interface EmailLogRow extends EmailLog {
   businessName: string | null;
   recipient: string | null;
+}
+
+/**
+ * A calendar-date range for `getEmailLogs`, as the raw `YYYY-MM-DD` strings a
+ * date `<input>` produces. Either end may be omitted.
+ *
+ * Interpreted as "select a date" when only one bound is given — that single
+ * day, not an open-ended "from here on" or "up to here" — because that is
+ * what picking ONE date in a filter like this means. Both bounds together
+ * make a period. Neither means all time, which stays the default.
+ */
+export interface EmailLogDateRange {
+  from?: string;
+  to?: string;
+}
+
+export interface EmailLogStats {
+  total: number;
+  initial: number;
+  followup1: number;
+  followup2: number;
+}
+
+const EMPTY_STATS: EmailLogStats = { total: 0, initial: 0, followup1: 0, followup2: 0 };
+
+/**
+ * Turn a possibly-partial date range into UTC bounds, or null for "no filter".
+ *
+ * A malformed or out-of-order range (someone edits the URL by hand, `to`
+ * before `from`) is treated as no filter rather than an empty/broken query —
+ * the page should show everything and let the date inputs, which read back
+ * from the same params, make the mistake visible.
+ */
+function resolveDateRange(range: EmailLogDateRange | undefined): { start: string; end: string } | null {
+  const from = range?.from ? dayBoundsUtc(range.from) : null;
+  const to = range?.to ? dayBoundsUtc(range.to) : null;
+
+  if (from && to) {
+    return from.start <= to.end ? { start: from.start, end: to.end } : null;
+  }
+  // Only one bound given: that single day.
+  return from ?? to;
 }
 
 /**
@@ -15,17 +58,30 @@ export interface EmailLogRow extends EmailLog {
 export async function getEmailLogs(
   page = 1,
   pageSize = 50,
-): Promise<{ rows: EmailLogRow[]; total: number; error: string | null }> {
+  dateRange?: EmailLogDateRange,
+): Promise<{ rows: EmailLogRow[]; total: number; stats: EmailLogStats; error: string | null }> {
   const supabase = await createClient();
   const from = (page - 1) * pageSize;
+  const bounds = resolveDateRange(dateRange);
 
-  const { data, count, error } = await supabase
+  /*
+   * Filtered on `created_at`, the one column every row has. `sent_at` is only
+   * ever set on success (null for queued/failed/bounced), so filtering on it
+   * would drop every failure out of "today" instead of counting it — and the
+   * two are the same instant in all but a vanishingly small number of rows
+   * anyway, since a row is inserted 'queued' and updated to its final status
+   * moments later in the same request.
+   */
+  let query = supabase
     .from('email_logs')
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, from + pageSize - 1);
+  if (bounds) query = query.gte('created_at', bounds.start).lte('created_at', bounds.end);
 
-  if (error) return { rows: [], total: 0, error: error.message };
+  const { data, count, error } = await query;
+
+  if (error) return { rows: [], total: 0, stats: EMPTY_STATS, error: error.message };
 
   const logs = data ?? [];
   const leadIds = [...new Set(logs.map((log) => log.lead_id))];
@@ -50,7 +106,30 @@ export async function getEmailLogs(
     };
   });
 
-  return { rows, total: count ?? 0, error: null };
+  /*
+   * The stats row summarises the SAME filtered population the list below it
+   * shows — every attempt in range, not just the successful ones — so the
+   * two never disagree about what "this time frame" means. Scoped to the
+   * same date bounds but NOT to the page: a stat that only covered the
+   * current 50 rows would change when you paged, which answers "what's on
+   * this page" instead of the question this row exists to answer.
+   */
+  let statsQuery = supabase.from('email_logs').select('email_type', { count: 'exact' });
+  if (bounds) statsQuery = statsQuery.gte('created_at', bounds.start).lte('created_at', bounds.end);
+  const { data: statsRows, count: statsTotal } = await statsQuery;
+
+  const typeCounts = new Map<EmailType, number>();
+  for (const row of statsRows ?? []) {
+    typeCounts.set(row.email_type, (typeCounts.get(row.email_type) ?? 0) + 1);
+  }
+  const stats: EmailLogStats = {
+    total: statsTotal ?? 0,
+    initial: typeCounts.get('initial') ?? 0,
+    followup1: typeCounts.get('followup1') ?? 0,
+    followup2: typeCounts.get('followup2') ?? 0,
+  };
+
+  return { rows, total: count ?? 0, stats, error: null };
 }
 
 export interface EmailFailureRow extends EmailLog {

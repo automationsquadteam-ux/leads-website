@@ -38,6 +38,7 @@ interface Props {
   search: string;
   stages: PipelineStage[];
   verification: EmailVerificationStatus[];
+  hasWebsite?: 'yes' | 'no';
   archivedOnly: boolean;
   /** Active named view, so the chips can show which one is on. */
   view?: string;
@@ -56,7 +57,7 @@ const DASH = '—';
  * cache to invalidate.
  */
 export function LeadsTable({
-  rows, total, page, pageSize, search, stages, verification, archivedOnly, view, sort, direction, facets,
+  rows, total, page, pageSize, search, stages, verification, hasWebsite, archivedOnly, view, sort, direction, facets,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -399,7 +400,7 @@ export function LeadsTable({
     }
   }
 
-  const hasFilters = search !== '' || stages.length > 0 || verification.length > 0;
+  const hasFilters = search !== '' || stages.length > 0 || verification.length > 0 || Boolean(hasWebsite);
 
   return (
     <div className="space-y-3">
@@ -518,6 +519,46 @@ export function LeadsTable({
           <Archive className="size-3" aria-hidden="true" />
           {archivedOnly ? 'Archived only' : 'Archived'}
         </button>
+
+        {/*
+          Website is a fact about the LEAD, independent of stage or
+          verification — a verified lead can still have no site, and a
+          websiteless lead can still be fully worked. So it is its own
+          two-way toggle rather than folded into the stage or verification
+          filters, and composes with either: pick "Verified" above and
+          "No website" here and both apply together, same as any other pair
+          of filters on this toolbar.
+        */}
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by website">
+          <button
+            type="button"
+            aria-pressed={hasWebsite === 'yes'}
+            onClick={() => update({ website: hasWebsite === 'yes' ? null : 'yes' })}
+            className={cn(
+              'cursor-pointer rounded-md border px-2 py-1 text-xs font-medium transition-colors',
+              hasWebsite === 'yes'
+                ? 'border-primary bg-primary-subtle text-primary'
+                : 'border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground',
+            )}
+            title="Only leads with a website on file."
+          >
+            Has website
+          </button>
+          <button
+            type="button"
+            aria-pressed={hasWebsite === 'no'}
+            onClick={() => update({ website: hasWebsite === 'no' ? null : 'no' })}
+            className={cn(
+              'cursor-pointer rounded-md border px-2 py-1 text-xs font-medium transition-colors',
+              hasWebsite === 'no'
+                ? 'border-primary bg-primary-subtle text-primary'
+                : 'border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground',
+            )}
+            title="Only leads with no website on file."
+          >
+            No website
+          </button>
+        </div>
 
         <div className="flex-1" />
 

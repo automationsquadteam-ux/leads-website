@@ -140,6 +140,58 @@ export function convertWallClock(
   }
 }
 
+/**
+ * The UTC offset a zone carries on a given calendar date, as "+05:00".
+ *
+ * Anchored at noon UTC on that date rather than midnight, so a zone that
+ * observes DST and happens to shift right around local midnight is not read
+ * on the wrong side of the transition. `longOffset` is what makes this exact
+ * rather than a lookup table: it asks Intl's own tz database, so it stays
+ * correct if a zone's rules ever change.
+ */
+function zoneOffsetString(dateStr: string, zone: string): string | null {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longOffset' })
+      .formatToParts(new Date(`${dateStr}T12:00:00.000Z`));
+    const raw = parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+    const match = /GMT([+-]\d{2}):?(\d{2})?/.exec(raw);
+    if (!match) return null;
+    return `${match[1]}:${match[2] ?? '00'}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Midnight-to-midnight for a calendar date, as UTC instants — in
+ * DISPLAY_TIME_ZONE by default, not the server's own clock.
+ *
+ * A `<input type="date">` value like "2026-08-12" carries no timezone of its
+ * own. Every timestamp in this app is shown in DISPLAY_TIME_ZONE, so a date
+ * typed into a filter means midnight-to-midnight THERE — not in whatever
+ * zone the server process happens to run in, which on Vercel is UTC. Getting
+ * this wrong does not error, it just silently shifts the boundary by the
+ * zone's offset: for Asia/Karachi (+05:00) that is five hours, enough to
+ * drop the last few hours of a business day into "tomorrow" or pull the
+ * first few hours of tomorrow into "today".
+ *
+ * Returns null for anything that is not a plain YYYY-MM-DD, so a filter
+ * function can treat a malformed query param as "no filter" rather than
+ * feeding `new Date(garbage)` into a query.
+ */
+export function dayBoundsUtc(
+  dateStr: string,
+  zone: string = DISPLAY_TIME_ZONE,
+): { start: string; end: string } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const offset = zoneOffsetString(dateStr, zone);
+  if (!offset) return null;
+  const start = new Date(`${dateStr}T00:00:00.000${offset}`);
+  const end = new Date(`${dateStr}T23:59:59.999${offset}`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
 /** "3 days ago" / "in 2 hours" falls back to a date beyond a month. */
 export function formatRelative(value: string | null | undefined): string {
   if (!value) return '—';

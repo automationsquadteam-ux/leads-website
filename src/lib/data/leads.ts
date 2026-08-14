@@ -112,6 +112,15 @@ export interface LeadListParams {
    * mixed them into 700 live leads and made them impossible to find.
    */
   archived?: 'exclude' | 'only';
+  /**
+   * Split by whether a website is on file. Empty means no filter.
+   *
+   * Deliberately independent of `stages`/`verification`/`view` — a website is
+   * a fact about the LEAD, not a position in the outreach pipeline, so it
+   * composes with any of them ("verified AND has a website" is exactly the
+   * two filters applied together) rather than being folded into one.
+   */
+  hasWebsite?: 'yes' | 'no';
   sort?: SortColumn;
   direction?: 'asc' | 'desc';
   page?: number;
@@ -364,6 +373,23 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
   query = archived === 'only'
     ? query.eq('status', 'archived')
     : query.neq('status', 'archived');
+
+  /*
+   * Has a website on file, or not — a fact about the lead, so it filters
+   * `leads` directly rather than going through the idFilters intersection
+   * above (which is for questions about the PIPELINE: stage, verification,
+   * a named view). Applied straight on `query`, the same way `archived` and
+   * `search` are, so it combines with every other filter by plain AND and
+   * touches nothing else — "verified and has a website" is just both
+   * conditions on the one query, not a third mode to keep in sync.
+   *
+   * `website is null` is the whole check: 0031's normalizer turns a blank
+   * string into NULL before the row is even written, and the column has
+   * carried a `website is null or website ~* '^https?://'` CHECK since the
+   * table's first migration, so no row has ever been able to hold ''.
+   */
+  if (params.hasWebsite === 'yes') query = query.not('website', 'is', null);
+  if (params.hasWebsite === 'no') query = query.is('website', null);
 
   const from = (page - 1) * pageSize;
   query = query

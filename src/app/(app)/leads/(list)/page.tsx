@@ -62,6 +62,10 @@ export default async function LeadsPage({
 
   const verification = parseVerification(single('verify'));
 
+  const websiteParam = single('website');
+  const hasWebsite: 'yes' | 'no' | undefined =
+    websiteParam === 'yes' || websiteParam === 'no' ? websiteParam : undefined;
+
   const sortParam = single('sort') ?? 'created_at';
   const sort: SortColumn = isSortColumn(sortParam) ? sortParam : 'created_at';
   const direction = single('dir') === 'asc' ? 'asc' : 'desc';
@@ -70,7 +74,7 @@ export default async function LeadsPage({
   const pageSize = parsePageSize(single('size'));
 
   const [result, facets] = await Promise.all([
-    getLeads({ search, stages, view, verification, archived, sort, direction, page, pageSize }),
+    getLeads({ search, stages, view, verification, hasWebsite, archived, sort, direction, page, pageSize }),
     getStageFacets(archived),
   ]);
 
@@ -118,6 +122,7 @@ export default async function LeadsPage({
           search={search}
           stages={stages}
           verification={verification}
+          hasWebsite={hasWebsite}
           archivedOnly={archived === 'only'}
           view={view}
           sort={sort}
