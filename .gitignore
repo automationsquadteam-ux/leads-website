@@ -42,3 +42,6 @@ yarn-error.log*
 
 .Claude/*
 Leads.xlsx
+
+# graphify: generated knowledge graph, local analysis only
+graphify-out/

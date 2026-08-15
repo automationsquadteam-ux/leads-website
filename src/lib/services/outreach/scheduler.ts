@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createServiceClient } from '@/lib/supabase/service-client';
 import type { EmailType } from '@/lib/supabase/database.types';
+import { dayBoundsUtc, DISPLAY_TIME_ZONE } from '@/lib/utils';
 import { getIntegrationConfig, type IntegrationConfig } from '../config';
 import { recordActivity } from '../activity';
 import { createEmailVersion } from '../email-versions';
@@ -191,11 +192,20 @@ async function closeExhaustedSequences(config: IntegrationConfig): Promise<strin
 }
 
 /**
- * Everything due right now, oldest first.
+ * Everything due right now, oldest backlog first.
  *
- * Follow-up 2 is queried before follow-up 1 so a lead that has been waiting
- * longest in the sequence is not starved by a flood of newer first follow-ups
- * when the per-run ceiling bites.
+ * Four-part order: follow-up 2 overdue from before today, follow-up 1
+ * overdue from before today, follow-up 2 due today, follow-up 1 due today —
+ * then initial sends. Two axes, not one: a lead already a day or more late
+ * for ANY step always outranks one that only just became due today,
+ * regardless of step; within the same age tier, follow-up 2 still outranks
+ * follow-up 1, so a lead closer to the end of its sequence is not stuck
+ * behind a flood of same-day first follow-ups when the per-run ceiling
+ * bites. Plain type-only ordering (all of step 2, then all of step 1, no
+ * age split) had a starvation hole: a healthy day's fresh follow-up-2 batch
+ * would fully drain the daily cap before a single OVERDUE follow-up-1 was
+ * even attempted, so a backlog could get pushed out again, and again, by
+ * every new day's crop of the "higher priority" step.
  */
 async function findDueWork(config: IntegrationConfig, limit: number): Promise<DueRow[]> {
   const admin = createServiceClient();
@@ -221,23 +231,70 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
       .eq('auto_followups', true);
 
   if (config.outreach.autoFollowups) {
-    const followup2 = base()
+    /*
+     * Backlog before batch, within each step (asked for directly: "the ones
+     * that were due yesterday or 2 days ago go out first then the new ones").
+     *
+     * Plain type priority (all of follow-up 2, then all of follow-up 1) has a
+     * starvation hole: a healthy day's crop of NEW follow-up-2s finishes
+     * draining the cap before a single OVERDUE follow-up-1 is even attempted,
+     * because type order does not know or care how old anything is. A lead
+     * whose follow-up 1 has been sitting unsent for two days is worse off
+     * than one just now becoming due, and the type-only order treats them
+     * identically. Splitting "already overdue before today" from "newly due
+     * today" and interleaving them (F2 overdue, F1 overdue, F2 today, F1
+     * today) fixes that without giving up type priority — follow-up 2 still
+     * outranks follow-up 1 at matching age, it just no longer outranks a
+     * follow-up 1 that has been waiting since before today started.
+     *
+     * "Today" is a calendar day in DISPLAY_TIME_ZONE, not the server's own
+     * clock — `dayBoundsUtc` is the same helper the Email Logs date filter
+     * uses, for the same reason: the server may run in UTC while "today"
+     * means Asia/Karachi's midnight to anyone reading this list.
+     */
+    const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TIME_ZONE }).format(new Date());
+    const startOfToday = dayBoundsUtc(todayDateStr)?.start ?? nowIso;
+
+    const followup2Overdue = base()
       .not('followup1_sent', 'is', null)
       .is('followup2_sent', null)
       .not('followup2_due', 'is', null)
+      .lt('followup2_due', startOfToday)
+      .order('followup2_due', { ascending: true })
+      .limit(limit);
+
+    const followup1Overdue = base()
+      .not('first_email_sent', 'is', null)
+      .is('followup1_sent', null)
+      .not('followup1_due', 'is', null)
+      .lt('followup1_due', startOfToday)
+      .order('followup1_due', { ascending: true })
+      .limit(limit);
+
+    const followup2Today = base()
+      .not('followup1_sent', 'is', null)
+      .is('followup2_sent', null)
+      .not('followup2_due', 'is', null)
+      .gte('followup2_due', startOfToday)
       .lte('followup2_due', nowIso)
       .order('followup2_due', { ascending: true })
       .limit(limit);
 
-    const followup1 = base()
+    const followup1Today = base()
       .not('first_email_sent', 'is', null)
       .is('followup1_sent', null)
       .not('followup1_due', 'is', null)
+      .gte('followup1_due', startOfToday)
       .lte('followup1_due', nowIso)
       .order('followup1_due', { ascending: true })
       .limit(limit);
 
-    const [second, first] = await Promise.all([followup2, followup1]);
+    const [second, first, secondToday, firstToday] = await Promise.all([
+      followup2Overdue,
+      followup1Overdue,
+      followup2Today,
+      followup1Today,
+    ]);
 
     /*
      * No archived filter needed here any more: lead_send_queue excludes them.
@@ -248,6 +305,8 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
      */
     for (const row of second.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup2' });
     for (const row of first.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup1' });
+    for (const row of secondToday.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup2' });
+    for (const row of firstToday.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup1' });
   }
 
   if (config.outreach.autoSendInitial) {

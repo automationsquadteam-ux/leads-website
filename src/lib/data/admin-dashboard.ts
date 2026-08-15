@@ -5,6 +5,7 @@ import type {
   PipelineBoardRow,
   Reply,
 } from '@/lib/supabase/database.types';
+import { dayBoundsUtc, DISPLAY_TIME_ZONE } from '@/lib/utils';
 
 /**
  * The admin dashboard's operational widgets.
@@ -404,7 +405,9 @@ async function attachNames<T extends { lead_id: string }>(
 
 /**
  * What the scheduler would actually attempt next, in the order it would
- * attempt it — not "looks ready", verifiably ready (0042).
+ * attempt it — not "looks ready", verifiably ready (code only, no
+ * migration — 0042 is still the next free number, reserved for whatever
+ * genuinely needs one next).
  *
  * Deliberately mirrors `findDueWork()` in `outreach/scheduler.ts` rather than
  * calling it: that function sends real email, and a dashboard preview must
@@ -423,10 +426,19 @@ async function attachNames<T extends { lead_id: string }>(
  * longest-waiting lead exactly the way `findDueWork()`'s own ordering
  * comment says it must not.
  *
- * The fix is the same THREE-PART order `findDueWork()` uses, concatenated
- * rather than sorted by a shared key: follow-up 2s first (oldest due),
- * then follow-up 1s (oldest due), then initial sends (verifier tier, then
- * oldest-approved within a tier).
+ * The fix is the same order `findDueWork()` uses, concatenated rather than
+ * sorted by a shared key: follow-up 2s overdue from before today, follow-up
+ * 1s overdue from before today, follow-up 2s due today, follow-up 1s due
+ * today, then initial sends (verifier tier, then oldest-approved within a
+ * tier). The overdue/today split (asked for directly: prioritize whatever
+ * was already due before today over today's own fresh batch, step for step)
+ * closes a starvation hole plain type-only order had — a healthy day's new
+ * follow-up-2 crop would fully drain the queue before a single OVERDUE
+ * follow-up-1 was even shown as next, so a backlog could read as permanently
+ * stuck behind "higher priority" work that was actually younger than it.
+ *
+ * "Today" is a calendar day in DISPLAY_TIME_ZONE (`dayBoundsUtc`), same as
+ * `findDueWork()` — not the server's own clock, which may be UTC.
  *
  * Initial candidates get one more check `findDueWork()` itself does not
  * need: the active version's OWN status, not just `lead_pipeline.approved`.
@@ -466,26 +478,46 @@ async function getSendQueuePreview(
     .lt('send_priority', 9);
   if (requireVerified) initialQuery = initialQuery.eq('email_verified', true);
 
-  const [followup2, followup1, initialCandidates] = await Promise.all([
-    base()
-      .not('followup1_sent', 'is', null)
-      .is('followup2_sent', null)
-      .not('followup2_due', 'is', null)
-      .lte('followup2_due', nowIso)
-      .order('followup2_due', { ascending: true })
-      .limit(limit),
-    base()
-      .not('first_email_sent', 'is', null)
-      .is('followup1_sent', null)
-      .not('followup1_due', 'is', null)
-      .lte('followup1_due', nowIso)
-      .order('followup1_due', { ascending: true })
-      .limit(limit),
-    initialQuery
-      .order('send_priority', { ascending: true })
-      .order('approved_at', { ascending: true, nullsFirst: false })
-      .limit(limit),
-  ]);
+  const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TIME_ZONE }).format(new Date());
+  const startOfToday = dayBoundsUtc(todayDateStr)?.start ?? nowIso;
+
+  const [followup2Overdue, followup1Overdue, followup2Today, followup1Today, initialCandidates] =
+    await Promise.all([
+      base()
+        .not('followup1_sent', 'is', null)
+        .is('followup2_sent', null)
+        .not('followup2_due', 'is', null)
+        .lt('followup2_due', startOfToday)
+        .order('followup2_due', { ascending: true })
+        .limit(limit),
+      base()
+        .not('first_email_sent', 'is', null)
+        .is('followup1_sent', null)
+        .not('followup1_due', 'is', null)
+        .lt('followup1_due', startOfToday)
+        .order('followup1_due', { ascending: true })
+        .limit(limit),
+      base()
+        .not('followup1_sent', 'is', null)
+        .is('followup2_sent', null)
+        .not('followup2_due', 'is', null)
+        .gte('followup2_due', startOfToday)
+        .lte('followup2_due', nowIso)
+        .order('followup2_due', { ascending: true })
+        .limit(limit),
+      base()
+        .not('first_email_sent', 'is', null)
+        .is('followup1_sent', null)
+        .not('followup1_due', 'is', null)
+        .gte('followup1_due', startOfToday)
+        .lte('followup1_due', nowIso)
+        .order('followup1_due', { ascending: true })
+        .limit(limit),
+      initialQuery
+        .order('send_priority', { ascending: true })
+        .order('approved_at', { ascending: true, nullsFirst: false })
+        .limit(limit),
+    ]);
 
   const initialIds = (initialCandidates.data ?? []).map((row) => row.lead_id);
   const { data: approvedVersions } =
@@ -501,7 +533,13 @@ async function getSendQueuePreview(
   const trulyApproved = new Set((approvedVersions ?? []).map((row) => row.lead_id));
   const initial = (initialCandidates.data ?? []).filter((row) => trulyApproved.has(row.lead_id));
 
-  return [...(followup2.data ?? []), ...(followup1.data ?? []), ...initial].slice(0, limit);
+  return [
+    ...(followup2Overdue.data ?? []),
+    ...(followup1Overdue.data ?? []),
+    ...(followup2Today.data ?? []),
+    ...(followup1Today.data ?? []),
+    ...initial,
+  ].slice(0, limit);
 }
 
 export async function getDashboardFeeds(limit = 8): Promise<DashboardFeeds> {
