@@ -230,13 +230,13 @@ export function LeadsTable({
             </a>
           ) : (
             <a
-              href={googleSearchUrl(lead.business_name, lead.city, lead.country)}
+              href={googleSearchUrl(lead.business_name, lead.city, lead.country, 'email')}
               target="_blank"
               rel="noopener noreferrer"
               // The row itself navigates to the lead, so the click must not
               // bubble or you would open the search AND leave the page.
               onClick={(e) => e.stopPropagation()}
-              title={`No website on file. Search Google for "${[lead.business_name, lead.city, lead.country].filter(Boolean).join(' ')}"`}
+              title={`No website on file. Search Google for "${[lead.business_name, lead.city, lead.country, 'email'].filter(Boolean).join(' ')}"`}
               className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
             >
               <Search className="size-3 shrink-0" aria-hidden="true" />
