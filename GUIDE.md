@@ -116,7 +116,8 @@ Migrations live in `supabase/migrations/`, applied in filename order.
 | 0039 | `20260812080000_approved_version_stays_active.sql` | ✅ yes — confirmed 2026-08-12 |
 | 0040 | `20260812190000_email_log_failure_reason.sql` | ❌ NOT YET — paste `supabase/schema-update-30-email-failure-reason.sql` |
 | 0041 | `20260812200000_realtime_publication.sql` | ⚠️ not pasted, but **already effective** — `email_logs`, `leads` and `lead_pipeline` were probed live on 2026-08-12 and all three already emit realtime events, so this project's `supabase_realtime` publication already covers them. The migration is a no-op safety net that makes all eight explicit and survives a `db reset`. |
-| 0042 | `20260815150000_followup_due_dates_are_whole_days.sql` | ❌ NOT YET — paste `supabase/schema-update-32-followup-due-whole-days.sql`. Could not be tested live (no CLI here); the JS-side arithmetic it mirrors was verified against the user's own example instead. See section 12 for what to probe once pasted. |
+| 0042 | `20260815150000_followup_due_dates_are_whole_days.sql` | ✅ pasted — **and confirmed BUGGY live**, not just "unverified." `date AT TIME ZONE zone` is genuinely ambiguous in Postgres; it silently resolved wrong and round-tripped through UTC twice (a 10-hour error). Superseded by 0043. Left in the table rather than rewritten — migrations here are immutable once applied; the fix is a new one, same as every other correction in this project. |
+| 0043 | `20260816160000_fix_followup_due_date_timezone_bug.sql` | ❌ NOT YET — paste `supabase/schema-update-33-fix-followup-due-tz-bug.sql`. Fixes 0042 with an explicit `::timestamp` cast and repairs the one pending row already computed wrong. Still could not be tested live here — probe with the same throwaway-lead technique that CAUGHT 0042's bug (see section 12) before trusting it. |
 
 **0001 through 0039 are applied; 0040 and 0041 are not yet pasted.** This table had drifted stale more than once by this point
 — 0026–0028 sat marked NOT YET for days after they had actually run, and on 2026-08-12 the same
@@ -171,25 +172,49 @@ evidence; a table existing is not.
 Then flip their rows above — after a real probe, not just after pasting, same rule as every other
 entry in this table.
 
-**0042 is written but not pasted, and could not be tested here** — this machine has no CLI, so a
-`create or replace function` cannot actually be run against the live database from here the way
-earlier migrations' effects could be queried. Paste
-`supabase/schema-update-32-followup-due-whole-days.sql`, then probe with something like:
+**0042 shipped a real bug, and it is worth stating plainly why.** This machine has no CLI, so a
+`create or replace function` cannot actually be run against the live database from here — 0042's
+SQL was checked by hand-tracing the logic and by reproducing the intended arithmetic in a
+standalone JS script, but neither of those *executes the actual DDL*, and the bug it shipped with
+is exactly the kind that only exists once Postgres itself resolves it: `date AT TIME ZONE zone`
+is genuinely ambiguous (a bare `date` has implicit casts to BOTH `timestamp` and `timestamptz`,
+and `AT TIME ZONE` is overloaded on both), and it silently resolved to the wrong one — round-
+tripping through the session's UTC default twice, a 10-hour PKT error. Caught the same day by
+asking "why does this lead still say due in 5 hours" and testing against a THROWAWAY LEAD WITH A
+KNOWN SEND TIMESTAMP rather than trusting the paste — the technique below. **Fixed in 0043** with
+an explicit `::timestamp` cast, which removes the ambiguity outright (an exact-type match beats
+an overload that needs a cast, every time).
+
+**Paste `supabase/schema-update-33-fix-followup-due-tz-bug.sql`, then probe like this — an
+opinion-free, deterministic test, not a read of existing rows** (existing rows split three ways —
+old minute-precise, correctly midnight, or 0042's bug — so just reading one proves nothing on its
+own):
 
 ```sql
--- Send a real (or throwaway) initial to a lead, then:
+-- 1. A throwaway lead, then a fake "sent" row at a KNOWN, deliberately odd instant:
+insert into leads (business_name, email, status) values ('probe, delete me', 'probe@example.invalid', 'new')
+  returning id;  -- note the id
+insert into email_logs (lead_id, status, email_type, sent_at)
+  values ('<that id>', 'sent', 'initial', '2026-08-16T16:47:13Z');  -- = 21:47:13 PKT
+
+-- 2. Read back what got computed:
 select first_email_sent, followup1_due,
-       date_trunc('day', followup1_due at time zone 'Asia/Karachi')
-         = followup1_due at time zone 'Asia/Karachi' as lands_on_midnight
-  from lead_pipeline where lead_id = '<that lead>';
+       (followup1_due at time zone 'Asia/Karachi')::time = time '00:00:00' as lands_on_midnight
+  from lead_pipeline where lead_id = '<that id>';
+
+-- 3. Clean up:
+delete from email_logs where lead_id = '<that id>';
+delete from lead_pipeline where lead_id = '<that id>';
+delete from leads where id = '<that id>';
 ```
 
-`lands_on_midnight` should read `true`. Before this migration it would have read `false` for
-almost every row, since the old due date carried whatever minute the previous send happened to
-land on.
+`lands_on_midnight` must read `true`, and `followup1_due` should be exactly 23 Aug 2026, midnight
+Asia/Karachi. If it instead reads a specific non-zero time (0042's bug produced `10:00:00`), the
+paste did not take, or something is still serving the old function — do not mark this row applied
+on the strength of "I pasted it," only on the strength of this probe.
 
-**The next migration after that is 0043.** Add the file, regenerate `schema.sql` and a
-`schema-update-33-*.sql` bundle, and leave its row as NOT YET until it has actually been probed —
+**The next migration after that is 0044.** Add the file, regenerate `schema.sql` and a
+`schema-update-34-*.sql` bundle, and leave its row as NOT YET until it has actually been probed —
 not just pasted, and not just remembered as pasted.
 
 ### 0026 and 0027 are ONE change split in two, and the order is not optional
@@ -371,14 +396,24 @@ row — 0015 writes `first_email_sent` directly — so their due date stayed NUL
 `compute_next_step()` parked them on `await_followup1` permanently while the cron reported
 nothing to do. 0018 makes `sync_pipeline_from_lead()` schedule it too, and backfills.
 
-**Both writers land on midnight, not the sending minute (0042).** `followup1_due`/`followup2_due`
-used to be `sent_at + N days` — exact timestamp arithmetic, so a due date carried whatever minute
-the previous send happened to fire at. `sync_pipeline_from_email_log()` and
-`sync_pipeline_from_lead()` now both truncate to the calendar day (Asia/Karachi) before adding
+**Both writers land on midnight, not the sending minute (0042, fixed for real in 0043).**
+`followup1_due`/`followup2_due` used to be `sent_at + N days` — exact timestamp arithmetic, so a
+due date carried whatever minute the previous send happened to fire at. `sync_pipeline_from_email_log()`
+and `sync_pipeline_from_lead()` now both truncate to the calendar day (Asia/Karachi) before adding
 the delay, landing on that day's midnight — "N days" is a day count, not a stopwatch, so two
 sends 40 seconds apart on the same day should become due together, not drift apart down the line
 as the sequence compounds. See section 2's row for the exact mechanism and why it is not
 retroactive.
+
+**0042's own first attempt at this got the SQL wrong.** `date AT TIME ZONE zone` is ambiguous in
+Postgres — a bare `date` has implicit casts to both `timestamp` and `timestamptz`, and it silently
+picked the wrong one, round-tripping through the session's UTC default twice (a 10-hour PKT
+error, caught the same day a lead was still showing "due in 5 hours" instead of landing on
+midnight). 0043 fixes it with an explicit `::timestamp` cast, which leaves Postgres no ambiguous
+overload to mis-resolve. Worth remembering generally: `AT TIME ZONE` on anything that is not
+ALREADY exactly `timestamp` or `timestamptz` — a bare `date` especially — is not safe to trust
+without an explicit cast first, and this project has no way to execute DDL to catch that kind of
+bug before it ships.
 
 ### Applied migrations are immutable
 
@@ -1926,6 +1961,7 @@ holes. Fixed by rebalancing rather than by padding:
 
 | Date | Change |
 | --- | --- |
+| 2026-08-16 | **0043 — 0042 shipped a real Postgres bug, caught the same day it was pasted.** Asked directly: "didn't we already fix follow-ups to be due by date, not the exact minute — so why does one still say due in 5 hours?" Live data said 0042 HAD been pasted (a fresh send minutes old already had a due date computed), but a deterministic test — a throwaway lead sent at a known, deliberately odd instant (16 Aug, 21:47:13 PKT) — showed the computed due date landing on **10:00:00 PKT**, neither the old minute-precise behaviour nor the intended midnight. Root cause: `date AT TIME ZONE zone` is genuinely ambiguous in Postgres — a bare `date` has implicit casts to BOTH `timestamp` and `timestamptz`, `AT TIME ZONE` is overloaded on both, and it silently resolved to the wrong one, round-tripping the value through the session's UTC default twice (once casting the date to `timestamptz` before converting to Karachi wall-clock, once casting that plain timestamp back to `timestamptz` on assignment) — exactly a double application of the +5:00 offset, which is exactly the 10-hour gap observed. **This is invisible to `tsc`, to `next build`, and to hand-tracing the logic** — it only exists once Postgres itself resolves the overload, and this project has no CLI to execute the DDL and catch that before pasting. Fixed with an explicit `::timestamp` cast immediately before the final `AT TIME ZONE`, which leaves no ambiguous operand for Postgres to mis-resolve (an exact type match always wins over one needing a cast). Checked the blast radius before writing the repair: 542 pending due-dates were still safely on the pre-0042 pattern (untouched, as designed), 0 were correctly on the new pattern, exactly 1 had the buggy signature — migration includes a tightly-scoped repair matching only that third state (provably neither the exact pre-0042 pattern nor an existing midnight), so it cannot touch a row it shouldn't. Applied migrations are immutable in this project, so 0042 stays in the table as-is with a note rather than being rewritten — same pattern as every other correction here |
 | 2026-08-15 | **0042 — a follow-up's due date is a whole day, not a timestamp.** Directly asked for, and the reasoning behind it turned out to explain a question from earlier the same day: "why did only follow-up 1 send today, not any of the 34 follow-up 2s?" — live data showed the answer was simply that none of today's follow-up 2s had crossed their due MINUTE yet (they started at 15:18 PKT; the check was at 14:45), and that minute is an accident, not a rule: `followup1_due`/`followup2_due` were computed as `sent_at + N days`, exact timestamp arithmetic, so a whole cohort's due times end up scattered across the day at whatever pace the ORIGINAL send happened to land at (confirmed live: stepping in the same 3-minute intervals the scheduler's own `*/3 * * * *` pacing produces, days later). Asked to fix it directly: "even if the mail is 3 days old at 3pm, its still 3 days old... not counting till minutes." Both functions that compute these — `sync_pipeline_from_email_log()` (this app's own sends) and `sync_pipeline_from_lead()` (n8n-reported sends, the other writer since Sheets was retired — 0033) — now truncate to the calendar day (Asia/Karachi, matching `DISPLAY_TIME_ZONE`, deliberately not `sending.working_hours`' own independently-set timezone, live value `UTC`) before adding the delay, landing on that day's midnight: `((sent_at at time zone tz)::date + N) at time zone tz`. Verified against the user's own example (follow-up 1 sent 21:59 PKT on the 12th → follow-up 2 now lands at midnight PKT on the 15th, not 21:59) with a JS reproduction of the exact Postgres arithmetic, since this machine has no CLI to apply and query the real function directly — see section 2 for the probe to run once it's pasted. **Deliberately not retroactive**: both functions only ever set these columns once (`coalesce(existing, ...)`), so this changes the next computation, not anything already scheduled — today's real due dates keep their current minute-precise values. Send TIME is unaffected either way; `sending.working_hours` and the min-gap pacing still decide that exactly as before, this only changes when something starts counting as due |
 | 2026-08-15 | **Send order: overdue backlog now outranks today's fresh batch, within each step.** Asked directly: 54 follow-up-1s and 34 follow-up-2s were due, the daily cap is 60, so 28 follow-up-1s would be deferred — "will they go out tomorrow, or do I have to send them by hand, and can the priority be backlog-first?" They do go out on their own (a deferred item's due timestamp does not change, so it is still "due" on every later run until sent), but the OLD order — all of follow-up 2, then all of follow-up 1, oldest-due-first within each — had a real starvation hole: a busy follow-up-2 day (one big enough to fill the cap on its own, which 65+ due F2s can) would fully drain the budget before a single OVERDUE follow-up-1 was even attempted, so a backlog could get re-deferred day after day by every new day's "higher priority" step, indefinitely. `findDueWork()` (the real scheduler) and `getSendQueuePreview()` (the dashboard card documented as its mirror — kept in step, per that file's own rule) both now query four buckets instead of two: follow-up-2-overdue-before-today, follow-up-1-overdue-before-today, follow-up-2-due-today, follow-up-1-due-today, concatenated in that order, then initial sends unchanged. Type priority is preserved WITHIN an age tier (follow-up 2 still beats follow-up 1 at equal age) — only the priority OF a fresh same-day batch over an older backlog is removed. "Today" is a calendar day in `DISPLAY_TIME_ZONE`, not the server's own clock, using `dayBoundsUtc()` (the same helper built for the Email Logs date filter) rather than the server-local-midnight boundary `sendsToday()`/the dashboard's `startOfToday()` still use elsewhere — those two are a related, NOT-yet-fixed gap (correct by accident on a PKT dev machine, wrong on Vercel's UTC), flagged but out of scope for this change. **Verified two ways**: live queries confirmed the four-bucket split runs correctly against `DISPLAY_TIME_ZONE`; a pure-logic two-day simulation using the user's exact numbers (54/34, cap 60) proved the actual failure mode — under the old order, a busy 65-item follow-up-2 day left all 28 of yesterday's deferred follow-up-1s stuck a second time; under the new order, all 28 go out first, before any of that day's follow-up-2 batch. Also fixed in passing: a stale `(0042)` migration reference on `getSendQueuePreview()`'s comment — that fix was code-only and 0042 is still the next free number, same mislabeling mistake as the earlier `(0040)` one |
 | 2026-08-14 | **Charts get hover tooltips, and a Vercel deploy error is fixed.** (1) `charts.tsx` (`LineChart`/`MultiLineChart`/`BarList` — every trend line and bar list on `/analytics` and the public page, one shared module) is now `'use client'` and tracks the nearest point to the pointer, showing a floating tooltip: date + value for a single line, date + every series' value (colour-matched to the legend) for a multi-line chart, value + share-of-total for a bar. Mouse AND touch (`onTouchStart`/`onTouchMove`/`onTouchEnd` wired to the same handler), so it works on the public page from a phone. **Tooltip HTML lives outside the `<svg>`, positioned by percentage** — not a `<foreignObject>` inside it, because every chart here uses `preserveAspectRatio="none"`, which stretches x and y by DIFFERENT factors once a card is any width but 640px, and `foreignObject` content would be stretched by that same non-uniform factor into visibly warped type. **Turning the module client-side broke both pages it feeds, past what typecheck/build catch**: `BarList`'s `colorFor?: (label) => string` prop is a plain closure, and a Server Component cannot pass a function to a Client Component — React has no way to serialize it across that boundary. Every real call site (5, across `analytics/page.tsx` and `stats-page.tsx`) passed a closure that ignored its `label` argument and returned one fixed colour anyway, so the fix was `colorFor` → `color: string`, not a workaround. **This class of bug is invisible to `tsc` and to `next build`** — both stayed green on the broken version, because it is a *runtime* RSC-serialization rule, not a type error, and the affected routes are dynamic (server-rendered on request), so static generation never actually executes the broken render path. Only caught by really loading the pages: headless Chrome, logged in as a throwaway admin, hit `/analytics` and got Next's generic 500 boundary; the real stack trace was in the dev server's own log, not the browser. Re-verified after the fix with real pointer events (`Input.dispatchMouseEvent`, not just reading React state) against both pages — analytics tooltip and the public page's "Emails sent: 59 / Replies: 1" both confirmed on screen, zero console errors. (2) **`vercel.json`'s cron was already failing every deploy.** It declared `/api/cron/outreach` on `0 * * * *` (hourly) — Vercel's Hobby plan now restricts cron jobs to once-per-day, full stop, and a more frequent expression fails at deploy time rather than degrading. Changed to `0 9 * * *` (valid, once daily). **This Vercel-native cron is not what actually drives outreach** — section 12's "Two scheduled jobs" note already establishes that an external service, cron-job.org, is what calls `/api/cron/outreach` every 3 minutes and `/api/cron/approve-drafts` every 4 hours; this entry looks like a leftover/backup trigger from before that was set up. Left in at a valid schedule rather than deleted, since there is no strong signal either way on whether the redundancy is intentional |
