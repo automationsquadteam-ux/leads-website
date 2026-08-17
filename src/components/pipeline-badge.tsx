@@ -6,7 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { NEXT_STEP_META, STAGE_META } from '@/lib/pipeline/labels';
-import { cn, formatRelative } from '@/lib/utils';
+import { cn, formatDate, formatDueDay } from '@/lib/utils';
 import type { PipelineNextStep, PipelineStage } from '@/lib/supabase/database.types';
 
 /**
@@ -83,7 +83,10 @@ export function PipelineTracker({
 }: {
   stage: PipelineStage;
   nextStep: PipelineNextStep;
-  /** When the next step becomes actionable, for the waiting states. */
+  /**
+   * The DAY the next step becomes actionable, for the waiting states. Rendered
+   * as a day, never as a countdown — see `formatDueDay()`.
+   */
   due?: string | null;
   className?: string;
 }) {
@@ -110,9 +113,12 @@ export function PipelineTracker({
         <NextStepBadge step={nextStep} />
       </div>
 
-      <p className="w-full text-xs text-muted-foreground sm:w-auto sm:flex-1">
+      <p
+        className="w-full text-xs text-muted-foreground sm:w-auto sm:flex-1"
+        title={waiting && due ? `Due ${formatDate(due)}` : undefined}
+      >
         {stepMeta.hint}
-        {waiting && due ? ` Due ${formatRelative(due)}.` : null}
+        {waiting && due ? ` Due ${formatDueDay(due)}.` : null}
       </p>
 
       <span className="sr-only">

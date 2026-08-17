@@ -251,9 +251,30 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
      * clock — `dayBoundsUtc` is the same helper the Email Logs date filter
      * uses, for the same reason: the server may run in UTC while "today"
      * means Asia/Karachi's midnight to anyone reading this list.
+     *
+     * The today bucket ends at END OF TODAY, not at `now`.
+     *
+     * A due date is a whole calendar DAY (0042/0043). "Due today" therefore
+     * means due, full stop — there is no hour of the day at which a follow-up
+     * due today is not yet due. Bounding this at `now` re-introduced exactly
+     * the minute-precision those migrations removed, for the 137 pending rows
+     * still carrying a pre-0042 minute-precise value: a follow-up whose stored
+     * due date happened to read 17:00 sat unsent all morning while the
+     * dashboard's own "Due Today" tile (which has always used the day bounds)
+     * counted it as due. Two definitions of due, and the sender had the wrong
+     * one.
+     *
+     * For a row on the current 0043 pattern this changes nothing at all —
+     * midnight is `<= now` at every hour of its own day — so the only rows
+     * affected are the legacy ones, which is the point. It cannot reach into
+     * tomorrow either: the upper bound is this calendar day's last
+     * millisecond in DISPLAY_TIME_ZONE, so a follow-up due tomorrow stays
+     * invisible until tomorrow.
      */
     const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TIME_ZONE }).format(new Date());
-    const startOfToday = dayBoundsUtc(todayDateStr)?.start ?? nowIso;
+    const todayBounds = dayBoundsUtc(todayDateStr);
+    const startOfToday = todayBounds?.start ?? nowIso;
+    const endOfToday = todayBounds?.end ?? nowIso;
 
     const followup2Overdue = base()
       .not('followup1_sent', 'is', null)
@@ -276,7 +297,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
       .is('followup2_sent', null)
       .not('followup2_due', 'is', null)
       .gte('followup2_due', startOfToday)
-      .lte('followup2_due', nowIso)
+      .lte('followup2_due', endOfToday)
       .order('followup2_due', { ascending: true })
       .limit(limit);
 
@@ -285,7 +306,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
       .is('followup1_sent', null)
       .not('followup1_due', 'is', null)
       .gte('followup1_due', startOfToday)
-      .lte('followup1_due', nowIso)
+      .lte('followup1_due', endOfToday)
       .order('followup1_due', { ascending: true })
       .limit(limit);
 

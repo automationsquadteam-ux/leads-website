@@ -18,7 +18,7 @@ import {
   type PipelineGate,
 } from '@/lib/actions/review';
 import { SEND_PRIORITY_META, VERIFICATION_META } from '@/lib/pipeline/labels';
-import { formatDateTime, formatRelative } from '@/lib/utils';
+import { formatDate, formatDateTime, formatDueDay, formatRelative } from '@/lib/utils';
 import {
   EMAIL_VERIFICATION_STATUSES,
   type EmailVerificationStatus,
@@ -84,15 +84,27 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
 
   const verificationDirty = choice !== verification;
 
-  const stamps: Array<[string, string | null]> = [
-    ['Initial sent', pipeline.first_email_sent],
-    ['Follow-up 1 due', pipeline.followup1_due],
-    ['Follow-up 1 sent', pipeline.followup1_sent],
-    ['Follow-up 2 due', pipeline.followup2_due],
-    ['Follow-up 2 sent', pipeline.followup2_sent],
-    ['Replied', pipeline.replied],
-    ['Closed', pipeline.closed],
-  ].filter(([, value]) => value !== null) as Array<[string, string]>;
+  /*
+   * Two different kinds of timestamp, deliberately shown two different ways.
+   *
+   * A "sent" or "replied" stamp is a real instant something happened at, and
+   * the minute is part of the fact. A "due" stamp is a whole calendar day
+   * (0042/0043) — the schedule stores it as that day's midnight, so rendering
+   * it at minute precision produced a countdown to a meaningless boundary:
+   * "Follow-up 2 due in 3 minutes" for a lead whose rule is simply "three days
+   * after follow-up 1". `day: true` picks the day-granular formatter.
+   */
+  const stamps: Array<{ label: string; value: string; day?: boolean }> = (
+    [
+      { label: 'Initial sent', value: pipeline.first_email_sent },
+      { label: 'Follow-up 1 due', value: pipeline.followup1_due, day: true },
+      { label: 'Follow-up 1 sent', value: pipeline.followup1_sent },
+      { label: 'Follow-up 2 due', value: pipeline.followup2_due, day: true },
+      { label: 'Follow-up 2 sent', value: pipeline.followup2_sent },
+      { label: 'Replied', value: pipeline.replied },
+      { label: 'Closed', value: pipeline.closed },
+    ] as Array<{ label: string; value: string | null; day?: boolean }>
+  ).filter((stamp): stamp is { label: string; value: string; day?: boolean } => stamp.value !== null);
 
   return (
     <Card>
@@ -218,11 +230,14 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
 
         {stamps.length > 0 ? (
           <dl className="space-y-1 border-t border-border pt-3">
-            {stamps.map(([label, value]) => (
+            {stamps.map(({ label, value, day }) => (
               <div key={label} className="flex items-baseline justify-between gap-2">
                 <dt className="text-xs text-muted-foreground">{label}</dt>
-                <dd className="tabular text-xs" title={formatDateTime(value)}>
-                  {formatRelative(value)}
+                <dd
+                  className="tabular text-xs"
+                  title={day ? formatDate(value) : formatDateTime(value)}
+                >
+                  {day ? formatDueDay(value) : formatRelative(value)}
                 </dd>
               </div>
             ))}

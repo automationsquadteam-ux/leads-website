@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useActionState } from 'react';
-import { Download, ListChecks, Upload, Wand2 } from 'lucide-react';
+import { Download, ListChecks, RefreshCw, Upload, Wand2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,7 @@ import { Field, Input, Select } from '@/components/ui/input';
 import { EMPTY_ACTION_RESULT, PanelError, useActionFeedback, useAsyncAction } from '@/components/action-form';
 import { useToast } from '@/components/ui/toast';
 import {
-  generateMissingFollowups, repairAndApproveDrafts, uploadVerificationCsv,
+  generateMissingFollowups, refreshFollowupDrafts, repairAndApproveDrafts, uploadVerificationCsv,
   type DraftSweepResult,
 } from '@/lib/actions/verification';
 import { VERIFICATION_META } from '@/lib/pipeline/labels';
@@ -409,6 +409,35 @@ export function VerificationPanel({
             draft for a step are left alone, so this is safe to press twice. It works in batches of
             100 and stops before the request times out, so press it again if there are more.
           </p>
+
+          {/*
+            Separate button, deliberately. The one above never overwrites
+            anything — that promise is what makes it safe to press — so it can
+            only ever fill gaps. Rewriting a draft the template has since
+            changed is a different, and destructive-sounding, operation, and it
+            should read as one.
+          */}
+          <div className="space-y-3 border-t border-border pt-3">
+            <Button
+              type="button"
+              variant="secondary"
+              loading={busy === 'refresh-followups'}
+              onClick={() => run('refresh-followups', () => refreshFollowupDrafts())}
+            >
+              <RefreshCw className="size-4" aria-hidden="true" />
+              Rewrite drafts to the current template
+            </Button>
+
+            <p className="text-xs text-muted-foreground">
+              Use this after the wording in the template changes. A draft written days ago keeps
+              whatever the generator said at the time, and the sender will not rewrite it — it only
+              writes a follow-up when none exists at all. This regenerates the ones that would come
+              out differently today. It touches <strong>only</strong> drafts the template itself
+              wrote and that have not been sent: anything you edited by hand, anything a model
+              wrote, and anything already on its way is left exactly as it is. Every rewrite is a
+              new version, so the old wording stays in the lead&rsquo;s history.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -10,6 +10,10 @@ import { generateEmail } from '@/lib/services/ai';
 import { createEmailVersion } from '@/lib/services/email-versions';
 import { recordActivity } from '@/lib/services/activity';
 import { runDraftSweep, type DraftSweepSummary } from '@/lib/services/drafts/sweep';
+import {
+  refreshStaleFollowupDrafts,
+  type DraftRefreshSummary,
+} from '@/lib/services/drafts/refresh';
 import { EMAIL_TYPE_LABELS } from '@/lib/pipeline/labels';
 import type { EmailType } from '@/lib/supabase/database.types';
 import type { ActionResult } from './leads';
@@ -118,6 +122,38 @@ export async function repairAndApproveDrafts(limit = 400): Promise<DraftSweepRes
   }
 
   const summary = await runDraftSweep({ limit, userId });
+
+  revalidatePath('/leads');
+  revalidatePath('/dashboard');
+  revalidatePath('/settings');
+
+  return summary;
+}
+
+/**
+ * The browser's half of the follow-up draft refresh.
+ *
+ * Same split as the sweep above and for the same reason: the definition of "this
+ * draft is stale" lives in the service, so a button press and a script produce
+ * identical state. See `refreshStaleFollowupDrafts()` for why it only ever
+ * touches unsent, template-written drafts.
+ */
+export type DraftRefreshResult = DraftRefreshSummary;
+
+export async function refreshFollowupDrafts(limit = 250): Promise<DraftRefreshResult> {
+  let userId: string;
+  try {
+    const session = await assertAdmin();
+    userId = session.user.id;
+  } catch {
+    return {
+      ok: false,
+      message: 'You do not have permission to do that.',
+      examined: 0, refreshed: 0, unchanged: 0, handWritten: 0, failed: 0, deferred: 0, samples: [],
+    };
+  }
+
+  const summary = await refreshStaleFollowupDrafts({ limit, userId });
 
   revalidatePath('/leads');
   revalidatePath('/dashboard');

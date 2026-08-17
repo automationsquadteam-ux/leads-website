@@ -192,6 +192,73 @@ export function dayBoundsUtc(
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
+/**
+ * The calendar date an instant falls on in a zone, as [year, month, day].
+ *
+ * Month is 1-based, as Intl reports it — callers doing arithmetic must pass
+ * `month - 1` to `Date.UTC`, or a comparison that straddles a month boundary
+ * silently gains or loses a day.
+ */
+function zoneCalendarDay(date: Date, zone: string): [number, number, number] | null {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const read = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    const [year, month, day] = [read('year'), read('month'), read('day')];
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+    return [year, month, day];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * "today" / "tomorrow" / "in 3 days" for a due DATE, never a due minute.
+ *
+ * A follow-up's due date is a whole calendar day (0042/0043): the schedule
+ * lands it on midnight in DISPLAY_TIME_ZONE, and the rule it encodes is "this
+ * email is three days old", not "this email is three days and four hours old".
+ * `formatRelative()` reads the same value at minute precision, so a due date
+ * eleven hours out rendered as "in 11 hours" and one three minutes out as
+ * "in 3 minutes" — a countdown to a boundary that carries no meaning, and
+ * which invited the reading that a follow-up was about to go out at 00:03.
+ *
+ * Counted as a difference of CALENDAR DAYS in DISPLAY_TIME_ZONE, not as
+ * elapsed milliseconds divided by 86,400,000. Those are different questions:
+ * at 23:00 tonight, midnight tomorrow is one hour away and one day away, and
+ * "tomorrow" is the true answer for a date. It also means the answer flips at
+ * local midnight, the same boundary the scheduler's own day buckets use, so
+ * this cannot disagree with them by a few hours.
+ *
+ * Legacy rows still carry the pre-0042 minute-precise value (those are
+ * deliberately not rewritten), and this renders them at day granularity too —
+ * which is the intended rule, just reached a few hours later by the sender.
+ */
+export function formatDueDay(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  const due = zoneCalendarDay(date, DISPLAY_TIME_ZONE);
+  const today = zoneCalendarDay(new Date(), DISPLAY_TIME_ZONE);
+  if (!due || !today) return formatDate(value);
+
+  const days = Math.round(
+    (Date.UTC(due[0], due[1] - 1, due[2]) - Date.UTC(today[0], today[1] - 1, today[2])) / 86_400_000,
+  );
+
+  // Past a month "in 47 days" is less use than the date itself, matching
+  // formatRelative()'s own cutoff.
+  if (Math.abs(days) > 30) return formatDate(value);
+
+  // `numeric: 'auto'` is what turns 0/1/-1 into today/tomorrow/yesterday.
+  return new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(days, 'day');
+}
+
 /** "3 days ago" / "in 2 hours" falls back to a date beyond a month. */
 export function formatRelative(value: string | null | undefined): string {
   if (!value) return '—';

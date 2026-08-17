@@ -478,8 +478,18 @@ async function getSendQueuePreview(
     .lt('send_priority', 9);
   if (requireVerified) initialQuery = initialQuery.eq('email_verified', true);
 
+  /*
+   * End of today, not `now` — kept identical to `findDueWork()`, which this
+   * card is documented as a mirror of. A due date is a whole calendar day
+   * (0042/0043), so "due today" means due at any hour of that day; bounding
+   * the bucket at `now` made this preview disagree with the "Due Today" tile
+   * directly above it for any row still carrying a pre-0042 minute-precise
+   * value.
+   */
   const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TIME_ZONE }).format(new Date());
-  const startOfToday = dayBoundsUtc(todayDateStr)?.start ?? nowIso;
+  const todayBounds = dayBoundsUtc(todayDateStr);
+  const startOfToday = todayBounds?.start ?? nowIso;
+  const endOfToday = todayBounds?.end ?? nowIso;
 
   const [followup2Overdue, followup1Overdue, followup2Today, followup1Today, initialCandidates] =
     await Promise.all([
@@ -502,7 +512,7 @@ async function getSendQueuePreview(
         .is('followup2_sent', null)
         .not('followup2_due', 'is', null)
         .gte('followup2_due', startOfToday)
-        .lte('followup2_due', nowIso)
+        .lte('followup2_due', endOfToday)
         .order('followup2_due', { ascending: true })
         .limit(limit),
       base()
@@ -510,7 +520,7 @@ async function getSendQueuePreview(
         .is('followup1_sent', null)
         .not('followup1_due', 'is', null)
         .gte('followup1_due', startOfToday)
-        .lte('followup1_due', nowIso)
+        .lte('followup1_due', endOfToday)
         .order('followup1_due', { ascending: true })
         .limit(limit),
       initialQuery
