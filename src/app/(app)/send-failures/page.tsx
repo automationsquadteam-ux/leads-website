@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { MailWarning, ShieldCheck } from 'lucide-react';
 
 import { PageHeader } from '@/components/shell/app-shell';
@@ -99,32 +100,39 @@ export default async function SendFailuresPage({
               {/* Two renderings of one list, same reasoning as the Email Logs page: */}
               <ul className="divide-y divide-border md:hidden">
                 {rows.map((log) => (
-                  <li key={log.id} className="space-y-1.5 px-4 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="min-w-0 wrap-break-word text-sm font-medium">
-                        {log.businessName ?? '—'}
-                      </span>
-                      <FailureReasonBadge reason={log.failure_reason} />
-                    </div>
+                  <li key={log.id}>
+                    {/* The whole card is the tap target, same as the dashboard's feed lists — a
+                        failure is something you go LOOK AT on the lead, not read in place. */}
+                    <Link
+                      href={`/leads/${log.lead_id}`}
+                      className="block space-y-1.5 px-4 py-3 hover:bg-surface-hover"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 wrap-break-word text-sm font-medium">
+                          {log.businessName ?? '—'}
+                        </span>
+                        <FailureReasonBadge reason={log.failure_reason} />
+                      </div>
 
-                    <p className="text-sm wrap-break-word text-muted-foreground">{log.subject ?? '—'}</p>
+                      <p className="text-sm wrap-break-word text-muted-foreground">{log.subject ?? '—'}</p>
 
-                    <p className="font-mono text-xs break-all text-muted-foreground">
-                      {log.recipient ?? '—'}
-                    </p>
+                      <p className="font-mono text-xs break-all text-muted-foreground">
+                        {log.recipient ?? '—'}
+                      </p>
 
-                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                      <Badge tone={log.email_type === 'initial' ? 'primary' : 'neutral'}>
-                        {EMAIL_TYPE_LABELS[log.email_type]}
-                      </Badge>
-                      <span className="tabular text-xs text-muted-foreground">
-                        {formatDateTime(log.created_at)}
-                      </span>
-                    </div>
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <Badge tone={log.email_type === 'initial' ? 'primary' : 'neutral'}>
+                          {EMAIL_TYPE_LABELS[log.email_type]}
+                        </Badge>
+                        <span className="tabular text-xs text-muted-foreground">
+                          {formatDateTime(log.created_at)}
+                        </span>
+                      </div>
 
-                    {log.error ? (
-                      <p className="text-xs wrap-break-word text-danger">{log.error}</p>
-                    ) : null}
+                      {log.error ? (
+                        <p className="text-xs wrap-break-word text-danger">{log.error}</p>
+                      ) : null}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -145,8 +153,24 @@ export default async function SendFailuresPage({
                     </THead>
                     <TBody>
                       {rows.map((log) => (
-                        <TR key={log.id}>
-                          <TD className="font-mono text-xs">{log.recipient ?? '—'}</TD>
+                        <TR key={log.id} className="relative">
+                          <TD className="overflow-visible font-mono text-xs">
+                            {/*
+                              Stretched-link trick: the anchor lives in one cell but
+                              covers the whole row (`absolute inset-0` against the row's
+                              `relative`), so the row is a single tap target without
+                              nesting an <a> around a <tr> — invalid HTML a browser would
+                              otherwise silently hoist out of the table. `overflow-visible`
+                              overrides TD's default clipping, which would otherwise squeeze
+                              the tap target down to just this one column.
+                            */}
+                            <Link
+                              href={`/leads/${log.lead_id}`}
+                              className="absolute inset-0"
+                              aria-label={`View ${log.businessName ?? 'lead'}`}
+                            />
+                            {log.recipient ?? '—'}
+                          </TD>
                           <TD>{log.businessName ?? '—'}</TD>
                           <TD>{log.subject ?? '—'}</TD>
                           <TD>
