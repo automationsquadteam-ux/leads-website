@@ -1,35 +1,24 @@
 import { NextResponse } from 'next/server';
 
 import { assertAdmin } from '@/lib/auth/session';
-import { createServiceClient } from '@/lib/supabase/service-client';
-import { toCsv } from '@/lib/services/email-verification';
+import { getLeadsMissingEmail, toCsv } from '@/lib/services/email-verification';
 
 /**
  * GET /api/admin/emails/missing.csv
  *
- * Leads with no email address, with everything useful for finding one.
+ * Leads with no email address, with what's useful for finding one and a
+ * blank `email` column to fill in and hand straight back through the upload
+ * below it — `importFoundEmailsCsv()` matches rows on business_name + city +
+ * country + niche against `getLeadsMissingEmail()`, the same query this file
+ * runs, so the two halves of the round trip can never disagree about which
+ * leads are in scope.
  *
- * The columns are chosen for the job rather than for completeness: a website is
- * where you look first (`/contact`, `/about`, the privacy policy), social links
- * are second, and a phone number means you can just ask. A blank `email` column
- * is included deliberately so the file can be filled in and handed straight
- * back to the sheet.
- *
- * Sorted by whether there is a website, because a lead with one is far quicker
- * to resolve than a lead with nothing but a name.
+ * Website and phone are deliberately NOT columns here — asked for directly,
+ * after they turned out not to be part of how this file actually gets
+ * worked. `social` (the first usable link out of `social_links`) stays.
  */
 
 export const dynamic = 'force-dynamic';
-
-interface Row {
-  business_name: string;
-  website: string | null;
-  phone: string | null;
-  city: string | null;
-  country: string | null;
-  niche: string | null;
-  social_links: unknown;
-}
 
 /** First usable http link out of the social_links jsonb. */
 function firstSocial(links: unknown): string {
@@ -48,51 +37,13 @@ export async function GET() {
     return NextResponse.json({ ok: false, message: 'Unauthorized.' }, { status: 401 });
   }
 
-  const admin = createServiceClient();
-
-  // Which leads have no address is the pipeline's answer, not the lead table's,
-  // so that this file always matches the "No email" count and view.
-  const ids: string[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data } = await admin
-      .from('lead_pipeline')
-      .select('lead_id')
-      .eq('email_found', false)
-      .is('closed', null)
-      .order('lead_id', { ascending: true })
-      .range(from, from + 999);
-
-    const batch = data ?? [];
-    ids.push(...batch.map((r) => r.lead_id));
-    if (batch.length < 1000) break;
-  }
-
-  const rows: Row[] = [];
-  for (let i = 0; i < ids.length; i += 300) {
-    const { data } = await admin
-      .from('leads')
-      .select('business_name, website, phone, city, country, niche, social_links, status')
-      .in('id', ids.slice(i, i + 300));
-
-    for (const lead of data ?? []) {
-      if (lead.status === 'archived' || lead.status === 'invalid') continue;
-      rows.push(lead as Row);
-    }
-  }
-
-  // A website is the fastest route to an address, so those come first.
-  rows.sort((a, b) => {
-    const aWeb = a.website ? 0 : 1;
-    const bWeb = b.website ? 0 : 1;
-    return aWeb - bWeb || a.business_name.localeCompare(b.business_name);
-  });
+  const rows = await getLeadsMissingEmail();
+  rows.sort((a, b) => a.business_name.localeCompare(b.business_name));
 
   const csv = toCsv(
-    ['business_name', 'website', 'phone', 'city', 'country', 'niche', 'social', 'email'],
+    ['business_name', 'city', 'country', 'niche', 'social', 'email'],
     rows.map((r) => [
       r.business_name,
-      r.website,
-      r.phone,
       r.city,
       r.country,
       r.niche,

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { assertAdmin } from '@/lib/auth/session';
 import { createServiceClient } from '@/lib/supabase/service-client';
-import { importVerificationCsv } from '@/lib/services/email-verification';
+import { importFoundEmailsCsv, importVerificationCsv } from '@/lib/services/email-verification';
 import { finishRun, startRun } from '@/lib/services/integration-runs';
 import { generateEmail } from '@/lib/services/ai';
 import { createEmailVersion } from '@/lib/services/email-versions';
@@ -88,6 +88,57 @@ export async function uploadVerificationCsv(
       : '';
 
   return { ok: true, message: `${summary.message}${extra}` };
+}
+
+/**
+ * Apply a "Leads with no address" file the operator filled addresses into,
+ * uploaded from the browser. Same file-handling as `uploadVerificationCsv()`
+ * above; the matching logic (business_name + city + country + niche, no row
+ * id available) lives in `importFoundEmailsCsv()`.
+ */
+export async function uploadMissingEmailsCsv(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  let userId: string;
+  try {
+    const session = await assertAdmin();
+    userId = session.user.id;
+  } catch {
+    return { ok: false, message: 'You do not have permission to do that.' };
+  }
+
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, message: 'Choose a CSV file first.' };
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return { ok: false, message: 'That file is larger than 10 MB. Split it and try again.' };
+  }
+
+  const runId = await startRun('ai', 'import_found_emails', userId);
+
+  let text: string;
+  try {
+    text = await file.text();
+  } catch {
+    await finishRun(runId, 'failed', 'Could not read the uploaded file.');
+    return { ok: false, message: 'Could not read that file.' };
+  }
+
+  const summary = await importFoundEmailsCsv(text);
+
+  await finishRun(runId, summary.ok ? 'success' : 'failed', summary.message, {
+    applied: summary.applied,
+    unmatched: summary.unmatched,
+    ambiguous: summary.ambiguous,
+  });
+
+  revalidatePath('/leads');
+  revalidatePath('/dashboard');
+  revalidatePath('/settings');
+
+  return { ok: summary.ok, message: summary.message };
 }
 
 /* -------------------------------------------------------------------------- */

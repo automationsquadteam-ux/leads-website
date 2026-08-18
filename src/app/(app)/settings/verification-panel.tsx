@@ -13,8 +13,8 @@ import { Field, Input, Select } from '@/components/ui/input';
 import { EMPTY_ACTION_RESULT, PanelError, useActionFeedback, useAsyncAction } from '@/components/action-form';
 import { useToast } from '@/components/ui/toast';
 import {
-  generateMissingFollowups, refreshFollowupDrafts, repairAndApproveDrafts, uploadVerificationCsv,
-  type DraftSweepResult,
+  generateMissingFollowups, refreshFollowupDrafts, repairAndApproveDrafts, uploadMissingEmailsCsv,
+  uploadVerificationCsv, type DraftSweepResult,
 } from '@/lib/actions/verification';
 import { VERIFICATION_META } from '@/lib/pipeline/labels';
 import { EMAIL_VERIFICATION_STATUSES } from '@/lib/supabase/database.types';
@@ -46,7 +46,14 @@ export function VerificationPanel({
   const { busy, run } = useAsyncAction();
   const [fileName, setFileName] = React.useState<string | null>(null);
 
+  const [missingState, missingFormAction, missingUploading] = useActionState(
+    uploadMissingEmailsCsv,
+    EMPTY_ACTION_RESULT,
+  );
+  const [missingFileName, setMissingFileName] = React.useState<string | null>(null);
+
   useActionFeedback(state);
+  useActionFeedback(missingState);
 
   /*
    * The sweep keeps its full result rather than going through useAsyncAction,
@@ -158,22 +165,6 @@ export function VerificationPanel({
                   Also re-check catch-all &amp; unknown ({formatNumber(exportable + inconclusive)})
                 </a>
               ) : null}
-
-              {/*
-                A different job entirely: these leads have no address to check,
-                so the file carries website, phone, social and location — what
-                you actually need to go and find one.
-              */}
-              {noAddress > 0 ? (
-                <a
-                  href="/api/admin/emails/missing.csv"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover"
-                  title="Business name, website, phone, social and location for every lead with no address, plus a blank email column to fill in."
-                >
-                  <Download className="size-4" aria-hidden="true" />
-                  Leads with no address ({formatNumber(noAddress)})
-                </a>
-              ) : null}
             </div>
 
             <p className="text-xs text-muted-foreground">
@@ -227,6 +218,75 @@ export function VerificationPanel({
               <strong>Invalid</strong> sends the lead back to Need Email so someone finds a new
               address. <strong>Catch-all</strong> and <strong>unknown</strong> are recorded but not
               auto-verified, because those checks proved nothing.
+            </p>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/*
+        A different job entirely from the Card above: these leads have no
+        address to check, only one to go and FIND. Its own Card because
+        "verify an address" and "source one" are different tasks with
+        different files, even though both round-trip through a download and
+        an upload.
+      */}
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Leads with no address</CardTitle>
+            <CardDescription>
+              Download the ones with nothing to check, find an address by hand, then upload the
+              result here.
+            </CardDescription>
+          </div>
+          <Badge tone={noAddress > 0 ? 'warning' : 'success'}>{formatNumber(noAddress)} missing</Badge>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {noAddress > 0 ? (
+            <a
+              href="/api/admin/emails/missing.csv"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary-hover"
+              title="Business name, city, country, niche, social and a blank email column to fill in."
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Download ({formatNumber(noAddress)})
+            </a>
+          ) : (
+            <p className="text-sm text-success">Every lead has an address on file.</p>
+          )}
+
+          <form action={missingFormAction} className="space-y-3 border-t border-border pt-4">
+            <Field label="Filled-in CSV" htmlFor="missing-email-file">
+              <Input
+                id="missing-email-file"
+                name="file"
+                type="file"
+                accept=".csv,text/csv"
+                required
+                onChange={(e) => setMissingFileName(e.target.files?.[0]?.name ?? null)}
+                className="cursor-pointer file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs"
+              />
+            </Field>
+
+            <PanelError state={missingState} />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="submit" variant="secondary" loading={missingUploading}>
+                <Upload className="size-4" aria-hidden="true" />
+                Apply addresses
+              </Button>
+              {missingFileName ? (
+                <span className="text-xs text-muted-foreground">{missingFileName}</span>
+              ) : null}
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              There is no address to match rows on yet, so matching is on business name + city +
+              country + niche exactly as the download had them — leave those columns as they
+              were and only fill in <strong>email</strong>. A row that matches more than one lead
+              is left alone rather than guessed at. Every address applied here starts as
+              &quot;never checked&quot;, same as typing one in on the lead page.
             </p>
           </form>
         </CardContent>

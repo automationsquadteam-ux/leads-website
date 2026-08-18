@@ -88,6 +88,40 @@ export function normalizeEmail(value: unknown): EmailResult {
   return { email: candidate, warning: null };
 }
 
+/**
+ * A social-media profile is not the business's own website — it is a
+ * SUBSTITUTE for not having one, and `leads.social_links` is where a real
+ * profile link belongs. The `leads` table itself enforces this too
+ * (`normalize_blank_lead_fields()`, 0044), because this app is not the only
+ * writer — n8n inserts and updates `leads.website` directly. This is the
+ * same rule stated a second time, deliberately, so a bad value is caught
+ * (and reported with a warning) at import time rather than only discovered
+ * silently blanked out later.
+ */
+const SOCIAL_MEDIA_HOSTS = [
+  /(^|\.)facebook\.com$/i,
+  /(^|\.)fb\.com$/i,
+  /(^|\.)instagram\.com$/i,
+  /(^|\.)twitter\.com$/i,
+  /(^|\.)x\.com$/i,
+  /(^|\.)linkedin\.com$/i,
+  /(^|\.)tiktok\.com$/i,
+  /(^|\.)pinterest\.com$/i,
+  /(^|\.)youtube\.com$/i,
+  /(^|\.)youtu\.be$/i,
+  /(^|\.)threads\.net$/i,
+  /(^|\.)snapchat\.com$/i,
+  /(^|\.)whatsapp\.com$/i,
+  /(^|\.)wa\.me$/i,
+  /(^|\.)t\.me$/i,
+  /(^|\.)telegram\.me$/i,
+  /(^|\.)telegram\.org$/i,
+];
+
+export function isSocialMediaHost(hostname: string): boolean {
+  return SOCIAL_MEDIA_HOSTS.some((re) => re.test(hostname));
+}
+
 export interface WebsiteResult {
   website: string | null;
   warning: string | null;
@@ -102,6 +136,9 @@ export function normalizeWebsite(value: unknown): WebsiteResult {
     const url = new URL(withScheme);
     if (!url.hostname.includes('.')) {
       return { website: null, warning: `Discarded website without a valid host: ${JSON.stringify(raw)}` };
+    }
+    if (isSocialMediaHost(url.hostname)) {
+      return { website: null, warning: `Discarded social-media link used as website: ${JSON.stringify(raw)}` };
     }
     return { website: url.toString(), warning: null };
   } catch {

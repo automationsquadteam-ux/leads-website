@@ -10,6 +10,7 @@
  * browser.
  */
 import { createServiceClient } from '@/lib/supabase/service-client';
+import { EMAIL_PATTERN } from '@/lib/import/normalize';
 import type { EmailVerificationStatus } from '@/lib/supabase/database.types';
 
 /**
@@ -412,6 +413,228 @@ export async function importVerificationCsv(
     (summary.needNewEmail > 0
       ? `${summary.needNewEmail} lead(s) now need a new email address.`
       : '');
+
+  return summary;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Leads with no address at all — export and the matching import              */
+/* -------------------------------------------------------------------------- */
+
+export interface MissingEmailRow {
+  id: string;
+  business_name: string;
+  city: string | null;
+  country: string | null;
+  niche: string | null;
+  social_links: unknown;
+}
+
+/**
+ * Every lead with no address, excluding archived and invalid ones.
+ *
+ * Shared by `missing.csv`'s GET (the download) and `importFoundEmailsCsv()`
+ * below (the upload), so the two halves of the round trip always agree on
+ * exactly which leads are in play — the same reasoning `pipeline_board` and
+ * its counters follow elsewhere in this app. "No address" is the PIPELINE's
+ * answer (`lead_pipeline.email_found`), not a raw `leads.email is null`
+ * check, so this always matches the "No address" tile and the `?view=
+ * missing_email` list.
+ */
+export async function getLeadsMissingEmail(): Promise<MissingEmailRow[]> {
+  const admin = createServiceClient();
+
+  const ids: string[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await admin
+      .from('lead_pipeline')
+      .select('lead_id')
+      .eq('email_found', false)
+      .is('closed', null)
+      .order('lead_id', { ascending: true })
+      .range(from, from + 999);
+
+    const batch = data ?? [];
+    ids.push(...batch.map((r) => r.lead_id));
+    if (batch.length < 1000) break;
+  }
+
+  const rows: MissingEmailRow[] = [];
+  for (let i = 0; i < ids.length; i += 300) {
+    const { data } = await admin
+      .from('leads')
+      .select('id, business_name, city, country, niche, social_links, status')
+      .in('id', ids.slice(i, i + 300));
+
+    for (const lead of data ?? []) {
+      if (lead.status === 'archived' || lead.status === 'invalid') continue;
+      rows.push(lead);
+    }
+  }
+  return rows;
+}
+
+const BUSINESS_NAME_HEADERS = ['business_name', 'business name'];
+const CITY_HEADERS = ['city'];
+const COUNTRY_HEADERS = ['country'];
+const NICHE_HEADERS = ['niche'];
+
+/** business_name + city + country + niche, lowercased and trimmed — the same tuple this app already uses to spot duplicate leads (0028). */
+function missingEmailMatchKey(
+  businessName: string,
+  city: string,
+  country: string,
+  niche: string,
+): string {
+  return [businessName, city, country, niche].map((v) => v.trim().toLowerCase()).join('|');
+}
+
+export interface FoundEmailImportSummary {
+  ok: boolean;
+  message: string;
+  totalRows: number;
+  applied: number;
+  unmatched: number;
+  ambiguous: number;
+  failures: string[];
+}
+
+/**
+ * Apply a "Leads with no address" file the operator filled in by hand.
+ *
+ * There is no address to match on — that is the entire reason this file
+ * exists — so matching falls back to business_name + city + country + niche,
+ * exactly as `missing.csv` exported them. A row is only applied when that
+ * combination resolves to EXACTLY one lead currently missing an address:
+ * zero matches means the row cannot be placed, and more than one means it is
+ * ambiguous and is left alone rather than guessed at. The candidate pool is
+ * `getLeadsMissingEmail()` — the same leads the file was built from — so a
+ * name that happens to collide with a lead that already has an address can
+ * never overwrite it.
+ */
+export async function importFoundEmailsCsv(text: string): Promise<FoundEmailImportSummary> {
+  const summary: FoundEmailImportSummary = {
+    ok: false,
+    message: '',
+    totalRows: 0,
+    applied: 0,
+    unmatched: 0,
+    ambiguous: 0,
+    failures: [],
+  };
+
+  const rows = parseCsv(text);
+  if (rows.length < 2) {
+    summary.message = 'That file has no data rows.';
+    return summary;
+  }
+
+  const headers = rows[0]!.map((h) => h.trim().toLowerCase());
+  const emailIndex = EMAIL_HEADERS.map((h) => headers.indexOf(h)).find((i) => i >= 0) ?? -1;
+  const nameIndex = BUSINESS_NAME_HEADERS.map((h) => headers.indexOf(h)).find((i) => i >= 0) ?? -1;
+  const cityIndex = CITY_HEADERS.map((h) => headers.indexOf(h)).find((i) => i >= 0) ?? -1;
+  const countryIndex = COUNTRY_HEADERS.map((h) => headers.indexOf(h)).find((i) => i >= 0) ?? -1;
+  const nicheIndex = NICHE_HEADERS.map((h) => headers.indexOf(h)).find((i) => i >= 0) ?? -1;
+
+  if (emailIndex < 0) {
+    summary.message = `No email column found. Expected one of: ${EMAIL_HEADERS.join(', ')}.`;
+    return summary;
+  }
+  if (nameIndex < 0) {
+    summary.message = 'No business_name column found — is this the "Leads with no address" file?';
+    return summary;
+  }
+
+  const candidates: Array<{ email: string; key: string }> = [];
+  for (const row of rows.slice(1)) {
+    const email = (row[emailIndex] ?? '').trim().toLowerCase();
+    if (email === '') continue;
+
+    summary.totalRows += 1;
+    if (!EMAIL_PATTERN.test(email)) {
+      summary.failures.push(`${email}: not a valid address`);
+      continue;
+    }
+
+    candidates.push({
+      email,
+      key: missingEmailMatchKey(
+        row[nameIndex] ?? '',
+        cityIndex >= 0 ? (row[cityIndex] ?? '') : '',
+        countryIndex >= 0 ? (row[countryIndex] ?? '') : '',
+        nicheIndex >= 0 ? (row[nicheIndex] ?? '') : '',
+      ),
+    });
+  }
+
+  if (candidates.length === 0) {
+    summary.message = 'No rows carried a usable email address.';
+    return summary;
+  }
+
+  const byKey = new Map<string, string[]>();
+  for (const lead of await getLeadsMissingEmail()) {
+    const key = missingEmailMatchKey(
+      lead.business_name,
+      lead.city ?? '',
+      lead.country ?? '',
+      lead.niche ?? '',
+    );
+    byKey.set(key, [...(byKey.get(key) ?? []), lead.id]);
+  }
+
+  const admin = createServiceClient();
+
+  for (const { email, key } of candidates) {
+    const ids = byKey.get(key);
+    if (!ids || ids.length === 0) {
+      summary.unmatched += 1;
+      continue;
+    }
+    if (ids.length > 1) {
+      summary.ambiguous += 1;
+      continue;
+    }
+
+    const id = ids[0]!;
+    const { error } = await admin.from('leads').update({ email }).eq('id', id);
+
+    if (error) {
+      summary.failures.push(
+        error.code === '23505'
+          ? `${email}: already belongs to another lead`
+          : `${email}: ${error.message}`,
+      );
+      continue;
+    }
+
+    /*
+     * A brand new address on a lead that had none: nothing has ever been
+     * checked against it, but stated explicitly rather than left for a
+     * trigger to infer, same reasoning as bulkUpdateEmails().
+     */
+    await admin
+      .from('lead_pipeline')
+      .update({
+        email_verification_status: 'unverified',
+        email_verification_source: null,
+        email_verifier_status: null,
+        email_checked_at: null,
+        email_checked_address: null,
+      })
+      .eq('lead_id', id);
+
+    summary.applied += 1;
+  }
+
+  summary.ok = true;
+  summary.message =
+    `${summary.applied} lead(s) got a new address.` +
+    (summary.unmatched > 0 ? ` ${summary.unmatched} row(s) matched no lead with no address.` : '') +
+    (summary.ambiguous > 0
+      ? ` ${summary.ambiguous} row(s) matched more than one lead and were left alone.`
+      : '') +
+    (summary.failures.length > 0 ? ` ${summary.failures.length} failed: ${summary.failures.slice(0, 5).join('; ')}.` : '');
 
   return summary;
 }
