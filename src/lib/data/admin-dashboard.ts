@@ -5,7 +5,7 @@ import type {
   PipelineBoardRow,
   Reply,
 } from '@/lib/supabase/database.types';
-import { dayBoundsUtc, DISPLAY_TIME_ZONE } from '@/lib/utils';
+import { todayBoundsUtc } from '@/lib/utils';
 
 /**
  * The admin dashboard's operational widgets.
@@ -18,18 +18,6 @@ import { dayBoundsUtc, DISPLAY_TIME_ZONE } from '@/lib/utils';
  * Counts use `head: true` with an exact count so the database returns a number
  * and not several hundred rows nobody renders.
  */
-
-function startOfToday(): string {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date.toISOString();
-}
-
-function endOfToday(): string {
-  const date = new Date();
-  date.setHours(23, 59, 59, 999);
-  return date.toISOString();
-}
 
 /**
  * Every pipeline figure below is a `current_stage` count.
@@ -83,8 +71,16 @@ export interface DashboardWidgets {
 
 export async function getDashboardWidgets(): Promise<DashboardWidgets> {
   const supabase = await createClient();
-  const dayStart = startOfToday();
-  const dayEnd = endOfToday();
+  // DISPLAY_TIME_ZONE, not the server's own clock — findDueWork() and
+  // getSendQueuePreview() already got this right; this file's "today" was
+  // still the server's local day, which on Vercel is UTC. A follow-up due at
+  // Karachi midnight sits at 19:00 UTC the day before, so a lead not due
+  // until tomorrow (Karachi) read as "due today" here — up to five hours
+  // early, every day, and the gap this actually produced was measured live:
+  // 23 leads due at 2026-08-20T19:00:00Z (= 2026-08-21 00:00 PKT, tomorrow)
+  // would have shown on this card's "Due Today" tiles a UTC server, while
+  // the real scheduler correctly left them for the next run.
+  const { start: dayStart, end: dayEnd } = todayBoundsUtc();
 
   const countOf = async (build: () => PromiseLike<{ count: number | null; error: unknown }>) => {
     const { count } = await build();
@@ -453,8 +449,6 @@ async function getSendQueuePreview(
   supabase: Awaited<ReturnType<typeof createClient>>,
   limit: number,
 ): Promise<PipelineBoardRow[]> {
-  const nowIso = new Date().toISOString();
-
   const { data: requireVerifiedSetting } = await supabase
     .from('settings')
     .select('value')
@@ -484,12 +478,10 @@ async function getSendQueuePreview(
    * (0042/0043), so "due today" means due at any hour of that day; bounding
    * the bucket at `now` made this preview disagree with the "Due Today" tile
    * directly above it for any row still carrying a pre-0042 minute-precise
-   * value.
+   * value. `todayBoundsUtc()` is the same computation shared with
+   * `findDueWork()`, so the two cannot drift apart from each other again.
    */
-  const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TIME_ZONE }).format(new Date());
-  const todayBounds = dayBoundsUtc(todayDateStr);
-  const startOfToday = todayBounds?.start ?? nowIso;
-  const endOfToday = todayBounds?.end ?? nowIso;
+  const { start: startOfToday, end: endOfToday } = todayBoundsUtc();
 
   const [followup2Overdue, followup1Overdue, followup2Today, followup1Today, initialCandidates] =
     await Promise.all([

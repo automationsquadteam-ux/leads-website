@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createServiceClient } from '@/lib/supabase/service-client';
 import type { EmailType } from '@/lib/supabase/database.types';
-import { dayBoundsUtc, DISPLAY_TIME_ZONE } from '@/lib/utils';
+import { todayBoundsUtc } from '@/lib/utils';
 import { getIntegrationConfig, type IntegrationConfig } from '../config';
 import { recordActivity } from '../activity';
 import { createEmailVersion } from '../email-versions';
@@ -209,7 +209,6 @@ async function closeExhaustedSequences(config: IntegrationConfig): Promise<strin
  */
 async function findDueWork(config: IntegrationConfig, limit: number): Promise<DueRow[]> {
   const admin = createServiceClient();
-  const nowIso = new Date().toISOString();
   const work: DueRow[] = [];
 
   /*
@@ -271,10 +270,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
      * millisecond in DISPLAY_TIME_ZONE, so a follow-up due tomorrow stays
      * invisible until tomorrow.
      */
-    const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TIME_ZONE }).format(new Date());
-    const todayBounds = dayBoundsUtc(todayDateStr);
-    const startOfToday = todayBounds?.start ?? nowIso;
-    const endOfToday = todayBounds?.end ?? nowIso;
+    const { start: startOfToday, end: endOfToday } = todayBoundsUtc();
 
     const followup2Overdue = base()
       .not('followup1_sent', 'is', null)

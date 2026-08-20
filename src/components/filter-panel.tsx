@@ -73,7 +73,18 @@ export function FilterPanel({
           <div className="max-h-80 overflow-y-auto p-1">
             {PIPELINE_STAGES.map((stage) => {
               const active = selected.includes(stage);
-              const count = facets[stage];
+              /*
+               * `lead_stage_counts` is a GROUP BY view, so a stage with
+               * genuinely zero leads (active or archived) produces no row at
+               * all — not a row reading 0. Falling back to 0 here means an
+               * honestly-empty stage still reads "0" instead of
+               * vanishing, which is what made Researching / Needs Draft /
+               * Draft Ready show a blank cell next to Dead Address's real 0:
+               * Dead Address had at least one ARCHIVED lead to group on
+               * (giving it a row with lead_count 0), those three had none at
+               * all, archived included.
+               */
+              const count = facets[stage] ?? 0;
               return (
                 <button
                   key={stage}
@@ -97,9 +108,7 @@ export function FilterPanel({
                     {active ? <Check className="size-3" /> : null}
                   </span>
                   <span className="flex-1">{STAGE_META[stage].label}</span>
-                  {count !== undefined ? (
-                    <span className="tabular text-xs text-muted-foreground">{formatNumber(count)}</span>
-                  ) : null}
+                  <span className="tabular text-xs text-muted-foreground">{formatNumber(count)}</span>
                 </button>
               );
             })}

@@ -47,6 +47,7 @@ const ADMIN_PREFIXES = [
   '/leads',
   '/email-logs',
   '/send-failures',
+  '/email-schedule',
   '/replies',
   '/settings',
   '/analytics',

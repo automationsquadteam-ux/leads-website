@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Users, Mail, MailWarning, MessageSquare, Settings, BarChart3, Globe,
+  LayoutDashboard, Users, Mail, MailWarning, MessageSquare, Settings, BarChart3, Globe, CalendarClock,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -26,6 +26,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/analytics', label: 'Analytics', icon: BarChart3, roles: ['admin'] },
   { href: '/email-logs', label: 'Email Logs', icon: Mail, roles: ['admin'] },
   { href: '/send-failures', label: 'Send Failures', icon: MailWarning, roles: ['admin'] },
+  { href: '/email-schedule', label: 'Email Schedule', icon: CalendarClock, roles: ['admin'] },
   { href: '/replies', label: 'Replies', icon: MessageSquare, roles: ['admin'] },
   // The public front page. Shown to both roles because it is the one
   // destination a viewer can genuinely use it needs no session at all.

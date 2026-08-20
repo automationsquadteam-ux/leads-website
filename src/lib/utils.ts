@@ -193,6 +193,33 @@ export function dayBoundsUtc(
 }
 
 /**
+ * Today's midnight-to-midnight, in DISPLAY_TIME_ZONE — never falls back to
+ * `now` on its own, so a caller cannot silently treat "no bounds" as "no
+ * filter" the way `dayBoundsUtc()`'s null return invites.
+ *
+ * Factored out of `findDueWork()` and `getSendQueuePreview()`, which had this
+ * exact three-line computation duplicated between them. Found while chasing
+ * a live report ("23 follow-up 2s are due, but the send queue shows none and
+ * nothing but initial emails went out"): a THIRD, independent spot —
+ * `getDashboardWidgets()` — had drifted from both,
+ * using the server's own local clock via bare `Date.setHours(0,0,0,0)`
+ * instead. On Vercel that is UTC, not Asia/Karachi, and the two clocks
+ * disagree by up to five hours — a follow-up due at Karachi midnight can
+ * read as "due today" on a UTC clock a full day early). One function, so a
+ * fourth call site cannot reintroduce the same drift.
+ */
+export function todayBoundsUtc(zone: string = DISPLAY_TIME_ZONE): { start: string; end: string } {
+  const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(new Date());
+  const bounds = dayBoundsUtc(todayDateStr, zone);
+  // dayBoundsUtc only returns null for a malformed date string or an
+  // unresolvable zone; todayDateStr is always well-formed (Intl guarantees
+  // it) and DISPLAY_TIME_ZONE is a real, validated IANA name, so this can't
+  // actually happen — the fallback exists only so the return type stays
+  // non-nullable for every caller.
+  return bounds ?? { start: new Date().toISOString(), end: new Date().toISOString() };
+}
+
+/**
  * The calendar date an instant falls on in a zone, as [year, month, day].
  *
  * Month is 1-based, as Intl reports it — callers doing arithmetic must pass
