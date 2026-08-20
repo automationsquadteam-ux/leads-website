@@ -149,7 +149,7 @@ export async function uploadMissingEmailsCsv(
  * The browser's half of the draft sweep.
  *
  * All of the work is in lib/services/drafts/sweep.ts, because the scheduled run
- * at /api/cron/approve-drafts has to do exactly the same thing — pressing the
+ * at /api/cron/approve-drafts has to do exactly the same thing ,pressing the
  * button and letting the schedule fire must produce identical state, the same
  * way a verification CSV handled here and from the terminal does.
  *
@@ -239,11 +239,11 @@ export interface FollowupGenerationResult extends ActionResult {
  * `limit` bounds how many DRAFTS this run attempts, not how many leads are
  * considered as candidates (0041). It used to be the other way round: the
  * candidate query fetched only the oldest 100 sent leads, THEN checked which
- * of those already had both follow-ups — so the query capped its own input
+ * of those already had both follow-ups ,so the query capped its own input
  * before it knew which rows were actually missing anything. On a live queue
  * of 267 sent leads where the oldest 100 were already fully drafted, the
  * button reported "0 generated, 200 already existed" and could never see the
- * 167 that genuinely needed one, on this run or any future one — the same
+ * 167 that genuinely needed one, on this run or any future one ,the same
  * oldest 100 come back every time, because nothing about a resolved lead
  * changes its position in that ordering. The dashboard's own count (which
  * this button's copy quotes) was never wrong; only the button's candidate
@@ -272,17 +272,17 @@ export async function generateMissingFollowups(limit = 200): Promise<FollowupGen
    * 0035 and 0034).
    *
    * Two independent things go wrong with a raw `lead_pipeline` query here.
-   * First, that table has no `status` column — the archive decision lives on
-   * `leads` — so nothing stopped this from drafting follow-ups for archived
+   * First, that table has no `status` column ,the archive decision lives on
+   * `leads` ,so nothing stopped this from drafting follow-ups for archived
    * leads, the exact bug class 0034 fixed for the dashboard tiles. Second,
    * `pipeline_board` (the obvious fix for the first problem) is gated
    * `where public.is_admin()`, and this runs on the SERVICE-ROLE client,
    * which satisfies no such predicate and would silently get zero rows back
-   * — that is the entire story of 0035. `lead_send_queue` already solves
+   * ,that is the entire story of 0035. `lead_send_queue` already solves
    * both: archived-excluded, and readable by service_role because it is
    * protected by grants instead of a predicate.
    *
-   * No `.limit()` here — the cap belongs on the WORK below, not on which
+   * No `.limit()` here ,the cap belongs on the WORK below, not on which
    * leads are even considered. See the function comment for what happened
    * when it capped the candidate list first.
    */
@@ -318,13 +318,13 @@ export async function generateMissingFollowups(limit = 200): Promise<FollowupGen
   const have = new Set((existing ?? []).map((row) => `${row.lead_id}:${row.type}`));
 
   /*
-   * The actual work list — only the (lead, step) pairs genuinely missing a
-   * draft, oldest-sent lead first — capped by `limit`. This is what was
+   * The actual work list ,only the (lead, step) pairs genuinely missing a
+   * draft, oldest-sent lead first ,capped by `limit`. This is what was
    * missing before: the old code capped LEADS first, by date, then checked
    * which of THOSE needed anything. On a queue where the oldest 100 sent
    * leads were already fully drafted, that query could never see the ~167
    * further down the list that actually needed one, this run or the next
-   * ten — the same fully-resolved 100 came back every time, because nothing
+   * ten ,the same fully-resolved 100 came back every time, because nothing
    * about being resolved moves a lead's position in "oldest first".
    */
   const work: Array<{ leadId: string; type: EmailType }> = [];
@@ -335,7 +335,7 @@ export async function generateMissingFollowups(limit = 200): Promise<FollowupGen
   }
   const toAttempt = work.slice(0, limit);
 
-  // Already had an active draft for that step — the true "nothing to do"
+  // Already had an active draft for that step ,the true "nothing to do"
   // count. Distinct from `deferred` below: that skip decision was made once,
   // up front, by excluding the pair from `work` entirely, not per-iteration.
   const alreadyExisted = leadIds.length * 2 - work.length;
@@ -388,7 +388,7 @@ export async function generateMissingFollowups(limit = 200): Promise<FollowupGen
    * `deferred` covers BOTH reasons a genuinely-missing pair was not attempted
    * this run: the `limit` cap (work.length > limit) and the wall-clock stop
    * (stoppedEarly, before toAttempt was exhausted). Either way it is real,
-   * still-outstanding work — reported so the operator knows to press the
+   * still-outstanding work ,reported so the operator knows to press the
    * button again rather than reading a quiet "done" as actually done.
    */
   const attempted = generated + failed;
@@ -398,7 +398,7 @@ export async function generateMissingFollowups(limit = 200): Promise<FollowupGen
   const message =
     `${generated} follow-up draft(s) generated, ${alreadyExisted} already existed` +
     (deferred > 0
-      ? `, ${deferred} more are missing and were not reached${stoppedEarly ? ' (ran out of time)' : ' (limit reached)'} — press the button again.`
+      ? `, ${deferred} more are missing and were not reached${stoppedEarly ? ' (ran out of time)' : ' (limit reached)'} ,press the button again.`
       : '.') +
     (failed > 0 ? ` ${failed} failed.` : '');
 

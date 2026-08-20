@@ -11,12 +11,12 @@ import { Input } from '@/components/ui/input';
  *
  * Same URL-is-the-state pattern as `LogPagination` right next to it: a
  * particular date range is shareable and survives the back button, and the
- * server component re-runs the real query — no client cache to keep in sync
+ * server component re-runs the real query ,no client cache to keep in sync
  * with the stats row above the list.
  *
  * Selecting only one field filters to that single day, both fields make a
  * period. The values round-trip through `?from=`/`?to=` as plain
- * `YYYY-MM-DD` — the meaning of that string (midnight-to-midnight in
+ * `YYYY-MM-DD` ,the meaning of that string (midnight-to-midnight in
  * DISPLAY_TIME_ZONE, not the server's own clock) is resolved once, in
  * `dayBoundsUtc`, on the data side.
  */

@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0027 — Use the `dead_email` stage, and retire the last two views that report
+-- 0027 ,Use the `dead_email` stage, and retire the last two views that report
 --        leads.status.
 --
 -- **Run 0026 first and let it commit.** This script uses the enum value that
@@ -38,11 +38,11 @@ as $$
 $$;
 
 comment on function public.compute_pipeline_stage(public.lead_pipeline) is
-  'Derives current_stage as the FIRST unmet gate, so a stage names what is blocking the lead. Sent leads stay pinned. The ONE definition — do not re-implement in application code.';
+  'Derives current_stage as the FIRST unmet gate, so a stage names what is blocking the lead. Sent leads stay pinned. The ONE definition ,do not re-implement in application code.';
 
 -- ---------------------------------------------------------------------------
 -- The NEXT STEP for both is identical: go and find an address. So
--- pipeline_next_step gains no value — two stages, one action, which is the
+-- pipeline_next_step gains no value ,two stages, one action, which is the
 -- honest answer and saves a second enum migration.
 -- ---------------------------------------------------------------------------
 create or replace function public.compute_next_step(p public.lead_pipeline)
@@ -80,7 +80,7 @@ update public.lead_pipeline set updated_at = now();
 --
 -- The filter panel read `analytics_stage_distribution`, which counts every
 -- pipeline row. The leads list hides archived leads by default. So the facet
--- said `initial_sent 94` and the page it opened showed 93 — one of the two
+-- said `initial_sent 94` and the page it opened showed 93 ,one of the two
 -- archived leads sits at that stage.
 --
 -- Both figures, from one view, so the number on the chip and the number of rows
@@ -184,7 +184,7 @@ comment on view public.public_stats_overview is
 -- Since 0025 the stage is the truth and leads.status is an inbound label from
 -- the sheet. These two published the label: `dashboard_lead_status_counts` fed
 -- a Lead-status table on /analytics and `public_stats_statuses` a breakdown on
--- the public page — each sitting next to a stage chart that answered the same
+-- the public page ,each sitting next to a stage chart that answered the same
 -- question correctly. 472 leads read `researching` while 695 have research
 -- complete, so the two charts contradicted each other on screen.
 --

@@ -27,7 +27,7 @@ import type { EmailGenerator, GenerationContext, GenerationResult } from './type
  * `Thomas Barry & Company Solicitors, Commissioners for Oaths & Notaries
  * Public`, `Saith Technical Services - Emergency AC Service & Repair Dubai`.
  * 71 of the 350 leads in the live send queue have one, and dropped whole into a
- * subject line they produced 62 subjects over 60 characters — the limit this
+ * subject line they produced 62 subjects over 60 characters ,the limit this
  * project's own model prompt states and the template quietly ignored. Nobody
  * writes to a business by its full registered name, so a subject that does is a
  * tell on its own, before the body is even read.
@@ -56,7 +56,7 @@ function shortName(name: string): string {
  * The closing ask, initial and follow-up 1 alike.
  *
  * Was "reply and I will send over what it would look like for you
- * specifically" — a guess dressed up as an offer, and the reader has to do
+ * specifically" ,a guess dressed up as an offer, and the reader has to do
  * the work of figuring out whether the guess was even right before they can
  * answer. Asking them to name their own problem instead is lower-effort to
  * reply to (one sentence, no research required on their end) and gets a
@@ -88,21 +88,21 @@ const ASK_FOLLOWUP1 = (name: string) =>
  *
  * Follow-up 1 survives that layout because its closing ASK re-anchors the whole
  * email as ours: whatever the middle paragraph was, the reader lands on a
- * direct question from a person. Follow-up 2 deliberately has no ask — it is
- * the "no work to answer" step — so the angle paragraph IS the email, and an
+ * direct question from a person. Follow-up 2 deliberately has no ask ,it is
+ * the "no work to answer" step ,so the angle paragraph IS the email, and an
  * unattributed sentence there reads as an instruction to the recipient: we
  * appeared to be telling a real estate agency in Chiang Mai to emphasize Chiang
  * Mai, or to "offer to build a modern website".
  *
  * So the angle gets an explicit lead-in naming whose thought it was, on the same
- * line as the sentence rather than above it — a one-line label with a lone
+ * line as the sentence rather than above it ,a one-line label with a lone
  * sentence under it reads like a slide bullet, which is its own tell.
  *
  * The lead-in also does a second job the filter cannot. 132 of the 350 live
  * research angles refer to the business in the THIRD PERSON ("the company could
  * benefit from…", "reducing manual work for staff"), because they were written
  * about the lead rather than to them. Rewriting that to "you" is not something
- * to attempt deterministically — measured against the real data, only 4 of 350
+ * to attempt deterministically ,measured against the real data, only 4 of 350
  * sentences could be swapped safely, and one of those four came out as "you is
  * a pioneering cafetería". Naming the sentence as a note I made when I looked
  * them up makes the third person correct instead of wrong: it is a quotation of
@@ -133,7 +133,7 @@ const FOLLOWUP_SHAPES: Record<Exclude<EmailType, 'initial'>, (name: string) => s
  * "Emphasize the unique features and benefits of Chiang Mai…", "Congratulate
  * them on ten years in business", "a potential outreach angle could be
  * highlighting…". To the person doing the outreach those are useful. Pasted
- * into the body — which is what this generator did — a bare imperative has no
+ * into the body ,which is what this generator did ,a bare imperative has no
  * subject left except the reader, so it lands as us instructing THEM to make an
  * offer, or to emphasize something about their own city.
  *
@@ -148,7 +148,7 @@ const FOLLOWUP_SHAPES: Record<Exclude<EmailType, 'initial'>, (name: string) => s
  */
 const ADVICE_SHAPES: RegExp[] = [
   /*
-   * A bare imperative verb opening the sentence — no subject, so the reader
+   * A bare imperative verb opening the sentence ,no subject, so the reader
    * becomes one. Gerunds are deliberately NOT blanket-matched: "Automating
    * enquiry routing would free up an hour a day" is an observation and reads
    * correctly, while "Highlighting their expertise could be an effective
@@ -258,7 +258,7 @@ export class TemplateGenerator implements EmailGenerator {
     let bodySource: string;
 
     // Everywhere the business is addressed, it is addressed the way a person
-    // would say it — subject and opener alike. See `shortName()`.
+    // would say it ,subject and opener alike. See `shortName()`.
     const name = shortName(lead.business_name);
 
     if (type === 'initial') {
@@ -276,7 +276,7 @@ export class TemplateGenerator implements EmailGenerator {
       /*
        * Replaced through a function, not a string. A string replacement treats
        * `$&`, `$'` and `$1` in the REPLACEMENT as substitution patterns, and
-       * research text is arbitrary prose that can contain a bare `$` — prices
+       * research text is arbitrary prose that can contain a bare `$` ,prices
        * especially. A replacer function is passed through verbatim.
        */
       const angle = bestAngle(context);

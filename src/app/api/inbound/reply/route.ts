@@ -14,7 +14,7 @@ import type { RawInbound } from '@/lib/services/inbound/classify';
  * decides nothing. All classification and attribution happen here, next to
  * `email_logs`, so there is exactly one definition of what a reply belongs to.
  *
- * Authorization is a shared secret, not a session — there is no user. The route
+ * Authorization is a shared secret, not a session ,there is no user. The route
  * sits outside the middleware's admin prefixes for that reason, which makes the
  * check below the only thing between the internet and the inbox. It fails
  * closed when no secret is configured.
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
   const result = await ingestInboundMessage(raw);
 
   // A 5xx makes the Worker retry, so only genuine server failures get one.
-  // Everything else — unmatched, bounce, auto-reply — is a successful ingest
+  // Everything else ,unmatched, bounce, auto-reply ,is a successful ingest
   // with a different outcome, and retrying it would just duplicate work.
   return NextResponse.json(result, { status: result.ok ? 200 : 500 });
 }

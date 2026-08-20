@@ -3039,7 +3039,7 @@ update public.lead_pipeline set updated_at = updated_at;
 
 -- --- source: supabase/migrations/20260804140000_inbound_messages.sql
 -- ---------------------------------------------------------------------------
--- 0016 — Inbound mail: staging, matching, and the auto-reply trigger fix.
+-- 0016 ,Inbound mail: staging, matching, and the auto-reply trigger fix.
 --
 -- Two things here.
 --
@@ -3191,7 +3191,7 @@ create policy inbound_messages_delete_admin on public.inbound_messages
 -- replies would include a robot.
 --
 -- Under the design above an auto-reply never reaches public.replies at all, so
--- this is belt and braces — but the trigger is what enforces it, and a rule
+-- this is belt and braces ,but the trigger is what enforces it, and a rule
 -- enforced only by the code that happens to call it is not enforced.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_reply()
@@ -3238,7 +3238,7 @@ update public.lead_pipeline p
 -- ---------------------------------------------------------------------------
 -- Admin-facing view: an inbound message plus the lead it belongs to.
 --
--- Columns listed explicitly, never p.* — a view built with * captures its
+-- Columns listed explicitly, never p.* ,a view built with * captures its
 -- column list at creation and silently goes stale after an ALTER TABLE.
 -- ---------------------------------------------------------------------------
 create or replace view public.inbound_inbox
@@ -3265,14 +3265,14 @@ left join public.leads l on l.id = m.lead_id
 where public.is_admin();
 
 comment on view public.inbound_inbox is
-  'Admin-only. Inbound mail joined to its lead. Contains sender addresses and message bodies — never grant to anon.';
+  'Admin-only. Inbound mail joined to its lead. Contains sender addresses and message bodies ,never grant to anon.';
 
 revoke all on public.inbound_inbox from anon;
 grant select on public.inbound_inbox to authenticated;
 
 -- --- source: supabase/migrations/20260804160000_verify_on_send_and_board.sql
 -- ---------------------------------------------------------------------------
--- 0017 — A delivered email verifies the address; expose that on the board.
+-- 0017 ,A delivered email verifies the address; expose that on the board.
 --
 -- Three parts.
 --
@@ -3291,7 +3291,7 @@ grant select on public.inbound_inbox to authenticated;
 -- 2. Backfill the leads already sent to.
 --
 -- 3. pipeline_board gains the verification columns so the leads list can show
---    and filter on them. Appended at the END of the view — CREATE OR REPLACE
+--    and filter on them. Appended at the END of the view ,CREATE OR REPLACE
 --    can only append, and inserting mid-list raises 42P16.
 -- ---------------------------------------------------------------------------
 
@@ -3377,7 +3377,7 @@ update public.lead_pipeline p
 -- ---------------------------------------------------------------------------
 -- 3. pipeline_board: append the verification columns.
 --
--- Columns are listed explicitly, never p.* — a view built with * captures its
+-- Columns are listed explicitly, never p.* ,a view built with * captures its
 -- column list at creation time and silently goes stale after an ALTER TABLE.
 -- ---------------------------------------------------------------------------
 create or replace view public.pipeline_board
@@ -3419,17 +3419,17 @@ join public.leads l on l.id = p.lead_id
 where public.is_admin();
 
 comment on view public.pipeline_board is
-  'Admin-only pipeline rows with the derived next_step and verification state. Contains contact data — never grant to anon.';
+  'Admin-only pipeline rows with the derived next_step and verification state. Contains contact data ,never grant to anon.';
 
 -- --- source: supabase/migrations/20260804180000_schedule_followups_for_backfilled_sends.sql
 -- ---------------------------------------------------------------------------
--- 0018 — Two faults that between them meant the sender could never send.
+-- 0018 ,Two faults that between them meant the sender could never send.
 --
 -- FAULT 1: sends recorded from the sheet never scheduled a follow-up.
 --
 --   followup1_due is set by the email_logs trigger. The 58 leads sent by the
---   upstream n8n pipeline have no email_logs rows at all — migration 0015 wrote
---   first_email_sent directly — so their followup1_due stayed NULL.
+--   upstream n8n pipeline have no email_logs rows at all ,migration 0015 wrote
+--   first_email_sent directly ,so their followup1_due stayed NULL.
 --
 --   compute_next_step() then reads "sent, but no due date" as await_followup1,
 --   forever. The scheduler looks for `followup1_due <= now()` and finds
@@ -3452,7 +3452,7 @@ comment on view public.pipeline_board is
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- FAULT 1a — a sheet-reported send now schedules follow-up 1 as well.
+-- FAULT 1a ,a sheet-reported send now schedules follow-up 1 as well.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_lead()
 returns trigger
@@ -3493,7 +3493,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- FAULT 1b — backfill the leads already stuck.
+-- FAULT 1b ,backfill the leads already stuck.
 --
 -- Dated from the send, not from now(), so a lead sent three weeks ago is
 -- immediately due rather than waiting another week from today.
@@ -3519,11 +3519,11 @@ update public.lead_pipeline p
    and p.closed is null;
 
 -- ---------------------------------------------------------------------------
--- FAULT 2 — make the two definitions of "approved" agree.
+-- FAULT 2 ,make the two definitions of "approved" agree.
 --
 -- Only for leads already sent: the message went out, so it was approved
 -- upstream whatever this database recorded. Drafts still awaiting review are
--- left strictly alone — auto-approving 270 unreviewed drafts because a status
+-- left strictly alone ,auto-approving 270 unreviewed drafts because a status
 -- column implied it would be exactly the accident this system exists to
 -- prevent.
 -- ---------------------------------------------------------------------------
@@ -3541,7 +3541,7 @@ comment on function public.sync_pipeline_from_lead() is
 
 -- --- source: supabase/migrations/20260804200000_sheet_date_sent_is_authoritative.sql
 -- ---------------------------------------------------------------------------
--- 0019 — The sheet's "Date Sent" is authoritative for upstream sends.
+-- 0019 ,The sheet's "Date Sent" is authoritative for upstream sends.
 --
 -- Migration 0015 backfilled first_email_sent from imported_at, because the
 -- sheet's Date Sent column was empty at the time. It has since been filled in
@@ -3653,7 +3653,7 @@ update public.lead_pipeline p
 
 -- --- source: supabase/migrations/20260804220000_outreach_run_budget.sql
 -- ---------------------------------------------------------------------------
--- 0020 — How long one scheduled run may take.
+-- 0020 ,How long one scheduled run may take.
 --
 -- The sender waits out `sending.min_gap_seconds` between emails, and that wait
 -- happens inside the HTTP request the cron service made. The ceiling is
@@ -3661,7 +3661,7 @@ update public.lead_pipeline p
 -- kills a function at 60s, Pro allows up to 300.
 --
 -- 50s is the safe default. With a 90s gap that means exactly one email per run,
--- which is fine — the CRON FREQUENCY is what paces bulk sending, not the length
+-- which is fine ,the CRON FREQUENCY is what paces bulk sending, not the length
 -- of any single run. Raise this towards 280 on Pro to fit several gap waits
 -- into one invocation.
 --
@@ -3677,11 +3677,11 @@ on conflict (key) do nothing;
 
 -- --- source: supabase/migrations/20260805100000_research_complete_any_field.sql
 -- ---------------------------------------------------------------------------
--- 0021 — Research is done when ANY research field is filled in.
+-- 0021 ,Research is done when ANY research field is filled in.
 --
 -- research_complete was driven by `research_summary` alone. But the upstream
 -- enrichment writes seven separate fields, and the summary is only one of them
--- — often the one that is missing:
+-- ,often the one that is missing:
 --
 --     research_summary                   452
 --     website_observations               685
@@ -3699,7 +3699,7 @@ on conflict (key) do nothing;
 -- also meant the next step said "Research Lead" for work already done.
 --
 -- `personalization` is deliberately NOT in the list. It is the one-line hook
--- used in the draft, not research, and 688 of 698 leads have it — including it
+-- used in the draft, not research, and 688 of 698 leads have it ,including it
 -- would make the flag true for essentially everything and stop it meaning
 -- anything at all.
 -- ---------------------------------------------------------------------------
@@ -3807,7 +3807,7 @@ comment on function public.sync_pipeline_from_lead() is
 
 -- --- source: supabase/migrations/20260805120000_reconcile_approved_versions.sql
 -- ---------------------------------------------------------------------------
--- 0022 — Finish reconciling the two records of "approved".
+-- 0022 ,Finish reconciling the two records of "approved".
 --
 -- Migration 0018 aligned them only for leads that had ALREADY been sent. The
 -- rest were left, and the sender has been rejecting them ever since:
@@ -3869,7 +3869,7 @@ update public.leads l
 
 -- --- source: supabase/migrations/20260805140000_manual_verification_is_a_verdict.sql
 -- ---------------------------------------------------------------------------
--- 0023 — Ticking "Email verified" IS a verdict.
+-- 0023 ,Ticking "Email verified" IS a verdict.
 --
 -- The relationship between the flag and the status was one-directional:
 --
@@ -3878,7 +3878,7 @@ update public.leads l
 --
 -- so a verifier result updated both, but an admin ticking the box on the lead
 -- page set only `email_verified`. The status stayed `unverified`, the leads
--- table kept showing "Never checked", and the lead stayed in the export — being
+-- table kept showing "Never checked", and the lead stayed in the export ,being
 -- re-billed to a verifier for an address a human had already confirmed.
 --
 -- Made bidirectional. Which side wins is decided by WHICH ONE CHANGED in this
@@ -3961,7 +3961,7 @@ update public.lead_pipeline
 
 -- --- source: supabase/migrations/20260805160000_sheet_research_status_and_drop_category.sql
 -- ---------------------------------------------------------------------------
--- 0024 — The sheet's "research status" column decides whether research is done.
+-- 0024 ,The sheet's "research status" column decides whether research is done.
 --
 -- Migration 0021 inferred it from whether any of seven research fields was
 -- filled in. That was a big improvement on "does research_summary exist", but
@@ -4090,8 +4090,8 @@ update public.lead_pipeline p
 -- `category` is being retired from the sheet.
 --
 -- The COLUMN IS DEPRECATED, NOT DROPPED. It currently holds a real
--- qualification signal on every lead — 348 "Skip", 241 "Needs Automation",
--- 112 "No Website" — and dropping it would destroy that with no way back.
+-- qualification signal on every lead ,348 "Skip", 241 "Needs Automation",
+-- 112 "No Website" ,and dropping it would destroy that with no way back.
 -- Nothing reads or writes it any more: the importer no longer maps it, the
 -- Sheets write-back no longer sends it, and it is gone from the UI.
 --
@@ -4107,12 +4107,12 @@ comment on column public.leads.category is
 
 -- --- source: supabase/migrations/20260805180000_stage_is_the_first_unmet_gate.sql
 -- ---------------------------------------------------------------------------
--- 0025 — The stage names what is BLOCKING a lead, not the last thing that
+-- 0025 ,The stage names what is BLOCKING a lead, not the last thing that
 --        happened to it. Plus the cleanup that follows from it.
 --
 -- Both derivations were ordered newest-fact-first, so the CASE returned the
 -- LAST gate that had been satisfied. That reads well until the gates stop being
--- satisfied in order, which is exactly what this dataset does — the upstream
+-- satisfied in order, which is exactly what this dataset does ,the upstream
 -- pipeline researches and drafts for leads it never found an address for:
 --
 --     leads with no email address                307
@@ -4167,7 +4167,7 @@ as $$
 $$;
 
 comment on function public.compute_pipeline_stage(public.lead_pipeline) is
-  'Derives current_stage as the FIRST unmet gate, so a stage names what is blocking the lead. Sent leads stay pinned. The ONE definition — do not re-implement in application code.';
+  'Derives current_stage as the FIRST unmet gate, so a stage names what is blocking the lead. Sent leads stay pinned. The ONE definition ,do not re-implement in application code.';
 
 -- STABLE, not IMMUTABLE: the follow-up arms compare a due date against now().
 create or replace function public.compute_next_step(p public.lead_pipeline)
@@ -4274,7 +4274,7 @@ comment on function public.set_pipeline_stage() is
 --
 -- The `was_sent` half STAYS. The sheet's "Email sent status" column reaches the
 -- CRM as status='sent', and for the 89 leads n8n emailed that is the only
--- record the send ever happened — there is no email_logs row. Removing it would
+-- record the send ever happened ,there is no email_logs row. Removing it would
 -- lose them.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_lead()
@@ -4342,7 +4342,7 @@ end;
 $$;
 
 comment on function public.sync_pipeline_from_lead() is
-  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` — email_versions owns that.';
+  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` ,email_versions owns that.';
 
 -- ---------------------------------------------------------------------------
 -- 4. Recompute the stored stage.
@@ -4372,8 +4372,8 @@ drop view if exists public.analytics_template_performance;
 -- ---------------------------------------------------------------------------
 -- 6. Views nothing reads.
 --
--- The five that only lib/data/dashboard.ts consumed — a module imported by
--- nothing — plus one that never had a consumer at all, plus the category view
+-- The five that only lib/data/dashboard.ts consumed ,a module imported by
+-- nothing ,plus one that never had a consumer at all, plus the category view
 -- that stands between us and dropping the column.
 -- ---------------------------------------------------------------------------
 drop view if exists public.dashboard_overview;
@@ -4450,7 +4450,7 @@ join public.leads l on l.id = p.lead_id
 where public.is_admin();
 
 comment on view public.pipeline_board is
-  'Admin-only pipeline rows with the derived next_step and verification state. Contains contact data — never grant to anon.';
+  'Admin-only pipeline rows with the derived next_step and verification state. Contains contact data ,never grant to anon.';
 
 grant select on public.pipeline_board to authenticated;
 grant select on public.dashboard_leads_safe to authenticated;
@@ -4485,7 +4485,7 @@ delete from public.settings
 
 -- --- source: supabase/migrations/20260805200000_add_dead_email_stage_value.sql
 -- ---------------------------------------------------------------------------
--- 0026 — Add the `dead_email` stage value. NOTHING ELSE.
+-- 0026 ,Add the `dead_email` stage value. NOTHING ELSE.
 --
 -- This migration is one statement on purpose. Postgres will not let a new enum
 -- value be USED in the same transaction that added it:
@@ -4499,7 +4499,7 @@ delete from public.settings
 --
 -- Why the split is worth it: `need_email` was answering two questions at once.
 -- 307 leads never had an address; 19 had one a verifier proved dead. Both need
--- an address FOUND, so both landed on the same stage — and the dashboard, which
+-- an address FOUND, so both landed on the same stage ,and the dashboard, which
 -- splits them because the work is different, then disagreed with the stage
 -- filter: tiles reading 307 and 19 against a filter reading 326.
 --
@@ -4509,7 +4509,7 @@ alter type public.pipeline_stage add value if not exists 'dead_email' after 'nee
 
 -- --- source: supabase/migrations/20260805210000_dead_email_stage_and_status_views.sql
 -- ---------------------------------------------------------------------------
--- 0027 — Use the `dead_email` stage, and retire the last two views that report
+-- 0027 ,Use the `dead_email` stage, and retire the last two views that report
 --        leads.status.
 --
 -- **Run 0026 first and let it commit.** This script uses the enum value that
@@ -4548,11 +4548,11 @@ as $$
 $$;
 
 comment on function public.compute_pipeline_stage(public.lead_pipeline) is
-  'Derives current_stage as the FIRST unmet gate, so a stage names what is blocking the lead. Sent leads stay pinned. The ONE definition — do not re-implement in application code.';
+  'Derives current_stage as the FIRST unmet gate, so a stage names what is blocking the lead. Sent leads stay pinned. The ONE definition ,do not re-implement in application code.';
 
 -- ---------------------------------------------------------------------------
 -- The NEXT STEP for both is identical: go and find an address. So
--- pipeline_next_step gains no value — two stages, one action, which is the
+-- pipeline_next_step gains no value ,two stages, one action, which is the
 -- honest answer and saves a second enum migration.
 -- ---------------------------------------------------------------------------
 create or replace function public.compute_next_step(p public.lead_pipeline)
@@ -4590,7 +4590,7 @@ update public.lead_pipeline set updated_at = now();
 --
 -- The filter panel read `analytics_stage_distribution`, which counts every
 -- pipeline row. The leads list hides archived leads by default. So the facet
--- said `initial_sent 94` and the page it opened showed 93 — one of the two
+-- said `initial_sent 94` and the page it opened showed 93 ,one of the two
 -- archived leads sits at that stage.
 --
 -- Both figures, from one view, so the number on the chip and the number of rows
@@ -4694,7 +4694,7 @@ comment on view public.public_stats_overview is
 -- Since 0025 the stage is the truth and leads.status is an inbound label from
 -- the sheet. These two published the label: `dashboard_lead_status_counts` fed
 -- a Lead-status table on /analytics and `public_stats_statuses` a breakdown on
--- the public page — each sitting next to a stage chart that answered the same
+-- the public page ,each sitting next to a stage chart that answered the same
 -- question correctly. 472 leads read `researching` while 695 have research
 -- complete, so the two charts contradicted each other on screen.
 --
@@ -4708,13 +4708,13 @@ drop view if exists public.dashboard_leads_safe;
 
 -- --- source: supabase/migrations/20260806120000_verdicts_belong_to_an_address.sql
 -- ---------------------------------------------------------------------------
--- 0028 — A verdict belongs to an ADDRESS, and so does a lead's identity.
+-- 0028 ,A verdict belongs to an ADDRESS, and so does a lead's identity.
 --
 -- Two bugs with one root cause: changing `leads.email` left everything that was
 -- true of the OLD address attached to the lead.
 --
 -- ---------------------------------------------------------------------------
--- BUG 1 — editing an email created a duplicate lead on the next sync.
+-- BUG 1 ,editing an email created a duplicate lead on the next sync.
 --
 -- `dedupe_key` is computed once at import and nothing recomputed it. So:
 --
@@ -4742,7 +4742,7 @@ drop view if exists public.dashboard_leads_safe;
 -- which is a true and useful thing to say to whoever just typed it.
 --
 -- ---------------------------------------------------------------------------
--- BUG 2 — the verification verdict transferred to an address it was never about.
+-- BUG 2 ,the verification verdict transferred to an address it was never about.
 --
 -- NeverBounce judged info@abc.com. Someone corrects a typo to info@abd.com. The
 -- verdict stayed:
@@ -4978,7 +4978,7 @@ comment on function public.compute_send_priority(public.lead_pipeline) is
 
 -- ---------------------------------------------------------------------------
 -- 6. Expose it on the board, appended at the end (CREATE OR REPLACE can only
---    add columns there — inserting mid-list raises 42P16).
+--    add columns there ,inserting mid-list raises 42P16).
 -- ---------------------------------------------------------------------------
 drop view if exists public.pipeline_board;
 create view public.pipeline_board
@@ -5021,18 +5021,18 @@ join public.leads l on l.id = p.lead_id
 where public.is_admin();
 
 comment on view public.pipeline_board is
-  'Admin-only pipeline rows with the derived next_step, verification state and send priority. Contains contact data — never grant to anon.';
+  'Admin-only pipeline rows with the derived next_step, verification state and send priority. Contains contact data ,never grant to anon.';
 
 grant select on public.pipeline_board to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 0029 — dedupe_key computes itself on INSERT.
+-- 0029 ,dedupe_key computes itself on INSERT.
 --
 -- Every existing writer (the workbook importer, the Google Sheet sync)
 -- computes dedupe_key in TypeScript before the INSERT, via buildDedupeKey()
 -- in lib/import/dedupe.ts. That was fine while Postgres was only ever reached
 -- through those two paths. It stops being fine the moment something else
--- inserts a lead directly — n8n, writing straight to Supabase instead of the
+-- inserts a lead directly ,n8n, writing straight to Supabase instead of the
 -- Google Sheet the CRM used to sync from (2026-08-10: the sheet is being
 -- retired as the ingestion layer).
 --
@@ -5040,15 +5040,15 @@ grant select on public.pipeline_board to authenticated;
 -- insert that leaves it out is simply rejected, and a direct insert that gets
 -- the formula slightly wrong (different case, different trimming, a stray
 -- www.) creates exactly the duplicate-key mess 0028 spent a migration
--- cleaning up — except this time nothing would ever notice, because there is
+-- cleaning up ,except this time nothing would ever notice, because there is
 -- no sheet_row_number pairing to catch it by.
 --
 -- Mirrors buildDedupeKey()'s priority order exactly: email, then website,
 -- then business name + city. Only fires when the caller left dedupe_key
--- blank (NULL or '') — every existing writer, which already computes its own
+-- blank (NULL or '') ,every existing writer, which already computes its own
 -- key, is untouched by this. Website normalization here is deliberately
 -- simpler than the TypeScript version (strip scheme and www, drop a trailing
--- slash, no query string handling) — plpgsql has no URL type — but it agrees
+-- slash, no query string handling) ,plpgsql has no URL type ,but it agrees
 -- with it on every plain "https://example.com" style website already in the
 -- table, which is what matters: the two must never compute two different
 -- keys for the same input.
@@ -5092,7 +5092,7 @@ end;
 $$;
 
 comment on function public.assign_dedupe_key_on_insert() is
-  'Computes dedupe_key (email > website > name+city, same priority as buildDedupeKey() in lib/import/dedupe.ts) for any INSERT that leaves it blank — the case a direct writer like n8n hits that the sheet sync and the workbook importer never did, since both already set it themselves before the insert.';
+  'Computes dedupe_key (email > website > name+city, same priority as buildDedupeKey() in lib/import/dedupe.ts) for any INSERT that leaves it blank ,the case a direct writer like n8n hits that the sheet sync and the workbook importer never did, since both already set it themselves before the insert.';
 
 drop trigger if exists leads_assign_dedupe_key on public.leads;
 create trigger leads_assign_dedupe_key
@@ -5100,16 +5100,16 @@ create trigger leads_assign_dedupe_key
   for each row execute function public.assign_dedupe_key_on_insert();
 
 comment on trigger leads_assign_dedupe_key on public.leads is
-  'Fires before leads_rekey_on_email_change (0028) on UPDATE and independently of it — this one only ever runs on INSERT.';
+  'Fires before leads_rekey_on_email_change (0028) on UPDATE and independently of it ,this one only ever runs on INSERT.';
 
 -- ---------------------------------------------------------------------------
--- 0030 — the draft sweep stops re-examining the same stuck drafts forever.
+-- 0030 ,the draft sweep stops re-examining the same stuck drafts forever.
 --
 -- runDraftSweep() (the "Clean and approve drafts" button in Settings, and the
 -- 0/7/14/21-hourly cron) re-reads every email_versions row with
 -- status = 'draft' on every single run. A draft it cannot fully clean stays
--- status = 'draft' forever — that is the whole point of leaving it for a
--- human — so the same handful (roughly 10, per the 2026-08-05 sweep entry in
+-- status = 'draft' forever ,that is the whole point of leaving it for a
+-- human ,so the same handful (roughly 10, per the 2026-08-05 sweep entry in
 -- the changelog, "no answer in the database and stay blocked on purpose")
 -- were being re-parsed and re-reported as newly blocked four times a day,
 -- indefinitely, with no way to tell a genuinely new block from the same rows
@@ -5118,13 +5118,13 @@ comment on trigger leads_assign_dedupe_key on public.leads is
 -- sweep_checked_at is set on the ACTIVE version row the moment a sweep
 -- examines it and it still has a blocking issue afterwards. The sweep query
 -- excludes anything already flagged. It is deliberately NOT set when a draft
--- gets approved — an approved version already leaves status = 'draft', so the
+-- gets approved ,an approved version already leaves status = 'draft', so the
 -- existing status filter excludes it on its own; the flag only has a job for
 -- the ones left behind.
 --
 -- No reset mechanism is needed: editing a draft, or the sweep repairing one,
--- always creates a NEW email_versions row — versioning's whole premise is
--- that nothing is ever overwritten — and a new row starts with
+-- always creates a NEW email_versions row ,versioning's whole premise is
+-- that nothing is ever overwritten ,and a new row starts with
 -- sweep_checked_at NULL. A human who wants a flagged draft looked at again
 -- edits it or writes a fresh version; that is already how every other "try
 -- this again" works in this app, so this needs no new UI.
@@ -5144,12 +5144,12 @@ create index if not exists email_versions_sweep_pending_idx
   where sweep_checked_at is null;
 
 -- ---------------------------------------------------------------------------
--- 0031 — blank optional fields normalize to NULL before the CHECK constraints
+-- 0031 ,blank optional fields normalize to NULL before the CHECK constraints
 -- see them.
 --
 -- A direct writer (n8n, since 2026-08-10) that has no value for an optional
 -- field understandably sends an empty string rather than omitting the key or
--- explicitly sending null — that is what "no data" looks like coming out of
+-- explicitly sending null ,that is what "no data" looks like coming out of
 -- most upstream nodes and expressions. leads.email and leads.website both
 -- have a format CHECK that only exempts NULL, not '':
 --
@@ -5202,7 +5202,7 @@ end;
 $$;
 
 comment on function public.normalize_blank_lead_fields() is
-  'Turns an empty/whitespace-only string into NULL for the optional identity fields, before leads_email_format / leads_website_scheme (and dedupe key computation) see the row. Protects any direct writer that sends "" for "no value" instead of omitting the field or sending null — n8n''s direct-insert workflow being the reason this exists.';
+  'Turns an empty/whitespace-only string into NULL for the optional identity fields, before leads_email_format / leads_website_scheme (and dedupe key computation) see the row. Protects any direct writer that sends "" for "no value" instead of omitting the field or sending null ,n8n''s direct-insert workflow being the reason this exists.';
 
 drop trigger if exists leads_normalize_blank_fields on public.leads;
 create trigger leads_normalize_blank_fields
@@ -5210,15 +5210,15 @@ create trigger leads_normalize_blank_fields
   for each row execute function public.normalize_blank_lead_fields();
 
 comment on trigger leads_normalize_blank_fields on public.leads is
-  'Runs before leads_assign_dedupe_key and leads_rekey_on_email_change (trigger order does not matter between them — both already coalesce a null/blank email the same way), so email/website/phone/city/country/niche are already clean by the time either reads them.';
+  'Runs before leads_assign_dedupe_key and leads_rekey_on_email_change (trigger order does not matter between them ,both already coalesce a null/blank email the same way), so email/website/phone/city/country/niche are already clean by the time either reads them.';
 
 -- ---------------------------------------------------------------------------
--- 0032 — social_links normalizes to an OBJECT before leads_social_links_is_object
+-- 0032 ,social_links normalizes to an OBJECT before leads_social_links_is_object
 -- sees it.
 --
 -- MUST be pasted AFTER 0031 (20260810110000_normalize_blank_leads_fields.sql).
 -- Both use `create or replace function public.normalize_blank_lead_fields()`
--- on the SAME function name — this migration's version below is a superset
+-- on the SAME function name ,this migration's version below is a superset
 -- (adds the social_links branch, keeps every existing branch unchanged), but a
 -- trigger always runs whatever the function currently resolves to, not a
 -- snapshot from when the trigger was created. Paste 0031 then 0032, in that
@@ -5226,7 +5226,7 @@ comment on trigger leads_normalize_blank_fields on public.leads is
 -- social_links fix would vanish having appeared to apply cleanly.
 --
 -- Root cause: `leads.social_links` is `jsonb not null default '{}'::jsonb`
--- with `check (jsonb_typeof(social_links) = 'object')` — an empty object is
+-- with `check (jsonb_typeof(social_links) = 'object')` ,an empty object is
 -- already fine, always was. What trips the constraint is anything that is
 -- valid jsonb but NOT an object: n8n's "Update a row" node, or the AI step
 -- feeding it, can hand this column a JSON STRING instead of a JSON OBJECT —
@@ -5298,7 +5298,7 @@ begin
     end if;
 
   elsif jsonb_typeof(new.social_links) <> 'object' then
-    -- Array, number, boolean, or a bare JSON null literal — no sensible
+    -- Array, number, boolean, or a bare JSON null literal ,no sensible
     -- object reading, so it is dropped to empty rather than rejected.
     new.social_links := '{}'::jsonb;
   end if;
@@ -5308,7 +5308,7 @@ end;
 $$;
 
 comment on function public.normalize_blank_lead_fields() is
-  'Turns an empty/whitespace-only string into NULL for the optional identity fields (0031), and normalizes social_links to a jsonb OBJECT (0032) — a JSON-object-shaped string is unwrapped, other text survives under "_raw", anything else with no sensible object reading becomes {}. Protects any direct writer (n8n) whose shape does not already match what leads_email_format / leads_website_scheme / leads_social_links_is_object require.';
+  'Turns an empty/whitespace-only string into NULL for the optional identity fields (0031), and normalizes social_links to a jsonb OBJECT (0032) ,a JSON-object-shaped string is unwrapped, other text survives under "_raw", anything else with no sensible object reading becomes {}. Protects any direct writer (n8n) whose shape does not already match what leads_email_format / leads_website_scheme / leads_social_links_is_object require.';
 
 -- Trigger already exists from 0031 (before insert or update, same function) —
 -- recreated here too so this migration is self-sufficient regardless of
@@ -5319,7 +5319,7 @@ create trigger leads_normalize_blank_fields
   for each row execute function public.normalize_blank_lead_fields();
 
 -- ---------------------------------------------------------------------------
--- 0033 — the Google Sheet is retired.
+-- 0033 ,the Google Sheet is retired.
 --
 -- n8n now writes leads and drafts straight into Supabase (0029/0031/0032 are
 -- what made that safe), so the sheet is no longer the ingestion layer and no
@@ -5337,7 +5337,7 @@ create trigger leads_normalize_blank_fields
 -- They are provenance: 718 of the current leads came in through the sheet, and
 -- the row number is the only record of where each one came from. It is also
 -- still read by `npm run leads:duplicates`, which groups by sheet row to find
--- the 0028 leak pairs — the pattern that grouping by email alone cannot see.
+-- the 0028 leak pairs ,the pattern that grouping by email alone cannot see.
 -- Dropping them would destroy history to save two nullable columns, and
 -- nothing writes to them any more, so they simply stop changing.
 --
@@ -5372,7 +5372,7 @@ delete from public.settings
 -- revocation this end of it can do.
 --
 -- REVOKE THE KEY AT THE GOOGLE END TOO. Deleting the ciphertext here does not
--- invalidate the service account — delete the key (or the whole service
+-- invalidate the service account ,delete the key (or the whole service
 -- account) in the Google Cloud console, and remove its share from the
 -- spreadsheet. See GUIDE.md section 8.
 -- ---------------------------------------------------------------------------
@@ -5380,13 +5380,13 @@ delete from public.integration_secrets
  where key in ('sheets.api_key', 'sheets.service_account_json');
 
 -- ---------------------------------------------------------------------------
--- 0034 — an archived lead is counted nowhere.
+-- 0034 ,an archived lead is counted nowhere.
 --
 -- Reported: the Dead Addresses tile read 12 while the list it links to showed
 -- 11. Both were right about their own query. The list resolves ids through
 -- lead_pipeline and then queries `leads`, which excludes archived by default
 -- (0023). Every COUNT, in the views below and in lib/data/admin-dashboard.ts,
--- queried `lead_pipeline` directly — and lead_pipeline HAS NO status COLUMN,
+-- queried `lead_pipeline` directly ,and lead_pipeline HAS NO status COLUMN,
 -- so there was nothing to exclude by. One archived dead address was the whole
 -- difference.
 --
@@ -5403,12 +5403,12 @@ delete from public.integration_secrets
 -- 724-vs-723 confusion that started the 2026-08-09 audit.
 --
 -- Every view below keeps its exact column list and order, so CREATE OR REPLACE
--- is safe (it can only append, never rename or reorder — see the gotcha table).
+-- is safe (it can only append, never rename or reorder ,see the gotcha table).
 --
 -- `pipeline_board` is deliberately NOT changed: it already exposes
 -- `lead_status`, so its callers filter for themselves, and the leads list needs
 -- to be able to SHOW archived rows when the Archived toggle is on.
--- `lead_stage_counts` is already correct — it has carried both figures since
+-- `lead_stage_counts` is already correct ,it has carried both figures since
 -- 0027 and is the model the rest of this follows.
 -- ---------------------------------------------------------------------------
 
@@ -5509,8 +5509,8 @@ comment on view public.public_stats_stages is
 -- 3. The opt-in public lead list.
 --
 -- This one is a disclosure fix, not just an arithmetic one: with
--- public.show_leads on, an archived lead — typically a duplicate the admin
--- deliberately took out of circulation — could be published by name on the
+-- public.show_leads on, an archived lead ,typically a duplicate the admin
+-- deliberately took out of circulation ,could be published by name on the
 -- front page.
 -- ---------------------------------------------------------------------------
 create or replace view public.public_stats_leads
@@ -5557,7 +5557,7 @@ where public.is_admin()
 group by p.current_stage;
 
 -- ---------------------------------------------------------------------------
--- 0035 — the scheduled sender could not see a single lead. Nothing has
+-- 0035 ,the scheduled sender could not see a single lead. Nothing has
 -- auto-sent an initial email since 0028.
 --
 -- Symptom: the cron fires every 3 minutes and reports "Nothing is due,
@@ -5572,7 +5572,7 @@ group by p.current_stage;
 --
 -- and the scheduler runs on the SERVICE-ROLE key, which has no JWT and no
 -- auth.uid(). `is_admin()` is therefore false, and the view returns ZERO ROWS
--- to it — always, for every lead. Verified against the live database:
+-- to it ,always, for every lead. Verified against the live database:
 -- `pipeline_board` returns 0 rows to the service-role client while
 -- `lead_pipeline` returns all 809.
 --
@@ -5625,25 +5625,25 @@ join public.leads l on l.id = p.lead_id
 where l.status <> 'archived';
 
 comment on view public.lead_send_queue is
-  'Machine-facing send queue for the scheduler. Protected by GRANTS, not by an is_admin() predicate, because the scheduler runs on the service-role key which satisfies no such predicate — that is what made pipeline_board return zero rows to it and stopped every automatic initial send after 0028. Archived leads are already excluded. Never grant this to anon or authenticated.';
+  'Machine-facing send queue for the scheduler. Protected by GRANTS, not by an is_admin() predicate, because the scheduler runs on the service-role key which satisfies no such predicate ,that is what made pipeline_board return zero rows to it and stopped every automatic initial send after 0028. Archived leads are already excluded. Never grant this to anon or authenticated.';
 
 -- Grants are the whole security model for this view.
 revoke all on public.lead_send_queue from anon, authenticated;
 grant select on public.lead_send_queue to service_role;
 
 -- ---------------------------------------------------------------------------
--- 0036 — the public page counts BUSINESSES REACHED, not messages sent.
+-- 0036 ,the public page counts BUSINESSES REACHED, not messages sent.
 --
 -- `emails_sent` counts rows in email_logs, so a lead that got an initial plus
 -- two follow-ups counts three times. Ten businesses in a full three-step
 -- sequence read as "25 emails sent" on the front page, which describes our
--- activity rather than our reach — and reply rate inherited the same
+-- activity rather than our reach ,and reply rate inherited the same
 -- denominator, so it was "replies per message" and fell as we followed up
 -- more, even though every reply came from the same ten conversations.
 --
 -- Adds `leads_contacted`: distinct non-archived leads with an initial send
 -- recorded. `reply_rate_pct` now divides by it, which turns the number into
--- "of the businesses we reached, how many answered" — the only reply rate a
+-- "of the businesses we reached, how many answered" ,the only reply rate a
 -- cold-outreach funnel should publish.
 --
 -- Counted from `lead_pipeline.first_email_sent`, NOT from
@@ -5733,7 +5733,7 @@ comment on view public.public_stats_overview is
   'PUBLIC (anon-readable). Aggregate counters and rates only - no lead identity of any kind. `leads_contacted` is distinct businesses reached and is what the front page headlines; `emails_sent` remains a raw message count. Lead counts exclude archived; email_logs / replies figures do not, because a sent message stays sent.';
 
 -- ---------------------------------------------------------------------------
--- 0037 — a sequence that ran out closes itself.
+-- 0037 ,a sequence that ran out closes itself.
 --
 -- A lead that received follow-up 2 and never answered has nothing left to do:
 -- `compute_next_step()` already returns `close_workflow` for it. But nothing
@@ -5753,12 +5753,12 @@ comment on view public.public_stats_overview is
 --
 -- Two conditions in that UPDATE are load-bearing and easy to leave out:
 --
---   replied is null    — as a WHERE clause, not a read-then-write. A reply can
+--   replied is null    ,as a WHERE clause, not a read-then-write. A reply can
 --                        land between a SELECT and an UPDATE, and closing a
 --                        lead that just answered is the one outcome that
 --                        actually loses a conversation.
 --
---   auto_followups     — Pause (`auto_followups = false`) means "not right
+--   auto_followups     ,Pause (`auto_followups = false`) means "not right
 --                        now, try me next quarter" (see "Pause versus close").
 --                        Letting a pause decay into a close on a timer would
 --                        silently destroy a decision somebody made on purpose.
@@ -5778,11 +5778,11 @@ values (
 on conflict (key) do nothing;
 
 -- ---------------------------------------------------------------------------
--- 0038 — record WHICH address a verdict was about, on every write.
+-- 0038 ,record WHICH address a verdict was about, on every write.
 --
 -- 0028 made a verification verdict reset when `leads.email` changes to a
 -- different address, and that reset is guarded on
--- `email_checked_address is not null` — a verdict of unknown provenance is
+-- `email_checked_address is not null` ,a verdict of unknown provenance is
 -- left alone rather than silently discarded.
 --
 -- But NOTHING EVER SET THAT COLUMN except 0028's own one-time backfill.
@@ -5801,7 +5801,7 @@ on conflict (key) do nothing;
 -- Fixing each writer would be four fixes and a fifth one waiting for whoever
 -- adds the next verdict source. `set_pipeline_stage()` is the BEFORE trigger
 -- every write to `lead_pipeline` already passes through, so stamping it there
--- makes it impossible to forget — the same argument as putting the send gates
+-- makes it impossible to forget ,the same argument as putting the send gates
 -- in `sendLeadEmail()` rather than in each caller.
 --
 -- The lead's address is fetched with a primary-key lookup, and only when the
@@ -5843,7 +5843,7 @@ begin
 
     /*
      * Stamp the address this verdict is about (0038), unless the caller
-     * already named one — the CSV importer may be applying a result for an
+     * already named one ,the CSV importer may be applying a result for an
      * address that has since been edited, and it knows better than we do.
      *
      * 'unverified' means "no verdict", so it clears the column instead. That
@@ -5914,10 +5914,10 @@ update public.lead_pipeline p
    and length(btrim(l.email)) > 0;
 
 -- ---------------------------------------------------------------------------
--- 0039 — an approved version stays the active one, and a line ending is not
+-- 0039 ,an approved version stays the active one, and a line ending is not
 -- an edit.
 --
--- Reported as: "I changed the email status and it made another version — the
+-- Reported as: "I changed the email status and it made another version ,the
 -- approved one was 5 Aug, then one more appeared 12 minutes ago."
 --
 -- ---------------------------------------------------------------------------
@@ -5927,7 +5927,7 @@ update public.lead_pipeline p
 --
 --   1. The lead page's Business-information form carries the whole draft body
 --      in a HIDDEN INPUT (`draft_email`), so it is re-submitted on every save
---      of that card — even a save that only changed the email address.
+--      of that card ,even a save that only changed the email address.
 --   2. HTML form submission normalises line breaks to CRLF. The stored draft
 --      used LF, so the value came back with every "\n" turned into "\r\n".
 --   3. `updateLead()` wrote that to `leads.draft_email`.
@@ -5937,14 +5937,14 @@ update public.lead_pipeline p
 --   5. `enforce_single_active_version()` then deactivated the approved one.
 --
 -- So saving the form silently replaced an approved draft with a byte-identical
--- copy that nobody had approved — and because the sender requires the ACTIVE
+-- copy that nobody had approved ,and because the sender requires the ACTIVE
 -- version to be approved, those leads stopped being sendable while still
 -- reading `approved` on the pipeline. Measured live: 4 leads, and in all four
 -- the replacement differed from the approved text ONLY by line endings.
 --
 -- The UI half of this fix removes the hidden inputs, so the form stops
 -- round-tripping a draft it does not edit. This migration closes the same hole
--- at the database level, where every writer passes — including n8n, which
+-- at the database level, where every writer passes ,including n8n, which
 -- writes `leads` directly and cannot be fixed from the application.
 --
 -- ---------------------------------------------------------------------------
@@ -5957,12 +5957,12 @@ update public.lead_pipeline p
 -- 2. A new auto-captured version NO LONGER STEALS `active` from an approved
 --    one. The approved version is the text a human signed off and the text the
 --    sender will actually send, so it stays active until somebody explicitly
---    chooses otherwise. History is still recorded — the new row is inserted,
+--    chooses otherwise. History is still recorded ,the new row is inserted,
 --    just inactive.
 --
 --    This applies ONLY to this trigger, which fires on an incidental write to
---    `leads.draft_email`. Explicit actions — Regenerate, Save draft, activating
---    a version from the history list — go through `createEmailVersion()` and
+--    `leads.draft_email`. Explicit actions ,Regenerate, Save draft, activating
+--    a version from the history list ,go through `createEmailVersion()` and
 --    still activate what they create, because there a human asked for it.
 -- ---------------------------------------------------------------------------
 
@@ -6019,14 +6019,14 @@ end;
 $$;
 
 comment on function public.version_lead_draft() is
-  'Captures an external edit to leads.draft_email as a new version. Line endings are normalised before comparing, so a form round trip is not an edit, and the new row is left INACTIVE when an approved version already exists — an approved draft stays the one that sends.';
+  'Captures an external edit to leads.draft_email as a new version. Line endings are normalised before comparing, so a form round trip is not an edit, and the new row is left INACTIVE when an approved version already exists ,an approved draft stays the one that sends.';
 
 -- ---------------------------------------------------------------------------
 -- Repair: put the approved version back in charge.
 --
 -- One statement per side, and the deactivate runs FIRST, because
 -- email_versions carries a partial unique index on (lead_id, type) where
--- active — activating the approved row while its usurper is still active
+-- active ,activating the approved row while its usurper is still active
 -- would violate it.
 -- ---------------------------------------------------------------------------
 with stranded as (
@@ -6063,22 +6063,22 @@ update public.email_versions v
    and v.version_number = s.approved_version;
 
 -- ---------------------------------------------------------------------------
--- 0040 — most email failures never reached email_logs at all.
+-- 0040 ,most email failures never reached email_logs at all.
 --
 -- Reported as: "whenever an email fails, display why that email failed,
 -- make a new page for that so i know y emails are failing."
 -- ---------------------------------------------------------------------------
 -- WHAT ACTUALLY HAPPENED
 --
--- sendLeadEmail() (the one function every send path — the manual Send
--- button and the scheduler alike — goes through) has nine return points.
+-- sendLeadEmail() (the one function every send path ,the manual Send
+-- button and the scheduler alike ,goes through) has nine return points.
 -- Only the LAST one, reached after a provider was actually called, writes
 -- to email_logs. The other eight are refusals that happen before any log
 -- row exists at all: archived lead, no email address, a verifier proved the
 -- address undeliverable, verification required but missing, no active
 -- draft, no subject line, the provider misconfigured, an unresolved
 -- placeholder left in the text. Every one of those today leaves no trace
--- anywhere — which is exactly why a bracketed business name silently
+-- anywhere ,which is exactly why a bracketed business name silently
 -- blocked its own lead for days with nothing in the database to find.
 --
 -- The application-side fix (a separate change, no migration needed) makes
@@ -6091,11 +6091,11 @@ update public.email_versions v
 -- WHY A NEW COLUMN, NOT A NEW STATUS
 --
 -- email_logs.status is a Postgres enum and 'failed' already exists and is
--- semantically correct for all of these — they are all failures. Adding a
+-- semantically correct for all of these ,they are all failures. Adding a
 -- new enum value would need the two-phase migration this project already
 -- hit trouble with (0026/0027: a new enum value cannot be used in the same
 -- transaction that added it) for no benefit here, since "failed" is not
--- what needs distinguishing — the REASON is. A plain text column, filled
+-- what needs distinguishing ,the REASON is. A plain text column, filled
 -- with a short stable code per refusal branch (e.g. 'archived',
 -- 'no_email', 'unverified', 'no_draft', 'no_subject', 'provider_config',
 -- 'unresolved_placeholder', 'send_rejected'), does that without touching
@@ -6113,7 +6113,7 @@ comment on column public.email_logs.failure_reason is
   'Short stable code for why a failed send never even reached (or was rejected by) the provider, e.g. archived, no_email, unverified, no_draft, no_subject, provider_config, unresolved_placeholder, send_rejected. Null for non-failed rows and for failures logged before this column existed.';
 
 -- ---------------------------------------------------------------------------
--- 0041 — publish the tables the UI reads, so a change reaches an open page
+-- 0041 ,publish the tables the UI reads, so a change reaches an open page
 -- without somebody pressing refresh.
 --
 -- Asked for as: "data is updated automatically instead of a refresh".
@@ -6125,8 +6125,8 @@ comment on column public.email_logs.failure_reason is
 -- publication emits nothing, which is why this is a migration and not a
 -- settings toggle in the app.
 --
--- The application side uses these events as a SIGNAL ONLY — "something you
--- are looking at changed" — and then calls Next's router.refresh(), which
+-- The application side uses these events as a SIGNAL ONLY ,"something you
+-- are looking at changed" ,and then calls Next's router.refresh(), which
 -- re-runs the server components and therefore the real data functions in
 -- src/lib/data/. It does NOT patch changed rows into client state.
 --
@@ -6136,8 +6136,8 @@ comment on column public.email_logs.failure_reason is
 -- needs its ACTIVE version to be approved (0039), the send queue has a
 -- three-part ordering that mirrors findDueWork(). Rebuilding any of that in
 -- a browser to patch a row would be a second implementation of a rule this
--- project has already been burned by duplicating — the same argument the
--- comment on compute_pipeline_stage() makes ("the ONE definition — do not
+-- project has already been burned by duplicating ,the same argument the
+-- comment on compute_pipeline_stage() makes ("the ONE definition ,do not
 -- re-implement in application code"). A refresh costs one re-query and keeps
 -- one definition.
 --
@@ -6153,7 +6153,7 @@ comment on column public.email_logs.failure_reason is
 -- One honest caveat: for DELETE, Postgres emits only the primary key of the
 -- old row, so Realtime cannot evaluate an RLS policy against it and delivers
 -- deletes to every subscriber of the table. That is acceptable here precisely
--- BECAUSE the client treats events as a signal — it reads no column off the
+-- BECAUSE the client treats events as a signal ,it reads no column off the
 -- payload, so the most anyone learns is "a row with this id went away", and
 -- the pages that subscribe are admin-only at the middleware AND at
 -- requireAdmin() anyway.
@@ -6163,7 +6163,7 @@ comment on column public.email_logs.failure_reason is
 --
 -- `replica identity full` would put the entire old row in the WAL for every
 -- update and delete. It is what you need when a client diffs old-vs-new to
--- patch its own state — which is exactly what this design does not do. The
+-- patch its own state ,which is exactly what this design does not do. The
 -- default (primary key) is enough to say "this changed", so the WAL stays
 -- small and a bulk update of 500 leads does not multiply into 500 full-row
 -- WAL records for the sake of a signal we would throw away.
@@ -6195,7 +6195,7 @@ begin
     -- is the table that moves when almost anything happens, so it is the one
     -- that makes the dashboard tiles live.
     'lead_pipeline',
-    -- Sends and, since 0040, refusals — Email Logs and Send Failures.
+    -- Sends and, since 0040, refusals ,Email Logs and Send Failures.
     'email_logs',
     -- Draft history and approvals. Drives the approval queue and the draft
     -- workspace.
@@ -6225,7 +6225,7 @@ end
 $$;
 
 -- ---------------------------------------------------------------------------
--- 0042 — a follow-up's due date is a whole calendar day, not a timestamp.
+-- 0042 ,a follow-up's due date is a whole calendar day, not a timestamp.
 --
 -- Reported as: "even if the mail is 3 days old at 3pm, its still 3 days old,
 -- being that concise would have issues down the line, so its supposed to be
@@ -6237,12 +6237,12 @@ $$;
 --
 --   sent_at + make_interval(days => N)
 --
--- — exact timestamp arithmetic, so a follow-up became due at the same
+-- ,exact timestamp arithmetic, so a follow-up became due at the same
 -- MINUTE the previous step went out, N days later. That minute is not a
 -- deliberate choice; it is whatever instant the scheduler happened to reach
 -- that lead at, and since the scheduler paces sends a few minutes apart
 -- (0037's `*/3 * * * *` pacing), a whole day's cohort of due dates ends up
--- scattered across the day at 3-minute intervals — confirmed live: today's
+-- scattered across the day at 3-minute intervals ,confirmed live: today's
 -- follow-up 1s were due starting 14:45 and follow-up 2s starting 15:18, both
 -- stepping by exactly 3 minutes, a direct fossil of whatever pace the
 -- ORIGINAL sends happened to land at, days earlier.
@@ -6266,22 +6266,22 @@ $$;
 -- the calendar day; `+ N` advances N whole days; `at time zone tz` on a date
 -- re-anchors that date's midnight as an instant IN `tz`, producing the
 -- timestamptz that actually gets stored. Net effect: "the Nth day after the
--- day this happened, from its start" — a lead sent at 21:59 and one sent at
+-- day this happened, from its start" ,a lead sent at 21:59 and one sent at
 -- 09:03 the same calendar day both become due at the SAME midnight, N days
 -- later, which is the whole point: the rule is a day count, so leads that
 -- satisfy it on the same day should become due together.
 --
 -- Two functions compute this, not one, and both need the same fix or the
--- app and n8n gain two disagreeing definitions of "N days" — exactly the
+-- app and n8n gain two disagreeing definitions of "N days" ,exactly the
 -- class of bug this project keeps finding (0018, 0022, 0039):
 --
---   sync_pipeline_from_email_log() — fires when THIS APP records a send
+--   sync_pipeline_from_email_log() ,fires when THIS APP records a send
 --     (the Send button, the cron sender). Sets followup1_due on 'initial'
 --     and followup2_due on 'followup1'.
 --
---   sync_pipeline_from_lead() — fires when a lead's INITIAL send is
+--   sync_pipeline_from_lead() ,fires when a lead's INITIAL send is
 --     reported by a direct write to `leads` (n8n, the only other writer
---     since Google Sheets was retired — 0033). Only ever sets
+--     since Google Sheets was retired ,0033). Only ever sets
 --     followup1_due; every follow-up is sent BY this app, so
 --     followup2_due always comes from the function above. Two call sites
 --     inside it compute the same thing (the INSERT and the sheet-wins
@@ -6295,7 +6295,7 @@ $$;
 -- due, not when the sender is allowed to act on it.
 --
 -- `tz` is a literal 'Asia/Karachi', matching this app's own display-timezone
--- default (`DISPLAY_TIME_ZONE` in lib/utils.ts) — deliberately NOT
+-- default (`DISPLAY_TIME_ZONE` in lib/utils.ts) ,deliberately NOT
 -- `sending.working_hours.timezone`, which is a different, independently
 -- configurable setting (live value on this project: 'UTC') answering a
 -- different question ("when is the business open to send"), not "what does
@@ -6307,19 +6307,19 @@ $$;
 -- DELIBERATELY NOT RETROACTIVE
 --
 -- Both functions only ever SET these columns guarded by `coalesce(existing,
--- ...)` — once a due date is written, neither function touches it again. So
+-- ...)` ,once a due date is written, neither function touches it again. So
 -- this migration only changes the computation for the NEXT time each column
 -- gets set: a lead whose initial has not sent yet, or whose follow-up 1 has
 -- not sent yet. Every due date already sitting in the table today keeps its
 -- current (minute-precise) value; nothing already scheduled silently jumps
 -- to a new time. A backfill onto the existing backlog is a separate,
--- explicit follow-up if wanted — recomputing pending due dates changes
+-- explicit follow-up if wanted ,recomputing pending due dates changes
 -- real, currently-scheduled send times and should not happen as a side
 -- effect of a function replacement.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 1. sync_pipeline_from_email_log() — sends this app records.
+-- 1. sync_pipeline_from_email_log() ,sends this app records.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_email_log()
 returns trigger
@@ -6377,10 +6377,10 @@ end;
 $$;
 
 comment on function public.sync_pipeline_from_email_log() is
-  'Advances the sequence on a recorded send and treats acceptance as proof the address works. Follow-up due dates land on midnight (Asia/Karachi) of the Nth calendar day after the triggering send, not N days from its exact minute (0042) — a day count is a day count, regardless of what minute the previous send happened to land on. A later hard bounce (0016) revises verification to invalid.';
+  'Advances the sequence on a recorded send and treats acceptance as proof the address works. Follow-up due dates land on midnight (Asia/Karachi) of the Nth calendar day after the triggering send, not N days from its exact minute (0042) ,a day count is a day count, regardless of what minute the previous send happened to land on. A later hard bounce (0016) revises verification to invalid.';
 
 -- ---------------------------------------------------------------------------
--- 2. sync_pipeline_from_lead() — an initial send reported by a direct write
+-- 2. sync_pipeline_from_lead() ,an initial send reported by a direct write
 --    to `leads` (n8n). Same day-granular rule, same reason: this is the
 --    other path that can set followup1_due, and it must agree with the one
 --    above or an n8n-sent lead's follow-up would land on a different kind
@@ -6454,15 +6454,15 @@ end;
 $$;
 
 comment on function public.sync_pipeline_from_lead() is
-  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` — email_versions owns that. followup1_due lands on midnight (Asia/Karachi) of the Nth calendar day after the send, matching sync_pipeline_from_email_log() (0042).';
+  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` ,email_versions owns that. followup1_due lands on midnight (Asia/Karachi) of the Nth calendar day after the send, matching sync_pipeline_from_email_log() (0042).';
 
 -- ---------------------------------------------------------------------------
--- 0043 — 0042's day-truncation formula was wrong: `date AT TIME ZONE zone`
+-- 0043 ,0042's day-truncation formula was wrong: `date AT TIME ZONE zone`
 -- is genuinely ambiguous in Postgres, and it silently resolved to the wrong
 -- meaning.
 --
 -- Reported as: "didn't we change followups to be due by date, not the exact
--- minute — so why does one still say due in 5 hours and 3 hours?" Checked
+-- minute ,so why does one still say due in 5 hours and 3 hours?" Checked
 -- live and the picture was worse than "not applied yet": 0042 WAS applied,
 -- but a fresh throwaway lead sent at a known, deliberately odd instant
 -- (16 Aug, 21:47:13 PKT) computed a due date of **23 Aug, 10:00:00 PKT** —
@@ -6474,7 +6474,7 @@ comment on function public.sync_pipeline_from_lead() is
 --
 --   ((sent_at at time zone tz)::date + d1) at time zone tz
 --
--- The first `at time zone` is fine — `sent_at` is unambiguously `timestamptz`,
+-- The first `at time zone` is fine ,`sent_at` is unambiguously `timestamptz`,
 -- so `timestamptz AT TIME ZONE zone -> timestamp` is the only possible
 -- reading. The SECOND one is the bug: by that point the expression
 -- `(...)::date + d1` is a bare `date`, and Postgres has BOTH `date ->
@@ -6498,30 +6498,30 @@ comment on function public.sync_pipeline_from_lead() is
 --      -> final stored instant `2026-08-23T05:00:00Z` = 10:00 PKT.
 --
 -- Two silent implicit casts through UTC, in a row, is exactly a double
--- application of the +5:00 offset — which is exactly the 10-hour gap
+-- application of the +5:00 offset ,which is exactly the 10-hour gap
 -- observed. Neither `tsc` nor a browser could ever have caught this; it is
 -- purely a Postgres operator-resolution quirk, invisible until the DDL is
--- actually executed — which this machine cannot do, so it went unverified
+-- actually executed ,which this machine cannot do, so it went unverified
 -- and shipped wrong. Owning that plainly rather than glossing over it.
 -- ---------------------------------------------------------------------------
 -- THE FIX
 --
 -- Force the correct overload with an EXPLICIT `::timestamp` cast before the
 -- final `AT TIME ZONE`, so there is no `date` operand left for Postgres to
--- resolve ambiguously — only `timestamp AT TIME ZONE zone -> timestamptz`
+-- resolve ambiguously ,only `timestamp AT TIME ZONE zone -> timestamptz`
 -- can apply once the type is exactly `timestamp`:
 --
 --   (((sent_at at time zone tz)::date + d1)::timestamp) at time zone tz
 --
 -- Same principle 0042 already stated (day-granular, midnight of the Nth
 -- day, same two functions, same 'Asia/Karachi' literal for the reasons
--- given there) — only the one cast changes.
+-- given there) ,only the one cast changes.
 -- ---------------------------------------------------------------------------
 -- REPAIR, SCOPED TIGHTLY
 --
 -- Exactly one pending row was found live with the buggy signature. A pending
 -- due date can only be in one of three states: (a) the pre-0042 pattern,
--- exactly `sent_at + N days` — deliberately left alone, same as 0042 itself
+-- exactly `sent_at + N days` ,deliberately left alone, same as 0042 itself
 -- chose; (b) already correct, landing on 00:00:00 PKT; or (c) neither, which
 -- can only mean the buggy 0042 formula touched it. The repair below matches
 -- state (c) only, so it cannot touch a row 0042 never got the chance to
@@ -6529,7 +6529,7 @@ comment on function public.sync_pipeline_from_lead() is
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 1. sync_pipeline_from_email_log() — sends this app records.
+-- 1. sync_pipeline_from_email_log() ,sends this app records.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_email_log()
 returns trigger
@@ -6586,7 +6586,7 @@ comment on function public.sync_pipeline_from_email_log() is
   'Advances the sequence on a recorded send and treats acceptance as proof the address works. Follow-up due dates land on midnight (Asia/Karachi) of the Nth calendar day after the triggering send (0042), via an explicit ::timestamp cast before AT TIME ZONE so the date->timestamp/timestamptz cast ambiguity cannot silently pick the wrong overload again (0043). A later hard bounce (0016) revises verification to invalid.';
 
 -- ---------------------------------------------------------------------------
--- 2. sync_pipeline_from_lead() — an initial send reported by a direct write
+-- 2. sync_pipeline_from_lead() ,an initial send reported by a direct write
 --    to `leads` (n8n). Same fix, same two call sites as 0042.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_lead()
@@ -6654,7 +6654,7 @@ end;
 $$;
 
 comment on function public.sync_pipeline_from_lead() is
-  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` — email_versions owns that. followup1_due lands on midnight (Asia/Karachi) of the Nth calendar day after the send, via an explicit ::timestamp cast (0043) so it matches sync_pipeline_from_email_log() exactly.';
+  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` ,email_versions owns that. followup1_due lands on midnight (Asia/Karachi) of the Nth calendar day after the send, via an explicit ::timestamp cast (0043) so it matches sync_pipeline_from_email_log() exactly.';
 
 -- ---------------------------------------------------------------------------
 -- 3. Repair the one pending row 0042 computed wrong before this ran.

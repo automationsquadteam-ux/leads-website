@@ -94,7 +94,7 @@ export function SecretField({
 
         The badge beside it is `whitespace-nowrap` (every Badge is), so in a
         non-wrapping row it kept its full width and the label absorbed all the
-        squeeze — "Service account JSON" rendered two or three letters per line
+        squeeze ,"Service account JSON" rendered two or three letters per line
         down a column a few pixels wide. Letting the row wrap puts the badge on
         its own line instead, which costs one line and keeps the label readable.
       */}

@@ -1,11 +1,11 @@
 -- ---------------------------------------------------------------------------
--- 0018 — Two faults that between them meant the sender could never send.
+-- 0018 ,Two faults that between them meant the sender could never send.
 --
 -- FAULT 1: sends recorded from the sheet never scheduled a follow-up.
 --
 --   followup1_due is set by the email_logs trigger. The 58 leads sent by the
---   upstream n8n pipeline have no email_logs rows at all — migration 0015 wrote
---   first_email_sent directly — so their followup1_due stayed NULL.
+--   upstream n8n pipeline have no email_logs rows at all ,migration 0015 wrote
+--   first_email_sent directly ,so their followup1_due stayed NULL.
 --
 --   compute_next_step() then reads "sent, but no due date" as await_followup1,
 --   forever. The scheduler looks for `followup1_due <= now()` and finds
@@ -28,7 +28,7 @@
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- FAULT 1a — a sheet-reported send now schedules follow-up 1 as well.
+-- FAULT 1a ,a sheet-reported send now schedules follow-up 1 as well.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_lead()
 returns trigger
@@ -69,7 +69,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- FAULT 1b — backfill the leads already stuck.
+-- FAULT 1b ,backfill the leads already stuck.
 --
 -- Dated from the send, not from now(), so a lead sent three weeks ago is
 -- immediately due rather than waiting another week from today.
@@ -95,11 +95,11 @@ update public.lead_pipeline p
    and p.closed is null;
 
 -- ---------------------------------------------------------------------------
--- FAULT 2 — make the two definitions of "approved" agree.
+-- FAULT 2 ,make the two definitions of "approved" agree.
 --
 -- Only for leads already sent: the message went out, so it was approved
 -- upstream whatever this database recorded. Drafts still awaiting review are
--- left strictly alone — auto-approving 270 unreviewed drafts because a status
+-- left strictly alone ,auto-approving 270 unreviewed drafts because a status
 -- column implied it would be exactly the accident this system exists to
 -- prevent.
 -- ---------------------------------------------------------------------------

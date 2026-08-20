@@ -12,11 +12,11 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0038 — record WHICH address a verdict was about, on every write.
+-- 0038 ,record WHICH address a verdict was about, on every write.
 --
 -- 0028 made a verification verdict reset when `leads.email` changes to a
 -- different address, and that reset is guarded on
--- `email_checked_address is not null` — a verdict of unknown provenance is
+-- `email_checked_address is not null` ,a verdict of unknown provenance is
 -- left alone rather than silently discarded.
 --
 -- But NOTHING EVER SET THAT COLUMN except 0028's own one-time backfill.
@@ -35,7 +35,7 @@
 -- Fixing each writer would be four fixes and a fifth one waiting for whoever
 -- adds the next verdict source. `set_pipeline_stage()` is the BEFORE trigger
 -- every write to `lead_pipeline` already passes through, so stamping it there
--- makes it impossible to forget — the same argument as putting the send gates
+-- makes it impossible to forget ,the same argument as putting the send gates
 -- in `sendLeadEmail()` rather than in each caller.
 --
 -- The lead's address is fetched with a primary-key lookup, and only when the
@@ -77,7 +77,7 @@ begin
 
     /*
      * Stamp the address this verdict is about (0038), unless the caller
-     * already named one — the CSV importer may be applying a result for an
+     * already named one ,the CSV importer may be applying a result for an
      * address that has since been edited, and it knows better than we do.
      *
      * 'unverified' means "no verdict", so it clears the column instead. That

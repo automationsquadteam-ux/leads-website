@@ -7,7 +7,7 @@ import { buildUnverifiedCsv } from '@/lib/services/email-verification';
  * GET /api/admin/emails/unverified.csv
  *
  * Every address with no definite verdict, as a CSV ready to upload to
- * NeverBounce (or ZeroBounce, or Bouncer — the importer normalises all of
+ * NeverBounce (or ZeroBounce, or Bouncer ,the importer normalises all of
  * their result vocabularies).
  *
  * A route handler rather than a Server Action because this is a file download.
@@ -17,7 +17,7 @@ import { buildUnverifiedCsv } from '@/lib/services/email-verification';
  * someone bookmarks it.
  *
  * `/api/admin` is in the middleware's ADMIN_PREFIXES, but middleware is not a
- * security boundary for a route handler — assertAdmin() below is, and RLS is
+ * security boundary for a route handler ,assertAdmin() below is, and RLS is
  * the backstop under that.
  */
 

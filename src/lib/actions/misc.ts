@@ -55,7 +55,7 @@ export async function updateSettings(
     }
     /*
      * Days come from the form. They used to be hardcoded to [1,2,3,4,5] here,
-     * which meant the sending days could not be changed at all — and worse,
+     * which meant the sending days could not be changed at all ,and worse,
      * pressing Save on this page silently reverted whatever was in the database
      * back to Monday-Friday.
      *

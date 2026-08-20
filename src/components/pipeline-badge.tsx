@@ -85,7 +85,7 @@ export function PipelineTracker({
   nextStep: PipelineNextStep;
   /**
    * The DAY the next step becomes actionable, for the waiting states. Rendered
-   * as a day, never as a countdown — see `formatDueDay()`.
+   * as a day, never as a countdown ,see `formatDueDay()`.
    */
   due?: string | null;
   className?: string;

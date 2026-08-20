@@ -82,7 +82,7 @@ export function LeadDetail({ lead, stage }: { lead: Lead; stage: PipelineStage |
               {/*
                 "Mark invalid" used to sit here setting leads.status = 'invalid'.
                 Whether an address is dead is the verification verdict, which the
-                Pipeline panel's Email address dropdown sets — and unlike a status
+                Pipeline panel's Email address dropdown sets ,and unlike a status
                 that meant nothing to anything, that verdict stops the sender.
               */}
               <Button type="button" size="sm" variant="ghost" onClick={() => setConfirmArchive(true)}>
@@ -95,7 +95,7 @@ export function LeadDetail({ lead, stage }: { lead: Lead; stage: PipelineStage |
                 variant="ghost"
                 className="text-danger hover:bg-danger-subtle hover:text-danger"
                 onClick={() => setConfirmDelete(true)}
-                title="Permanent. For duplicates and junk — archive instead if you might want it back."
+                title="Permanent. For duplicates and junk ,archive instead if you might want it back."
               >
                 <Trash2 className="size-3.5" aria-hidden="true" />
                 Delete
@@ -200,7 +200,7 @@ export function LeadDetail({ lead, stage }: { lead: Lead; stage: PipelineStage |
             
             `subject_line` and `draft_email` used to ride along as hidden
             inputs, so saving the Business-information card re-submitted the
-            whole draft body — and HTML form submission normalises line breaks
+            whole draft body ,and HTML form submission normalises line breaks
             to CRLF, so the value came back differing from the stored LF text.
             `version_lead_draft()` read that as an external edit, created a new
             version and made it active, which silently demoted the approved

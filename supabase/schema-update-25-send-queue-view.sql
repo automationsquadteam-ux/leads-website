@@ -12,7 +12,7 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0035 — the scheduled sender could not see a single lead. Nothing has
+-- 0035 ,the scheduled sender could not see a single lead. Nothing has
 -- auto-sent an initial email since 0028.
 --
 -- Symptom: the cron fires every 3 minutes and reports "Nothing is due,
@@ -27,7 +27,7 @@
 --
 -- and the scheduler runs on the SERVICE-ROLE key, which has no JWT and no
 -- auth.uid(). `is_admin()` is therefore false, and the view returns ZERO ROWS
--- to it — always, for every lead. Verified against the live database:
+-- to it ,always, for every lead. Verified against the live database:
 -- `pipeline_board` returns 0 rows to the service-role client while
 -- `lead_pipeline` returns all 809.
 --
@@ -80,7 +80,7 @@ join public.leads l on l.id = p.lead_id
 where l.status <> 'archived';
 
 comment on view public.lead_send_queue is
-  'Machine-facing send queue for the scheduler. Protected by GRANTS, not by an is_admin() predicate, because the scheduler runs on the service-role key which satisfies no such predicate — that is what made pipeline_board return zero rows to it and stopped every automatic initial send after 0028. Archived leads are already excluded. Never grant this to anon or authenticated.';
+  'Machine-facing send queue for the scheduler. Protected by GRANTS, not by an is_admin() predicate, because the scheduler runs on the service-role key which satisfies no such predicate ,that is what made pipeline_board return zero rows to it and stopped every automatic initial send after 0028. Archived leads are already excluded. Never grant this to anon or authenticated.';
 
 -- Grants are the whole security model for this view.
 revoke all on public.lead_send_queue from anon, authenticated;

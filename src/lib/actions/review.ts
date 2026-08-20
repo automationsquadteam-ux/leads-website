@@ -31,7 +31,7 @@ import type { ActionResult } from './leads';
  *   2. Write to Supabase immediately. There is no draft state held in the
  *      client and no "save all" button; each control commits on its own.
  *
- * There used to be a third beat — push the change outward through
+ * There used to be a third beat ,push the change outward through
  * lib/services/sync to the Google Sheet. The sheet was retired as both the
  * ingestion and the mirror layer on 2026-08-10 (n8n now writes Supabase
  * directly), so Supabase is the only system of record and there is nothing
@@ -67,7 +67,7 @@ async function guard(): Promise<{ ok: true; userId: string } | { ok: false; resu
 
 /**
  * Anything changed on one lead moves a figure on the list and the dashboard —
- * marking an address dead takes Dead Addresses from 19 to 20 — so all three
+ * marking an address dead takes Dead Addresses from 19 to 20 ,so all three
  * are revalidated together rather than leaving the counts stale until a reload.
  */
 function revalidateLead(leadId: string) {
@@ -114,7 +114,7 @@ export async function saveResearch(
    *
    * It used to be written as `research_summary ? now : null`, which had two
    * faults. Saving any research edit while the summary happened to be blank
-   * NULLED the column — destroying the sheet's verdict for a lead that may have
+   * NULLED the column ,destroying the sheet's verdict for a lead that may have
    * had six other research fields filled in. And re-saving unchanged research
    * moved the timestamp forward, so "how long did research take" measured the
    * last time someone opened the form.
@@ -442,7 +442,7 @@ export type PipelineGate = keyof typeof GATE_LABELS;
  * unchecked, on the lead page and in the dashboard alike.
  *
  * The status is written and the trigger derives the flag from it —
- * `email_verified := (status = 'valid')` — so the two can no longer disagree.
+ * `email_verified := (status = 'valid')` ,so the two can no longer disagree.
  * Source and timestamp are stamped here because a status written directly is
  * the "a verifier spoke" path, and the operator IS the verifier in this case.
  */

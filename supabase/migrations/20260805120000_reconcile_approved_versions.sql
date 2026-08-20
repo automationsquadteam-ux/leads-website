@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0022 — Finish reconciling the two records of "approved".
+-- 0022 ,Finish reconciling the two records of "approved".
 --
 -- Migration 0018 aligned them only for leads that had ALREADY been sent. The
 -- rest were left, and the sender has been rejecting them ever since:

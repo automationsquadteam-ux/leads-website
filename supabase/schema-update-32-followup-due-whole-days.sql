@@ -15,7 +15,7 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0042 — a follow-up's due date is a whole calendar day, not a timestamp.
+-- 0042 ,a follow-up's due date is a whole calendar day, not a timestamp.
 --
 -- Reported as: "even if the mail is 3 days old at 3pm, its still 3 days old,
 -- being that concise would have issues down the line, so its supposed to be
@@ -27,12 +27,12 @@
 --
 --   sent_at + make_interval(days => N)
 --
--- — exact timestamp arithmetic, so a follow-up became due at the same
+-- ,exact timestamp arithmetic, so a follow-up became due at the same
 -- MINUTE the previous step went out, N days later. That minute is not a
 -- deliberate choice; it is whatever instant the scheduler happened to reach
 -- that lead at, and since the scheduler paces sends a few minutes apart
 -- (0037's `*/3 * * * *` pacing), a whole day's cohort of due dates ends up
--- scattered across the day at 3-minute intervals — confirmed live: today's
+-- scattered across the day at 3-minute intervals ,confirmed live: today's
 -- follow-up 1s were due starting 14:45 and follow-up 2s starting 15:18, both
 -- stepping by exactly 3 minutes, a direct fossil of whatever pace the
 -- ORIGINAL sends happened to land at, days earlier.
@@ -56,22 +56,22 @@
 -- the calendar day; `+ N` advances N whole days; `at time zone tz` on a date
 -- re-anchors that date's midnight as an instant IN `tz`, producing the
 -- timestamptz that actually gets stored. Net effect: "the Nth day after the
--- day this happened, from its start" — a lead sent at 21:59 and one sent at
+-- day this happened, from its start" ,a lead sent at 21:59 and one sent at
 -- 09:03 the same calendar day both become due at the SAME midnight, N days
 -- later, which is the whole point: the rule is a day count, so leads that
 -- satisfy it on the same day should become due together.
 --
 -- Two functions compute this, not one, and both need the same fix or the
--- app and n8n gain two disagreeing definitions of "N days" — exactly the
+-- app and n8n gain two disagreeing definitions of "N days" ,exactly the
 -- class of bug this project keeps finding (0018, 0022, 0039):
 --
---   sync_pipeline_from_email_log() — fires when THIS APP records a send
+--   sync_pipeline_from_email_log() ,fires when THIS APP records a send
 --     (the Send button, the cron sender). Sets followup1_due on 'initial'
 --     and followup2_due on 'followup1'.
 --
---   sync_pipeline_from_lead() — fires when a lead's INITIAL send is
+--   sync_pipeline_from_lead() ,fires when a lead's INITIAL send is
 --     reported by a direct write to `leads` (n8n, the only other writer
---     since Google Sheets was retired — 0033). Only ever sets
+--     since Google Sheets was retired ,0033). Only ever sets
 --     followup1_due; every follow-up is sent BY this app, so
 --     followup2_due always comes from the function above. Two call sites
 --     inside it compute the same thing (the INSERT and the sheet-wins
@@ -85,7 +85,7 @@
 -- due, not when the sender is allowed to act on it.
 --
 -- `tz` is a literal 'Asia/Karachi', matching this app's own display-timezone
--- default (`DISPLAY_TIME_ZONE` in lib/utils.ts) — deliberately NOT
+-- default (`DISPLAY_TIME_ZONE` in lib/utils.ts) ,deliberately NOT
 -- `sending.working_hours.timezone`, which is a different, independently
 -- configurable setting (live value on this project: 'UTC') answering a
 -- different question ("when is the business open to send"), not "what does
@@ -97,19 +97,19 @@
 -- DELIBERATELY NOT RETROACTIVE
 --
 -- Both functions only ever SET these columns guarded by `coalesce(existing,
--- ...)` — once a due date is written, neither function touches it again. So
+-- ...)` ,once a due date is written, neither function touches it again. So
 -- this migration only changes the computation for the NEXT time each column
 -- gets set: a lead whose initial has not sent yet, or whose follow-up 1 has
 -- not sent yet. Every due date already sitting in the table today keeps its
 -- current (minute-precise) value; nothing already scheduled silently jumps
 -- to a new time. A backfill onto the existing backlog is a separate,
--- explicit follow-up if wanted — recomputing pending due dates changes
+-- explicit follow-up if wanted ,recomputing pending due dates changes
 -- real, currently-scheduled send times and should not happen as a side
 -- effect of a function replacement.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 1. sync_pipeline_from_email_log() — sends this app records.
+-- 1. sync_pipeline_from_email_log() ,sends this app records.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_email_log()
 returns trigger
@@ -167,10 +167,10 @@ end;
 $$;
 
 comment on function public.sync_pipeline_from_email_log() is
-  'Advances the sequence on a recorded send and treats acceptance as proof the address works. Follow-up due dates land on midnight (Asia/Karachi) of the Nth calendar day after the triggering send, not N days from its exact minute (0042) — a day count is a day count, regardless of what minute the previous send happened to land on. A later hard bounce (0016) revises verification to invalid.';
+  'Advances the sequence on a recorded send and treats acceptance as proof the address works. Follow-up due dates land on midnight (Asia/Karachi) of the Nth calendar day after the triggering send, not N days from its exact minute (0042) ,a day count is a day count, regardless of what minute the previous send happened to land on. A later hard bounce (0016) revises verification to invalid.';
 
 -- ---------------------------------------------------------------------------
--- 2. sync_pipeline_from_lead() — an initial send reported by a direct write
+-- 2. sync_pipeline_from_lead() ,an initial send reported by a direct write
 --    to `leads` (n8n). Same day-granular rule, same reason: this is the
 --    other path that can set followup1_due, and it must agree with the one
 --    above or an n8n-sent lead's follow-up would land on a different kind
@@ -244,4 +244,4 @@ end;
 $$;
 
 comment on function public.sync_pipeline_from_lead() is
-  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` — email_versions owns that. followup1_due lands on midnight (Asia/Karachi) of the Nth calendar day after the send, matching sync_pipeline_from_email_log() (0042).';
+  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` ,email_versions owns that. followup1_due lands on midnight (Asia/Karachi) of the Nth calendar day after the send, matching sync_pipeline_from_email_log() (0042).';

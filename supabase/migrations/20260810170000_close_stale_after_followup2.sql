@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0037 — a sequence that ran out closes itself.
+-- 0037 ,a sequence that ran out closes itself.
 --
 -- A lead that received follow-up 2 and never answered has nothing left to do:
 -- `compute_next_step()` already returns `close_workflow` for it. But nothing
@@ -19,12 +19,12 @@
 --
 -- Two conditions in that UPDATE are load-bearing and easy to leave out:
 --
---   replied is null    — as a WHERE clause, not a read-then-write. A reply can
+--   replied is null    ,as a WHERE clause, not a read-then-write. A reply can
 --                        land between a SELECT and an UPDATE, and closing a
 --                        lead that just answered is the one outcome that
 --                        actually loses a conversation.
 --
---   auto_followups     — Pause (`auto_followups = false`) means "not right
+--   auto_followups     ,Pause (`auto_followups = false`) means "not right
 --                        now, try me next quarter" (see "Pause versus close").
 --                        Letting a pause decay into a close on a timer would
 --                        silently destroy a decision somebody made on purpose.

@@ -139,7 +139,7 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
           {/*
             Sending days were HARDCODED to Monday-Friday in the save handler, so
             the value in the database was overwritten every time this form was
-            saved — a setting nobody could change and which silently reverted.
+            saved ,a setting nobody could change and which silently reverted.
             It is a real control now, and the marker below is what makes
             unticking the last day work: an unchecked checkbox is simply absent
             from FormData, so without it "no days" and "this form was not on
@@ -521,7 +521,7 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
 
         `flex-wrap` + `min-w-0` for the same reason as SecretField's header: the
         button is `whitespace-nowrap`, so in a non-wrapping row it held its
-        width and this paragraph took all the squeeze — two or three words per
+        width and this paragraph took all the squeeze ,two or three words per
         line down a narrow column. Wrapping puts the button on its own line on a
         phone and keeps them side by side everywhere else.
       */}

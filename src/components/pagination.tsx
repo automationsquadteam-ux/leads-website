@@ -9,7 +9,7 @@ import { formatNumber } from '@/lib/utils';
 
 // PAGE_SIZES is imported, never re-exported. Re-exporting it from a
 // 'use client' module would hand server components the same client reference
-// that broke /email-logs — see the note in lib/pagination.ts.
+// that broke /email-logs ,see the note in lib/pagination.ts.
 
 export function Pagination({
   page,

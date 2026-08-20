@@ -79,7 +79,7 @@ const leadUpdateSchema = z.object({
    *
    * This action must never write the draft. It used to accept both from hidden
    * inputs on the lead form, which meant every save of the Business-information
-   * card rewrote leads.draft_email with a CRLF-normalised copy of itself — and
+   * card rewrote leads.draft_email with a CRLF-normalised copy of itself ,and
    * `version_lead_draft()` correctly read that as an external edit, spawning a
    * new active version and demoting the approved one.
    *
@@ -208,8 +208,8 @@ export async function sendEmail(id: string, emailType: EmailType = 'initial'): P
  * Delete leads permanently.
  *
  * Archiving is the reversible option and is right for "not now". This is for
- * rows that should never have existed — a duplicate, a test record, junk from a
- * bad import — where leaving them archived means filtering around them forever.
+ * rows that should never have existed ,a duplicate, a test record, junk from a
+ * bad import ,where leaving them archived means filtering around them forever.
  *
  * Every dependent row goes with it. `leads.id` is referenced with ON DELETE
  * CASCADE by email_logs, replies, email_versions, lead_pipeline and
@@ -266,7 +266,7 @@ export async function deleteLeads(ids: string[]): Promise<ActionResult> {
  * **This changes the draft and the approval, and nothing else.** It does not
  * touch the address, the verification verdict, the research or the lead status.
  * Approving is a judgement about the WORDS, and it stays valid whether or not
- * the lead has a usable address yet — a lead can be approved and still never
+ * the lead has a usable address yet ,a lead can be approved and still never
  * reach Ready to Send, because that requires all four pipeline gates.
  *
  * It approves the VERSION rather than setting a status, because
@@ -390,7 +390,7 @@ export async function bulkMarkEmailVerified(ids: string[]): Promise<ActionResult
     message:
       `${n} address${n === 1 ? '' : 'es'} marked verified.` +
       (skipped > 0
-        ? ` ${skipped} skipped — no address, already verified, or proved undeliverable.`
+        ? ` ${skipped} skipped ,no address, already verified, or proved undeliverable.`
         : ''),
   };
 }
@@ -476,6 +476,6 @@ export async function bulkUpdateEmails(
     ok: true,
     message:
       `${saved} address${saved === 1 ? '' : 'es'} saved and set back to never checked.` +
-      (failures.length > 0 ? ` ${failures.length} failed — ${failures.join('; ')}` : ''),
+      (failures.length > 0 ? ` ${failures.length} failed ,${failures.join('; ')}` : ''),
   };
 }

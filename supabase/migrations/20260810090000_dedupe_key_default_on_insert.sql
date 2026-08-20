@@ -1,11 +1,11 @@
 -- ---------------------------------------------------------------------------
--- 0029 — dedupe_key computes itself on INSERT.
+-- 0029 ,dedupe_key computes itself on INSERT.
 --
 -- Every existing writer (the workbook importer, the Google Sheet sync)
 -- computes dedupe_key in TypeScript before the INSERT, via buildDedupeKey()
 -- in lib/import/dedupe.ts. That was fine while Postgres was only ever reached
 -- through those two paths. It stops being fine the moment something else
--- inserts a lead directly — n8n, writing straight to Supabase instead of the
+-- inserts a lead directly ,n8n, writing straight to Supabase instead of the
 -- Google Sheet the CRM used to sync from (2026-08-10: the sheet is being
 -- retired as the ingestion layer).
 --
@@ -13,15 +13,15 @@
 -- insert that leaves it out is simply rejected, and a direct insert that gets
 -- the formula slightly wrong (different case, different trimming, a stray
 -- www.) creates exactly the duplicate-key mess 0028 spent a migration
--- cleaning up — except this time nothing would ever notice, because there is
+-- cleaning up ,except this time nothing would ever notice, because there is
 -- no sheet_row_number pairing to catch it by.
 --
 -- Mirrors buildDedupeKey()'s priority order exactly: email, then website,
 -- then business name + city. Only fires when the caller left dedupe_key
--- blank (NULL or '') — every existing writer, which already computes its own
+-- blank (NULL or '') ,every existing writer, which already computes its own
 -- key, is untouched by this. Website normalization here is deliberately
 -- simpler than the TypeScript version (strip scheme and www, drop a trailing
--- slash, no query string handling) — plpgsql has no URL type — but it agrees
+-- slash, no query string handling) ,plpgsql has no URL type ,but it agrees
 -- with it on every plain "https://example.com" style website already in the
 -- table, which is what matters: the two must never compute two different
 -- keys for the same input.
@@ -65,7 +65,7 @@ end;
 $$;
 
 comment on function public.assign_dedupe_key_on_insert() is
-  'Computes dedupe_key (email > website > name+city, same priority as buildDedupeKey() in lib/import/dedupe.ts) for any INSERT that leaves it blank — the case a direct writer like n8n hits that the sheet sync and the workbook importer never did, since both already set it themselves before the insert.';
+  'Computes dedupe_key (email > website > name+city, same priority as buildDedupeKey() in lib/import/dedupe.ts) for any INSERT that leaves it blank ,the case a direct writer like n8n hits that the sheet sync and the workbook importer never did, since both already set it themselves before the insert.';
 
 drop trigger if exists leads_assign_dedupe_key on public.leads;
 create trigger leads_assign_dedupe_key
@@ -73,4 +73,4 @@ create trigger leads_assign_dedupe_key
   for each row execute function public.assign_dedupe_key_on_insert();
 
 comment on trigger leads_assign_dedupe_key on public.leads is
-  'Fires before leads_rekey_on_email_change (0028) on UPDATE and independently of it — this one only ever runs on INSERT.';
+  'Fires before leads_rekey_on_email_change (0028) on UPDATE and independently of it ,this one only ever runs on INSERT.';

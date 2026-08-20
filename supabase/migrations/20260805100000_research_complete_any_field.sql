@@ -1,9 +1,9 @@
 -- ---------------------------------------------------------------------------
--- 0021 — Research is done when ANY research field is filled in.
+-- 0021 ,Research is done when ANY research field is filled in.
 --
 -- research_complete was driven by `research_summary` alone. But the upstream
 -- enrichment writes seven separate fields, and the summary is only one of them
--- — often the one that is missing:
+-- ,often the one that is missing:
 --
 --     research_summary                   452
 --     website_observations               685
@@ -21,7 +21,7 @@
 -- also meant the next step said "Research Lead" for work already done.
 --
 -- `personalization` is deliberately NOT in the list. It is the one-line hook
--- used in the draft, not research, and 688 of 698 leads have it — including it
+-- used in the draft, not research, and 688 of 698 leads have it ,including it
 -- would make the flag true for essentially everything and stop it meaning
 -- anything at all.
 -- ---------------------------------------------------------------------------

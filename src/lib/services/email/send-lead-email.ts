@@ -59,13 +59,13 @@ export type SendFailureReason =
 const REFUSAL_THROTTLE_HOURS = 6;
 
 /**
- * Record a send that was refused before it ever reached the provider — every
+ * Record a send that was refused before it ever reached the provider ,every
  * branch below used to just `return` here, leaving zero trace in email_logs.
  * That is exactly why a bracketed business name could silently block its own
  * lead for days with nothing in the database to find (0040).
  *
  * `provider` is deliberately left null, unlike a genuine SMTP-level failure
- * (which always carries `provider.id`) — that is how the two are told apart
+ * (which always carries `provider.id`) ,that is how the two are told apart
  * later: null means the send never got that far.
  */
 async function logRefusal(
@@ -148,13 +148,13 @@ export async function sendLeadEmail(
   }
 
   /*
-   * Archiving is documented elsewhere as "a visibility choice" — the pipeline
+   * Archiving is documented elsewhere as "a visibility choice" ,the pipeline
    * row is untouched on purpose, so a merge that archives a duplicate (or any
    * other archive) does not lose its history. But that means nothing else
    * stops it from being sent to: findDueWork() reads lead_pipeline directly
    * and has never checked leads.status, so an archived lead with a live
-   * followup1_due/followup2_due — exactly what `leads:duplicates --merge`
-   * leaves behind on the loser — gets auto-emailed on schedule like any other.
+   * followup1_due/followup2_due ,exactly what `leads:duplicates --merge`
+   * leaves behind on the loser ,gets auto-emailed on schedule like any other.
    * Observed live: 6 of 8 archived duplicate-losers still armed, one of them
    * (Lanka Safe Tours) due in days, most sharing the SURVIVOR's exact address,
    * which is a duplicate send waiting to happen.
@@ -218,7 +218,7 @@ export async function sendLeadEmail(
    * A VERIFIER called this address dead, and a human has since marked it valid.
    * The machine wins.
    *
-   * This is only safe — and only correct — because 0028 resets the verdict when
+   * This is only safe ,and only correct ,because 0028 resets the verdict when
    * the address changes. If the address still is the one that bounced, no
    * override on a contact page should rescue it; if it has been corrected since,
    * email_verifier_status is already NULL and this branch never fires. That is
@@ -318,7 +318,7 @@ export async function sendLeadEmail(
    * to a prospect is that prospect, permanently.
    */
   // The lead's own real values, so a bracketed tag genuinely part of its
-  // name — "Emirates Dermatology & Cosmetology Center [EDCC]" — is not
+  // name ,"Emirates Dermatology & Cosmetology Center [EDCC]" ,is not
   // mistaken for an unfilled `[Business Owner]`. See findUnresolvedPlaceholders.
   const knownValues = [lead.business_name, lead.niche, lead.city, lead.country].filter(
     (v): v is string => Boolean(v),

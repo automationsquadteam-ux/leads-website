@@ -1,12 +1,12 @@
 /**
- * Cloudflare Email Worker — inbound mail transport for the Leads CRM.
+ * Cloudflare Email Worker ,inbound mail transport for the Leads CRM.
  *
  * This is TRANSPORT ONLY. It parses no meaning, matches nothing and decides
  * nothing. It reads the headers, grabs the plain-text body, POSTs both to the
  * CRM, and forwards the message on to a human mailbox so nothing is swallowed.
  *
- * Everything that matters — is this a bounce, an out-of-office or a real reply,
- * and which lead does it belong to — happens in the CRM next to `email_logs`,
+ * Everything that matters ,is this a bounce, an out-of-office or a real reply,
+ * and which lead does it belong to ,happens in the CRM next to `email_logs`,
  * because that is where the Message-IDs we sent are recorded. Splitting that
  * logic across two systems is how you end up with two answers.
  *
@@ -42,7 +42,7 @@
  * - Throwing makes Cloudflare retry the message, so a CRM outage means mail is
  *   redelivered rather than lost. The forward happens BEFORE the POST for that
  *   reason: a retry must never duplicate the copy that reaches your inbox.
- *   Duplicate POSTs are safe — the CRM de-duplicates on Message-ID.
+ *   Duplicate POSTs are safe ,the CRM de-duplicates on Message-ID.
  * - `message.raw` is a stream and can only be consumed once. It is read into a
  *   string here and reused; do not read it twice.
  * - Body extraction is deliberately simple. Full MIME parsing belongs on the
@@ -66,7 +66,7 @@ function collectHeaders(headers) {
  *
  * Prefers the text/plain MIME part. Falls back to everything after the header
  * block, which is correct for a simple non-multipart message and merely noisy
- * for anything else — the CRM strips quoted text and truncates, so noise is
+ * for anything else ,the CRM strips quoted text and truncates, so noise is
  * cheap and a missing body is not.
  */
 function extractText(raw) {

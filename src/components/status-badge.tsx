@@ -45,7 +45,7 @@ export function EmailStatusBadge({ status }: { status: EmailLogStatus }) {
 
 /**
  * Labels for `email_logs.failure_reason` (0040). Keyed loosely by string,
- * not by the `SendFailureReason` union in send-lead-email.ts — that module is
+ * not by the `SendFailureReason` union in send-lead-email.ts ,that module is
  * `server-only` and this file renders in the browser, so importing even a
  * type from it is worth avoiding. An unrecognised or null reason (any row
  * logged before this column existed) falls back to the raw value.

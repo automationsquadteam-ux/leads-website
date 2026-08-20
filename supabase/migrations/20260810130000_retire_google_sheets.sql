@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0033 — the Google Sheet is retired.
+-- 0033 ,the Google Sheet is retired.
 --
 -- n8n now writes leads and drafts straight into Supabase (0029/0031/0032 are
 -- what made that safe), so the sheet is no longer the ingestion layer and no
@@ -17,7 +17,7 @@
 -- They are provenance: 718 of the current leads came in through the sheet, and
 -- the row number is the only record of where each one came from. It is also
 -- still read by `npm run leads:duplicates`, which groups by sheet row to find
--- the 0028 leak pairs — the pattern that grouping by email alone cannot see.
+-- the 0028 leak pairs ,the pattern that grouping by email alone cannot see.
 -- Dropping them would destroy history to save two nullable columns, and
 -- nothing writes to them any more, so they simply stop changing.
 --
@@ -52,7 +52,7 @@ delete from public.settings
 -- revocation this end of it can do.
 --
 -- REVOKE THE KEY AT THE GOOGLE END TOO. Deleting the ciphertext here does not
--- invalidate the service account — delete the key (or the whole service
+-- invalidate the service account ,delete the key (or the whole service
 -- account) in the Google Cloud console, and remove its share from the
 -- spreadsheet. See GUIDE.md section 8.
 -- ---------------------------------------------------------------------------

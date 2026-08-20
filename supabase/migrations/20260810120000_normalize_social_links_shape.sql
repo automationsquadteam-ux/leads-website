@@ -1,10 +1,10 @@
 -- ---------------------------------------------------------------------------
--- 0032 — social_links normalizes to an OBJECT before leads_social_links_is_object
+-- 0032 ,social_links normalizes to an OBJECT before leads_social_links_is_object
 -- sees it.
 --
 -- MUST be pasted AFTER 0031 (20260810110000_normalize_blank_leads_fields.sql).
 -- Both use `create or replace function public.normalize_blank_lead_fields()`
--- on the SAME function name — this migration's version below is a superset
+-- on the SAME function name ,this migration's version below is a superset
 -- (adds the social_links branch, keeps every existing branch unchanged), but a
 -- trigger always runs whatever the function currently resolves to, not a
 -- snapshot from when the trigger was created. Paste 0031 then 0032, in that
@@ -12,7 +12,7 @@
 -- social_links fix would vanish having appeared to apply cleanly.
 --
 -- Root cause: `leads.social_links` is `jsonb not null default '{}'::jsonb`
--- with `check (jsonb_typeof(social_links) = 'object')` — an empty object is
+-- with `check (jsonb_typeof(social_links) = 'object')` ,an empty object is
 -- already fine, always was. What trips the constraint is anything that is
 -- valid jsonb but NOT an object: n8n's "Update a row" node, or the AI step
 -- feeding it, can hand this column a JSON STRING instead of a JSON OBJECT —
@@ -84,7 +84,7 @@ begin
     end if;
 
   elsif jsonb_typeof(new.social_links) <> 'object' then
-    -- Array, number, boolean, or a bare JSON null literal — no sensible
+    -- Array, number, boolean, or a bare JSON null literal ,no sensible
     -- object reading, so it is dropped to empty rather than rejected.
     new.social_links := '{}'::jsonb;
   end if;
@@ -94,7 +94,7 @@ end;
 $$;
 
 comment on function public.normalize_blank_lead_fields() is
-  'Turns an empty/whitespace-only string into NULL for the optional identity fields (0031), and normalizes social_links to a jsonb OBJECT (0032) — a JSON-object-shaped string is unwrapped, other text survives under "_raw", anything else with no sensible object reading becomes {}. Protects any direct writer (n8n) whose shape does not already match what leads_email_format / leads_website_scheme / leads_social_links_is_object require.';
+  'Turns an empty/whitespace-only string into NULL for the optional identity fields (0031), and normalizes social_links to a jsonb OBJECT (0032) ,a JSON-object-shaped string is unwrapped, other text survives under "_raw", anything else with no sensible object reading becomes {}. Protects any direct writer (n8n) whose shape does not already match what leads_email_format / leads_website_scheme / leads_social_links_is_object require.';
 
 -- Trigger already exists from 0031 (before insert or update, same function) —
 -- recreated here too so this migration is self-sufficient regardless of

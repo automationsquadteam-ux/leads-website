@@ -12,7 +12,7 @@ import { cn, formatNumber, formatPercent } from '@/lib/utils';
  * ranked bar list). Every chart ships a visually-hidden <table> so screen
  * readers get the data a chart alone is not accessible.
  *
- * `'use client'` because hovering a point now needs state — everything else
+ * `'use client'` because hovering a point now needs state ,everything else
  * here is still a pure function of its props, same as before. Any server
  * component can still render these directly (Next composes server → client
  * freely); it is only the reverse that is restricted.
@@ -28,7 +28,7 @@ function DataTableFallback({ caption, points }: { caption: string; points: Serie
    * The `sr-only` class goes on a WRAPPER, never on the <table> itself.
    *
    * `sr-only` hides by setting `width: 1px; height: 1px; overflow: hidden`, and
-   * a table refuses to shrink below its min-content width — `width: 1px` on a
+   * a table refuses to shrink below its min-content width ,`width: 1px` on a
    * table is a suggestion it ignores. So this "invisible" fallback was really
    * ~400px wide and absolutely positioned, which pushed the document's
    * scrollWidth past the viewport and gave /analytics and the public page a
@@ -72,7 +72,7 @@ export function ChartEmpty({ message }: { message: string }) {
  *
  * Not a `<foreignObject>` inside the SVG: every chart here uses
  * `preserveAspectRatio="none"`, which stretches the viewBox's x and y axes by
- * DIFFERENT factors to fill a container wider than its own aspect ratio — the
+ * DIFFERENT factors to fill a container wider than its own aspect ratio ,the
  * usual case once a card is any width but 640px. Text inside a `foreignObject`
  * would be stretched by exactly the same non-uniform factor, which reads as
  * subtly warped type. Living outside the SVG, in normal document flow, keeps
@@ -84,7 +84,7 @@ function ChartTooltip({
   above = true,
   children,
 }: {
-  /** Position as a percentage of the wrapping box — tracks the chart's own responsive size for free. */
+  /** Position as a percentage of the wrapping box ,tracks the chart's own responsive size for free. */
   xPct: number;
   yPct: number;
   /** `true` anchors above the point (line charts); `false` sits just below the top edge (multi-series, where no single point owns "the" y). */
@@ -110,13 +110,13 @@ function ChartTooltip({
 }
 
 /**
- * Which data point the pointer is nearest, by X position alone — points are
+ * Which data point the pointer is nearest, by X position alone ,points are
  * evenly spaced along the axis, so this is a straight proportion, no need to
  * walk the coordinate list. Shared by both line charts; a bar list needs no
  * such thing, its rows are already individually hoverable HTML.
  *
  * Reads `clientX` off either a mouse or a touch event so one handler covers
- * both — `onTouchStart`/`onTouchMove` wire to the same function as
+ * both ,`onTouchStart`/`onTouchMove` wire to the same function as
  * `onMouseMove`. Returns null for a touch event with no active touch (the
  * `touchend` case), which callers treat as "stop hovering".
  */
@@ -471,7 +471,7 @@ export function BarList({
 
   const max = maxOverride ?? Math.max(...points.map((p) => p.value), 1);
   // Share of the total is the one stat that is not already sitting next to
-  // every bar as plain text — the actual value already is, always, so this
+  // every bar as plain text ,the actual value already is, always, so this
   // list needs no hover state at all to answer "how many"; the tooltip below
   // exists purely to add the number that was not on screen before.
   const total = points.reduce((sum, p) => sum + p.value, 0);

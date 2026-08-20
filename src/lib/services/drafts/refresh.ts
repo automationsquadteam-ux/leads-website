@@ -14,16 +14,16 @@ import type { EmailType } from '@/lib/supabase/database.types';
  *
  * **Why this has to exist at all.** A template change only affects the next
  * generation. Drafts are written days ahead of the send (that is the whole point
- * of `generateMissingFollowups()` — outreach you can review rather than find out
+ * of `generateMissingFollowups()` ,outreach you can review rather than find out
  * about afterwards), so a fix to the generator leaves every already-written
  * draft holding the old wording, and the scheduler will not rewrite them: it
  * generates a follow-up only when NONE exists. On 2026-08-17 that was 184 of 203
  * active unsent follow-up drafts still telling recipients to "Offer to build a
- * modern website" — copy the generator had stopped producing hours earlier.
+ * modern website" ,copy the generator had stopped producing hours earlier.
  * Without this, the only remedies were 184 individual regenerate clicks or
  * leaving known-bad mail queued.
  *
- * **The service, not the button** — same reasoning as `runDraftSweep()`: the
+ * **The service, not the button** ,same reasoning as `runDraftSweep()`: the
  * Settings button and any script must share one definition of what a stale
  * draft is, or they will drift. Authorization is deliberately NOT here; the
  * caller has earned it.
@@ -43,8 +43,8 @@ import type { EmailType } from '@/lib/supabase/database.types';
  *                                make the CRM misreport its own history.
  *
  *   the fresh draft DIFFERS       Compared, not assumed. This is what makes the
- *                                run idempotent — press it twice and the second
- *                                pass writes nothing — and it is why this
+ *                                run idempotent ,press it twice and the second
+ *                                pass writes nothing ,and it is why this
  *                                function is not tied to one particular bad
  *                                phrase: it asks "would the generator write
  *                                this today?", which stays true for the next
@@ -106,7 +106,7 @@ export async function refreshStaleFollowupDrafts(
   const runId = await startRun('ai', 'refresh_followup_drafts', userId ?? undefined);
 
   /*
-   * `lead_send_queue`, not `lead_pipeline` and not `pipeline_board` — the same
+   * `lead_send_queue`, not `lead_pipeline` and not `pipeline_board` ,the same
    * choice, for the same two reasons, as 0034/0035/0041: the raw table has no
    * status column so archived leads would be included, and the board view is
    * gated `where public.is_admin()`, which the service-role client does not
@@ -150,7 +150,7 @@ export async function refreshStaleFollowupDrafts(
   /*
    * Split before doing any work, so `handWritten` is a real figure rather than
    * a per-iteration skip count. A draft someone edited is not a problem to be
-   * reported — it is the outcome the review step exists to produce.
+   * reported ,it is the outcome the review step exists to produce.
    */
   const candidates: Array<{ leadId: string; type: EmailType; content: string }> = [];
   let handWritten = 0;
@@ -249,7 +249,7 @@ export async function refreshStaleFollowupDrafts(
     : `${refreshed} draft(s) rewritten to the current template, ${unchanged} already current` +
       (handWritten > 0 ? `, ${handWritten} left alone (hand-written or model-written)` : '') +
       (deferred > 0
-        ? `, ${deferred} not reached${stoppedEarly ? ' (ran out of time)' : ' (limit reached)'} — run it again.`
+        ? `, ${deferred} not reached${stoppedEarly ? ' (ran out of time)' : ' (limit reached)'} ,run it again.`
         : '.') +
       (failed > 0 ? ` ${failed} failed.` : '');
 

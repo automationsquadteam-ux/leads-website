@@ -172,7 +172,7 @@ export interface UnverifiedRow {
  * **Never-checked only, by default.** The first version also exported
  * `unknown` and `accept_all` on the theory that a re-run might resolve them.
  * In practice that re-bills every one of those addresses on every export, and
- * a catch-all domain returns catch-all every single time — you pay again for
+ * a catch-all domain returns catch-all every single time ,you pay again for
  * an answer that cannot change.
  *
  * `includeInconclusive` re-checks them deliberately, which is worth doing
@@ -181,7 +181,7 @@ export interface UnverifiedRow {
  *
  * Leads with no address are excluded here, which is the whole point of the
  * export. Note that they also count as `unverified` in the tallies, so the
- * count on a status tile is NOT the number of rows this returns — see
+ * count on a status tile is NOT the number of rows this returns ,see
  * getVerificationCounts(), which separates the two.
  */
 export async function getUnverifiedEmails(
@@ -418,7 +418,7 @@ export async function importVerificationCsv(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Leads with no address at all — export and the matching import              */
+/* Leads with no address at all ,export and the matching import              */
 /* -------------------------------------------------------------------------- */
 
 export interface MissingEmailRow {
@@ -435,7 +435,7 @@ export interface MissingEmailRow {
  *
  * Shared by `missing.csv`'s GET (the download) and `importFoundEmailsCsv()`
  * below (the upload), so the two halves of the round trip always agree on
- * exactly which leads are in play — the same reasoning `pipeline_board` and
+ * exactly which leads are in play ,the same reasoning `pipeline_board` and
  * its counters follow elsewhere in this app. "No address" is the PIPELINE's
  * answer (`lead_pipeline.email_found`), not a raw `leads.email is null`
  * check, so this always matches the "No address" tile and the `?view=
@@ -479,7 +479,7 @@ const CITY_HEADERS = ['city'];
 const COUNTRY_HEADERS = ['country'];
 const NICHE_HEADERS = ['niche'];
 
-/** business_name + city + country + niche, lowercased and trimmed — the same tuple this app already uses to spot duplicate leads (0028). */
+/** business_name + city + country + niche, lowercased and trimmed ,the same tuple this app already uses to spot duplicate leads (0028). */
 function missingEmailMatchKey(
   businessName: string,
   city: string,
@@ -502,13 +502,13 @@ export interface FoundEmailImportSummary {
 /**
  * Apply a "Leads with no address" file the operator filled in by hand.
  *
- * There is no address to match on — that is the entire reason this file
- * exists — so matching falls back to business_name + city + country + niche,
+ * There is no address to match on ,that is the entire reason this file
+ * exists ,so matching falls back to business_name + city + country + niche,
  * exactly as `missing.csv` exported them. A row is only applied when that
  * combination resolves to EXACTLY one lead currently missing an address:
  * zero matches means the row cannot be placed, and more than one means it is
  * ambiguous and is left alone rather than guessed at. The candidate pool is
- * `getLeadsMissingEmail()` — the same leads the file was built from — so a
+ * `getLeadsMissingEmail()` ,the same leads the file was built from ,so a
  * name that happens to collide with a lead that already has an address can
  * never overwrite it.
  */
@@ -541,7 +541,7 @@ export async function importFoundEmailsCsv(text: string): Promise<FoundEmailImpo
     return summary;
   }
   if (nameIndex < 0) {
-    summary.message = 'No business_name column found — is this the "Leads with no address" file?';
+    summary.message = 'No business_name column found ,is this the "Leads with no address" file?';
     return summary;
   }
 

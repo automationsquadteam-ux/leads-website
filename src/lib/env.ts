@@ -63,7 +63,7 @@ export function getCronSecret(): string | null {
  * Shared secret for `/api/inbound`, which the Cloudflare Email Worker calls.
  *
  * Falls back to CRON_SECRET so there is one less thing to configure, but can be
- * set separately — and should be, because this one lives in a Worker deployed
+ * set separately ,and should be, because this one lives in a Worker deployed
  * outside this repo. Rotating a leaked Worker secret should not also mean
  * reconfiguring the scheduler.
  *

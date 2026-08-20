@@ -27,12 +27,12 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0025 — The stage names what is BLOCKING a lead, not the last thing that
+-- 0025 ,The stage names what is BLOCKING a lead, not the last thing that
 --        happened to it. Plus the cleanup that follows from it.
 --
 -- Both derivations were ordered newest-fact-first, so the CASE returned the
 -- LAST gate that had been satisfied. That reads well until the gates stop being
--- satisfied in order, which is exactly what this dataset does — the upstream
+-- satisfied in order, which is exactly what this dataset does ,the upstream
 -- pipeline researches and drafts for leads it never found an address for:
 --
 --     leads with no email address                307
@@ -87,7 +87,7 @@ as $$
 $$;
 
 comment on function public.compute_pipeline_stage(public.lead_pipeline) is
-  'Derives current_stage as the FIRST unmet gate, so a stage names what is blocking the lead. Sent leads stay pinned. The ONE definition — do not re-implement in application code.';
+  'Derives current_stage as the FIRST unmet gate, so a stage names what is blocking the lead. Sent leads stay pinned. The ONE definition ,do not re-implement in application code.';
 
 -- STABLE, not IMMUTABLE: the follow-up arms compare a due date against now().
 create or replace function public.compute_next_step(p public.lead_pipeline)
@@ -194,7 +194,7 @@ comment on function public.set_pipeline_stage() is
 --
 -- The `was_sent` half STAYS. The sheet's "Email sent status" column reaches the
 -- CRM as status='sent', and for the 89 leads n8n emailed that is the only
--- record the send ever happened — there is no email_logs row. Removing it would
+-- record the send ever happened ,there is no email_logs row. Removing it would
 -- lose them.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_lead()
@@ -262,7 +262,7 @@ end;
 $$;
 
 comment on function public.sync_pipeline_from_lead() is
-  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` — email_versions owns that.';
+  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` ,email_versions owns that.';
 
 -- ---------------------------------------------------------------------------
 -- 4. Recompute the stored stage.
@@ -292,8 +292,8 @@ drop view if exists public.analytics_template_performance;
 -- ---------------------------------------------------------------------------
 -- 6. Views nothing reads.
 --
--- The five that only lib/data/dashboard.ts consumed — a module imported by
--- nothing — plus one that never had a consumer at all, plus the category view
+-- The five that only lib/data/dashboard.ts consumed ,a module imported by
+-- nothing ,plus one that never had a consumer at all, plus the category view
 -- that stands between us and dropping the column.
 -- ---------------------------------------------------------------------------
 drop view if exists public.dashboard_overview;
@@ -370,7 +370,7 @@ join public.leads l on l.id = p.lead_id
 where public.is_admin();
 
 comment on view public.pipeline_board is
-  'Admin-only pipeline rows with the derived next_step and verification state. Contains contact data — never grant to anon.';
+  'Admin-only pipeline rows with the derived next_step and verification state. Contains contact data ,never grant to anon.';
 
 grant select on public.pipeline_board to authenticated;
 grant select on public.dashboard_leads_safe to authenticated;

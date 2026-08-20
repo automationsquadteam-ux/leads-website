@@ -5,23 +5,23 @@ import { dayBoundsUtc, DISPLAY_TIME_ZONE } from '@/lib/utils';
 /**
  * A 14-day forward projection of what the scheduled sender will do.
  *
- * Not a second scheduler — the STARTING state reads exactly what
+ * Not a second scheduler ,the STARTING state reads exactly what
  * `findDueWork()` reads: `followup1_due` / `followup2_due` already stored on
  * each lead (0042/0043, whole calendar days in DISPLAY_TIME_ZONE), and the
  * current pool of approved-and-verified initial candidates.
  *
  * From there it DOES simulate forward (revised after direct feedback that a
- * non-cascading version "wasn't what I imagined" — correctly: a send today
+ * non-cascading version "wasn't what I imagined" ,correctly: a send today
  * is a real event with real downstream consequences, and a 14-day window is
  * long enough for those consequences to land inside it). An initial sent on
  * simulated day X schedules a follow-up 1 on day X + `followup1DelayDays`; a
  * follow-up 1 sent on day X schedules a follow-up 2 on day X +
- * `followup2DelayDays` — both read from settings, never hardcoded. Whatever
+ * `followup2DelayDays` ,both read from settings, never hardcoded. Whatever
  * a day's 60-item cap leaves unsent stays in the backlog and keeps its
  * priority over anything that becomes due later, exactly like "overdue"
  * already works for a single day today, just carried across the whole
  * window. Priority is two-level: OLDER due dates before newer ones, and
- * within any one day, follow-up 2 before follow-up 1 before initial — the
+ * within any one day, follow-up 2 before follow-up 1 before initial ,the
  * same order `findDueWork()` uses, just applied across days instead of one.
  *
  * The initial pool is deliberately NOT treated as infinite or self-
@@ -38,13 +38,13 @@ export interface ScheduleDay {
   followup2: number;
   followup1: number;
   initial: number;
-  /** False when this date falls outside sending.working_hours.days — always 0/0/0. */
+  /** False when this date falls outside sending.working_hours.days ,always 0/0/0. */
   isWorkingDay: boolean;
   /**
    * True for today's row only: these are SENDS THAT ACTUALLY HAPPENED, read
    * from email_logs, not a projection. Today is already partly (or fully)
    * spent by the time anyone loads this page, so projecting it would be
-   * predicting the past — and predicting it wrong, since the real day's mix
+   * predicting the past ,and predicting it wrong, since the real day's mix
    * is a fact sitting in the database.
    */
   isActual: boolean;
@@ -55,7 +55,7 @@ export interface EmailScheduleForecast {
   dailyLimit: number;
   followup1DelayDays: number;
   followup2DelayDays: number;
-  /** Sent so far today, in DISPLAY_TIME_ZONE — what's already spent of day one's cap. */
+  /** Sent so far today, in DISPLAY_TIME_ZONE ,what's already spent of day one's cap. */
   alreadySentToday: number;
   /**
    * Observed share of send ATTEMPTS that failed over the recent window, as a
@@ -64,13 +64,13 @@ export interface EmailScheduleForecast {
   failureRate: number;
   /** How many days of history `failureRate` was measured over. */
   failureRateWindowDays: number;
-  /** The initial pool the simulation started from — approved, verified, unsent, right now. */
+  /** The initial pool the simulation started from ,approved, verified, unsent, right now. */
   initialPoolStart: number;
   /** Sending is off entirely, or one/both categories are switched off. */
   paused: boolean;
   autoFollowups: boolean;
   autoSendInitial: boolean;
-  /** Follow-up backlog still pending past the 14-day window — real due dates only, not projected cascades. */
+  /** Follow-up backlog still pending past the 14-day window ,real due dates only, not projected cascades. */
   followupBacklogRemaining: number;
   /** Approved+verified initial candidates the simulation never got to. */
   initialBacklogRemaining: number;
@@ -151,7 +151,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
    *
    * By the time anyone loads this page today is already partly or entirely
    * spent, and the real mix that went out is a fact sitting in email_logs.
-   * Projecting it would be predicting the past — and predicting it wrong,
+   * Projecting it would be predicting the past ,and predicting it wrong,
    * since the projection would re-derive a queue that has already been
    * drained. Verified live: today's row reads 2 follow-up 2, 51 follow-up 1,
    * 7 initial, which is exactly what the send log holds.
@@ -175,13 +175,13 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
   /*
    * (B) SEND FAILURES, MEASURED RATHER THAN ASSUMED.
    *
-   * Applied to FUTURE days only — today is read from the log, so its
+   * Applied to FUTURE days only ,today is read from the log, so its
    * failures are already reflected in what did or didn't send.
    *
    * The mechanic that matters: a failed send does NOT consume the daily
    * cap. `sendsToday()` counts only sent/delivered/opened/clicked, so the
    * scheduler keeps going until it has `dailyLimit` SUCCESSES. What a
-   * failure consumes is a QUEUE ITEM — so the pool drains slightly faster
+   * failure consumes is a QUEUE ITEM ,so the pool drains slightly faster
    * than the send count suggests, rather than the day sending less.
    */
   const failureSince = new Date(Date.now() - FAILURE_WINDOW_DAYS * 86_400_000).toISOString();
@@ -203,7 +203,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
   /**
    * Page through every row of a due-date query.
    *
-   * `.limit(bigNumber)` is NOT a substitute — PostgREST's 1000-row cap is
+   * `.limit(bigNumber)` is NOT a substitute ,PostgREST's 1000-row cap is
    * server-side and silent. See the note on PAGE.
    */
   async function allDueDates(
@@ -228,7 +228,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
         .order(column, { ascending: true })
         .range(from, from + PAGE - 1);
 
-      // A failed page must not read as "no more rows" — that would silently
+      // A failed page must not read as "no more rows" ,that would silently
       // under-forecast, which is the same class of quiet wrongness the
       // 1000-row cap already caused once.
       if (error) throw new Error(error.message);
@@ -271,7 +271,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
     }
     if (candidateIds.length === 0) return 0;
 
-    // Bounded by the candidate list and chunked — never a whole-table scan,
+    // Bounded by the candidate list and chunked ,never a whole-table scan,
     // which is what the readyToSend tile got wrong (79 vs 138).
     const signedOff = new Set<string>();
     for (let i = 0; i < candidateIds.length; i += 300) {
@@ -296,7 +296,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
       allDueDates('followup2_due', 'followup2_sent', 'followup1_sent'),
       allDueDates('followup1_due', 'followup1_sent', 'first_email_sent'),
       initialPool(),
-      // Real follow-up backlog past the window — a plain count, no rows needed.
+      // Real follow-up backlog past the window ,a plain count, no rows needed.
       config.outreach.autoFollowups
         ? supabase
             .from('pipeline_board')
@@ -320,7 +320,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
    *
    * When an email is sent, `sync_pipeline_from_email_log()` immediately
    * writes the next step's due date. So every consequence of every send that
-   * has ALREADY happened — including today's — is sitting in these columns
+   * has ALREADY happened ,including today's ,is sitting in these columns
    * before this function runs. Verified live: today's 51 follow-up 1 sends
    * appear as 50 rows of `followup2_due` on today+2, and today's 7 initial
    * sends appear as 7 rows of `followup1_due` on today+7. Cascading today's
@@ -349,7 +349,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
     const isWorkingDay = config.sending.workingHours.days.includes(weekdayOf(date));
 
     // Newly-due items join the backlog regardless of whether today is a
-    // working day — a due date does not un-happen because sending paused
+    // working day ,a due date does not un-happen because sending paused
     // that day, it just piles up, same as a real overdue backlog does.
     f2Backlog += f2DueOnDay.get(dayIndex) ?? 0;
     f1Backlog += f1DueOnDay.get(dayIndex) ?? 0;
@@ -357,7 +357,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
     /*
      * Day 0 is history, not a forecast: report what the send log actually
      * holds and move on. Its consequences are already in the due-date
-     * columns read above, so nothing is cascaded from it here — doing so
+     * columns read above, so nothing is cascaded from it here ,doing so
      * would double-count today's 51 follow-up 1 sends against the 50
      * `followup2_due` rows they already created.
      *
@@ -415,7 +415,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
 
     /*
      * Cascade forward from what this day PROJECTS sending. Only successful
-     * sends schedule a next step — a failed send never writes a due date,
+     * sends schedule a next step ,a failed send never writes a due date,
      * which is why these use the send counts and not the drawn counts.
      * Landing beyond the window is tallied, not tracked further; see the
      * module comment on why the lookahead stops there.

@@ -11,18 +11,18 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0036 — the public page counts BUSINESSES REACHED, not messages sent.
+-- 0036 ,the public page counts BUSINESSES REACHED, not messages sent.
 --
 -- `emails_sent` counts rows in email_logs, so a lead that got an initial plus
 -- two follow-ups counts three times. Ten businesses in a full three-step
 -- sequence read as "25 emails sent" on the front page, which describes our
--- activity rather than our reach — and reply rate inherited the same
+-- activity rather than our reach ,and reply rate inherited the same
 -- denominator, so it was "replies per message" and fell as we followed up
 -- more, even though every reply came from the same ten conversations.
 --
 -- Adds `leads_contacted`: distinct non-archived leads with an initial send
 -- recorded. `reply_rate_pct` now divides by it, which turns the number into
--- "of the businesses we reached, how many answered" — the only reply rate a
+-- "of the businesses we reached, how many answered" ,the only reply rate a
 -- cold-outreach funnel should publish.
 --
 -- Counted from `lead_pipeline.first_email_sent`, NOT from

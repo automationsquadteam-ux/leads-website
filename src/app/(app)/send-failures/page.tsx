@@ -20,13 +20,13 @@ export const metadata = { title: 'Send Failures' };
  * "Whenever an email fails, display why" (0040).
  *
  * Before this page existed, only a genuine SMTP-level rejection ever touched
- * email_logs — sendLeadEmail()'s other eight refusal branches (archived, no
+ * email_logs ,sendLeadEmail()'s other eight refusal branches (archived, no
  * email, unverified, no draft, no subject, provider misconfigured, an
  * unresolved placeholder) just returned, leaving no trace anywhere. That is
  * exactly why a bracketed business name could silently block its own lead
  * for days with nothing in the database to find. Every one of those branches
  * now writes a `status='failed'` row with a `failure_reason` code, and this
- * page is where they surface — a "why" summary of the recent past above a
+ * page is where they surface ,a "why" summary of the recent past above a
  * full, paginated history, same shape as the Email Logs page it sits under.
  */
 export default async function SendFailuresPage({
@@ -63,7 +63,7 @@ export default async function SendFailuresPage({
         {/*
           The "why" section. Scoped to the last FAILURE_SUMMARY_WINDOW_DAYS
           (see getEmailFailures) so a cause that was fixed months ago doesn't
-          sit at the top forever — the full list below still has everything.
+          sit at the top forever ,the full list below still has everything.
         */}
         <section aria-label="Why sends are failing">
           <h2 className="mb-2 text-xs font-medium text-muted-foreground">
@@ -93,7 +93,7 @@ export default async function SendFailuresPage({
             <EmptyState
               icon={MailWarning}
               title="No failed sends on record"
-              description="Every refusal sendLeadEmail() makes — archived, unverified, no draft, misconfigured provider, an unresolved placeholder, or a genuine rejection from the provider — is logged here with why."
+              description="Every refusal sendLeadEmail() makes ,archived, unverified, no draft, misconfigured provider, an unresolved placeholder, or a genuine rejection from the provider ,is logged here with why."
             />
           ) : (
             <>
@@ -101,7 +101,7 @@ export default async function SendFailuresPage({
               <ul className="divide-y divide-border md:hidden">
                 {rows.map((log) => (
                   <li key={log.id}>
-                    {/* The whole card is the tap target, same as the dashboard's feed lists — a
+                    {/* The whole card is the tap target, same as the dashboard's feed lists ,a
                         failure is something you go LOOK AT on the lead, not read in place. */}
                     <Link
                       href={`/leads/${log.lead_id}`}
@@ -159,7 +159,7 @@ export default async function SendFailuresPage({
                               Stretched-link trick: the anchor lives in one cell but
                               covers the whole row (`absolute inset-0` against the row's
                               `relative`), so the row is a single tap target without
-                              nesting an <a> around a <tr> — invalid HTML a browser would
+                              nesting an <a> around a <tr> ,invalid HTML a browser would
                               otherwise silently hoist out of the table. `overflow-visible`
                               overrides TD's default clipping, which would otherwise squeeze
                               the tap target down to just this one column.

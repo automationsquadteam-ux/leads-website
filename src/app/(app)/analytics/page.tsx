@@ -61,7 +61,7 @@ export default async function AnalyticsPage() {
 
   /*
    * analytics_generation_daily returns one row per (day, generator), so the
-   * days have to be unioned before they can be plotted — a generator that was
+   * days have to be unioned before they can be plotted ,a generator that was
    * idle on a day has no row at all rather than a zero.
    */
   const generators = [...new Set(data.generation.map((row) => row.generated_by))].slice(0, 4);
@@ -285,7 +285,7 @@ export default async function AnalyticsPage() {
 
         {/*
           Draft output, from analytics_generation_daily. The view has always been
-          queried and never rendered — this row exists partly because removing
+          queried and never rendered ,this row exists partly because removing
           the campaign and template cards left the grid lopsided, and the honest
           way to fill a gap is with a figure that was already being fetched
           rather than a chart invented to occupy space.

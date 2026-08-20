@@ -24,8 +24,8 @@ const STEP_BRIEF: Record<EmailType, string> = {
     'This is the FIRST follow-up, about a week after an email they did not answer. ' +
     'Keep it short four sentences at most. Do not repeat the original pitch or the ' +
     'original opening line. Add one new angle or a concrete example, and close by asking ' +
-    'the same kind of direct question as the first email — what is one problem they wish ' +
-    'technology could solve for them — worded differently than the first email asked it. ' +
+    'the same kind of direct question as the first email ,what is one problem they wish ' +
+    'technology could solve for them ,worded differently than the first email asked it. ' +
     'Make it easy to say no.',
   followup2:
     'This is the FINAL follow-up, a few days after the second email. Two or three ' +

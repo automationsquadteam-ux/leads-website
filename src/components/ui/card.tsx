@@ -7,7 +7,7 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
    * `min-w-0` is load-bearing, not cosmetic.
    *
    * As a grid or flex child a Card defaults to `min-width: auto`, so it refuses
-   * to shrink below its own min-content width — and `truncate` sets
+   * to shrink below its own min-content width ,and `truncate` sets
    * `white-space: nowrap`, whose min-content width is the ENTIRE string. A
    * dashboard list of activity summaries therefore pushed its card to 948px on
    * a 386px screen: the text never truncated, it just made the card wider, and

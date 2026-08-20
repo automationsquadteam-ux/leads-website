@@ -105,15 +105,15 @@ function stripJsonDebris(value: string): string {
      *
      * The odd-count rule above deliberately never touches these, and that left
      * 59 of 92 pending drafts blocked on "The whole body is wrapped in quotes"
-     * — by far the biggest single reason anything was stuck. An even count was
+     * ,by far the biggest single reason anything was stuck. An even count was
      * being read as "these quotes are part of the prose", but a body that both
      * OPENS and CLOSES on a quote is a JSON string value that lost its key.
      *
      * Stripping the outer pair is right even when the email legitimately quotes
      * something: `"I saw your "great" work"` has four quotes, and removing the
      * outermost pair leaves the inner one exactly where it belongs. The case it
-     * would damage — prose that genuinely begins and ends with different
-     * quotations — does not occur in cold outreach, and the length guard keeps
+     * would damage ,prose that genuinely begins and ends with different
+     * quotations ,does not occur in cold outreach, and the length guard keeps
      * it from ever eating a short body whole.
      */
     if (text.length > 20 && text.startsWith('"') && text.endsWith('"')) {
@@ -137,8 +137,8 @@ function stripJsonDebris(value: string): string {
 /**
  * The lead's own facts, for filling placeholders the generator left behind.
  *
- * Passed in rather than looked up, because this module is pure — no database,
- * no network, no `server-only` — so a script, a Server Action and a client
+ * Passed in rather than looked up, because this module is pure ,no database,
+ * no network, no `server-only` ,so a script, a Server Action and a client
  * component all share one definition of what a clean draft is.
  */
 export interface DraftContext {
@@ -188,7 +188,7 @@ function knownValues(context: DraftContext): Map<string, string> {
  * `[specific observation about their website]` have no answer in this database,
  * and inventing one is how "Hi [Owner's Name]" becomes "Hi Sarah" for someone
  * called Ahmed. Those stay, the draft stays blocked, and a human writes the
- * line — which is the entire reason the placeholder check is blocking.
+ * line ,which is the entire reason the placeholder check is blocking.
  *
  * The exception is a SALUTATION built round an unknown name. "Hi [Owner's
  * Name]," carries no information beyond "Hi," so collapsing it loses nothing
@@ -253,7 +253,7 @@ export interface NormalisedDraft {
  *
  *   1. strict JSON.parse
  *   2. tolerant key extraction, for JSON broken by a raw newline inside a
- *      string — which is most of it, because that is exactly what a model does
+ *      string ,which is most of it, because that is exactly what a model does
  *      when it writes a multi-line email into a JSON field
  *   3. give up and treat the input as prose
  *
@@ -357,7 +357,7 @@ export function normaliseDraft(raw: string | null | undefined, fallbackSubject?:
  *
  * The sheet's "Email Header" column has the same problem as the body: it can
  * hold `"header": "Quick idea"` rather than `Quick idea`. Subjects are single
- * line, so this is deliberately stricter than the body cleaner — any newline
+ * line, so this is deliberately stricter than the body cleaner ,any newline
  * that survives is collapsed, because a subject containing one is a parse
  * failure rather than a formatting choice.
  */
@@ -406,7 +406,7 @@ export interface DraftIssue {
 /**
  * Everything wrong with a draft.
  *
- * `[Placeholder]` is deliberately NOT checked here — the send path already
+ * `[Placeholder]` is deliberately NOT checked here ,the send path already
  * refuses those outright (see findUnresolvedPlaceholders), and duplicating the
  * rule would mean two places to keep in step. It IS surfaced, so the approval
  * queue explains why a draft cannot be approved rather than leaving you to

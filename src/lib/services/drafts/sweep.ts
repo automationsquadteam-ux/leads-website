@@ -15,14 +15,14 @@ import { inspectDraft, repairDraft, type DraftContext } from './quality';
  * approve drafts" button in Settings, and the scheduled run at
  * /api/cron/approve-drafts. A cron job that reimplemented any part of this would
  * be a second definition of "is this draft good enough to send", and the two
- * would drift — which is the same argument as the verification gate living in
+ * would drift ,which is the same argument as the verification gate living in
  * sendLeadEmail() rather than in each caller.
  *
  * Authorization is deliberately NOT here. The action calls assertAdmin() and the
  * route checks the CRON_SECRET; this function assumes the caller has earned it.
  *
  * The bottleneck it removes: drafts arrive from the upstream Ollama pipeline as
- * JSON payloads — `{"header": "...", "body": "Hi,\n\n..."}` — and every one had
+ * JSON payloads ,`{"header": "...", "body": "Hi,\n\n..."}` ,and every one had
  * to be opened and hand-edited before it could be approved.
  *
  * Two distinct steps, deliberately not merged:
@@ -38,7 +38,7 @@ import { inspectDraft, repairDraft, type DraftContext } from './quality';
  * Repairing never implies approving. A draft this cannot fully clean is left for
  * a human, which is the whole point of having an approval step.
  *
- * It changes the DRAFT and the APPROVAL and nothing else — not the address, not
+ * It changes the DRAFT and the APPROVAL and nothing else ,not the address, not
  * the verification verdict, not the research, not `leads.status`. A lead with no
  * usable address can be approved here and simply never reaches Ready to Send,
  * because that requires all four pipeline gates.
@@ -64,7 +64,7 @@ export interface DraftSweepSummary {
    */
   approvedLeads: Array<{ leadId: string; businessName: string }>;
   remaining: number;
-  /** Drafts flagged stuck by a previous run (0030) — excluded from `examined`, but not gone. */
+  /** Drafts flagged stuck by a previous run (0030) ,excluded from `examined`, but not gone. */
   flaggedStuck: number;
 }
 
@@ -96,7 +96,7 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
     .eq('active', true)
     .eq('status', 'draft')
     // 0030. A draft already flagged stuck by a previous sweep is left alone
-    // until a NEW version replaces it (an edit, or a repair) — otherwise the
+    // until a NEW version replaces it (an edit, or a repair) ,otherwise the
     // same permanently-blocked handful gets re-parsed and re-reported as
     // newly blocked on every run, four times a day, forever.
     .is('sweep_checked_at', null)
@@ -109,7 +109,7 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
    * The leads themselves, up front. One query per 300, not one per draft.
    *
    * Not just for naming them in the report: the repair fills bracket
-   * placeholders — [City], [Niche], [Business Summary] — from these fields, and
+   * placeholders ,[City], [Niche], [Business Summary] ,from these fields, and
    * that is only possible with the lead in hand. 30 of 92 pending drafts were
    * blocked on placeholders the database could answer.
    */
@@ -167,7 +167,7 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
         type: 'initial',
         subject: result.subject,
         content: result.content,
-        // Provenance records that this is the same generation, cleaned — not a
+        // Provenance records that this is the same generation, cleaned ,not a
         // fresh one. "Which model wrote it" stays answerable.
         generatedBy: draft.generated_by.includes(':cleaned')
           ? draft.generated_by
@@ -232,7 +232,7 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
         }
       }
     } else {
-      // 0030. Still blocked after a repair attempt — flag it so the next run
+      // 0030. Still blocked after a repair attempt ,flag it so the next run
       // (in 7 hours, or the next button click) does not re-parse and
       // re-report the same draft as a fresh block. A human editing it, or a
       // future repair improvement, creates a new version and this clears
@@ -268,7 +268,7 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
 
   /*
    * 0030 excludes flagged drafts from `pending` entirely, so this run's own
-   * numbers can no longer say how many are sitting behind the flag — a sweep
+   * numbers can no longer say how many are sitting behind the flag ,a sweep
    * that flags its way to "0 blocked" every run would otherwise look like a
    * cleared queue instead of a growing pile nobody is looking at.
    */

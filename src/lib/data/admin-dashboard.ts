@@ -36,8 +36,8 @@ type Db = Awaited<ReturnType<typeof createClient>>;
  * Every pipeline count in this file goes through these two, and the reason is
  * the whole of migration 0034.
  *
- * `lead_pipeline` has NO status column — the archive decision lives on `leads`
- * — so a count against it structurally cannot exclude archived rows, while the
+ * `lead_pipeline` has NO status column ,the archive decision lives on `leads`
+ * ,so a count against it structurally cannot exclude archived rows, while the
  * list each tile links to queries `leads` and excludes them by default. That is
  * how Dead Addresses read 12 against a page of 11.
  *
@@ -71,11 +71,11 @@ export interface DashboardWidgets {
 
 export async function getDashboardWidgets(): Promise<DashboardWidgets> {
   const supabase = await createClient();
-  // DISPLAY_TIME_ZONE, not the server's own clock — findDueWork() and
+  // DISPLAY_TIME_ZONE, not the server's own clock ,findDueWork() and
   // getSendQueuePreview() already got this right; this file's "today" was
   // still the server's local day, which on Vercel is UTC. A follow-up due at
   // Karachi midnight sits at 19:00 UTC the day before, so a lead not due
-  // until tomorrow (Karachi) read as "due today" here — up to five hours
+  // until tomorrow (Karachi) read as "due today" here ,up to five hours
   // early, every day, and the gap this actually produced was measured live:
   // 23 leads due at 2026-08-20T19:00:00Z (= 2026-08-21 00:00 PKT, tomorrow)
   // would have shown on this card's "Due Today" tiles a UTC server, while
@@ -208,7 +208,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
      * email_verifier_status was STILL 'invalid' from an earlier verifier
      * check nobody had overruled by correcting the address, only by ticking
      * a box. compute_pipeline_stage() only ever looks at the email_verified
-     * BOOLEAN, so the stage ladder has no way to see that — but
+     * BOOLEAN, so the stage ladder has no way to see that ,but
      * compute_send_priority() does, and sendLeadEmail() refuses these
      * unconditionally regardless of the setting ("the machine wins" once a
      * verifier catches a real bounce; see its own comment). Without this,
@@ -217,21 +217,21 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
      * actually send" (0037) disagreed with this one next to it.
      */
     /*
-     * CANDIDATES FIRST, then their drafts — never the whole table.
+     * CANDIDATES FIRST, then their drafts ,never the whole table.
      *
      * This tile read 79 against 138 genuinely-ready leads for exactly one
      * reason, and it was not a data problem: the version lookup selected
      * EVERY approved+active initial version with no `.limit()`, and
      * PostgREST caps a response at 1000 rows on this project. That cap is
-     * SERVER-side — `.limit(10000)` does not lift it (verified: still 1000)
-     * — and it is silent, so the Set simply came back missing 239 of the
+     * SERVER-side ,`.limit(10000)` does not lift it (verified: still 1000)
+     * ,and it is silent, so the Set simply came back missing 239 of the
      * 1,239 rows that exist, and 59 ready leads fell out of the
      * intersection by row order alone.
      *
      * Inverting the order removes the cap from the picture: the lookup is
      * bounded by the candidate list, chunked so `in()` cannot build a URL
      * PostgREST rejects. `lib/data/leads.ts`'s ready_to_send view had the
-     * identical bug and the identical fix — the two must stay in step, as
+     * identical bug and the identical fix ,the two must stay in step, as
      * this tile links straight to that list.
      */
     (async () => {
@@ -425,23 +425,23 @@ async function attachNames<T extends { lead_id: string }>(
 
 /**
  * What the scheduler would actually attempt next, in the order it would
- * attempt it — not "looks ready", verifiably ready (code only, no
- * migration — 0042 is still the next free number, reserved for whatever
+ * attempt it ,not "looks ready", verifiably ready (code only, no
+ * migration ,0042 is still the next free number, reserved for whatever
  * genuinely needs one next).
  *
  * Deliberately mirrors `findDueWork()` in `outreach/scheduler.ts` rather than
  * calling it: that function sends real email, and a dashboard preview must
  * never share a code path that can. Two definitions of "due" now exist and
- * have to be kept in step by hand if either changes — the trade is a card
+ * have to be kept in step by hand if either changes ,the trade is a card
  * that cannot itself dispatch mail even by accident.
  *
  * Ordering is the point of this rewrite. The previous version sorted
- * everything — initial sends AND both follow-up steps — by one column,
+ * everything ,initial sends AND both follow-up steps ,by one column,
  * `approved_at`, ascending. That timestamp is stamped exactly once, when the
  * lead's INITIAL draft is approved, and never touched again. So a lead
  * sitting in follow-up-2 territory was ordered by how long ago its original
  * draft was approved months earlier, not by anything about its current
- * urgency — and the card could show a brand-new initial candidate above a
+ * urgency ,and the card could show a brand-new initial candidate above a
  * follow-up-2 the real sender would process first, which starves the
  * longest-waiting lead exactly the way `findDueWork()`'s own ordering
  * comment says it must not.
@@ -452,18 +452,18 @@ async function attachNames<T extends { lead_id: string }>(
  * today, then initial sends (verifier tier, then oldest-approved within a
  * tier). The overdue/today split (asked for directly: prioritize whatever
  * was already due before today over today's own fresh batch, step for step)
- * closes a starvation hole plain type-only order had — a healthy day's new
+ * closes a starvation hole plain type-only order had ,a healthy day's new
  * follow-up-2 crop would fully drain the queue before a single OVERDUE
  * follow-up-1 was even shown as next, so a backlog could read as permanently
  * stuck behind "higher priority" work that was actually younger than it.
  *
  * "Today" is a calendar day in DISPLAY_TIME_ZONE (`dayBoundsUtc`), same as
- * `findDueWork()` — not the server's own clock, which may be UTC.
+ * `findDueWork()` ,not the server's own clock, which may be UTC.
  *
  * Initial candidates get one more check `findDueWork()` itself does not
  * need: the active version's OWN status, not just `lead_pipeline.approved`.
  * That flag is derived by OR-ing upward and never resets when a newer,
- * unapproved draft replaces an approved one (0039's root cause) — so
+ * unapproved draft replaces an approved one (0039's root cause) ,so
  * trusting the flag alone can list a lead as "next" that `sendLeadEmail()`
  * would actually refuse. The real scheduler gets away without this check
  * here because `ensureDraft()` / `needsApproval` catch it downstream, in the
@@ -478,7 +478,7 @@ async function getSendQueuePreview(
     .select('value')
     .eq('key', 'outreach.require_verified_email')
     .maybeSingle();
-  // Same default as config.ts's own asBoolean(..., true) — missing means on.
+  // Same default as config.ts's own asBoolean(..., true) ,missing means on.
   const requireVerified = requireVerifiedSetting?.value !== false;
 
   const base = () =>
@@ -497,7 +497,7 @@ async function getSendQueuePreview(
   if (requireVerified) initialQuery = initialQuery.eq('email_verified', true);
 
   /*
-   * End of today, not `now` — kept identical to `findDueWork()`, which this
+   * End of today, not `now` ,kept identical to `findDueWork()`, which this
    * card is documented as a mirror of. A due date is a whole calendar day
    * (0042/0043), so "due today" means due at any hour of that day; bounding
    * the bucket at `now` made this preview disagree with the "Due Today" tile
@@ -584,7 +584,7 @@ export async function getDashboardFeeds(limit = 8): Promise<DashboardFeeds> {
       .order('created_at', { ascending: false })
       .limit(limit),
     // `pipeline_board` carries no status filter of its own (it is gated on
-    // `is_admin()`, not on the lead) — 0034 fixed the COUNT tiles for this;
+    // `is_admin()`, not on the lead) ,0034 fixed the COUNT tiles for this;
     // this list needed the same `.neq('lead_status', 'archived')`, which it
     // never got, so an archived lead could still turn up in the queue below.
     supabase

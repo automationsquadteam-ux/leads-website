@@ -17,7 +17,7 @@
 --     append, and inserting mid-list raises 42P16.
 -- ===========================================================================
 -- ---------------------------------------------------------------------------
--- 0017 — A delivered email verifies the address; expose that on the board.
+-- 0017 ,A delivered email verifies the address; expose that on the board.
 --
 -- Three parts.
 --
@@ -36,7 +36,7 @@
 -- 2. Backfill the leads already sent to.
 --
 -- 3. pipeline_board gains the verification columns so the leads list can show
---    and filter on them. Appended at the END of the view — CREATE OR REPLACE
+--    and filter on them. Appended at the END of the view ,CREATE OR REPLACE
 --    can only append, and inserting mid-list raises 42P16.
 -- ---------------------------------------------------------------------------
 
@@ -122,7 +122,7 @@ update public.lead_pipeline p
 -- ---------------------------------------------------------------------------
 -- 3. pipeline_board: append the verification columns.
 --
--- Columns are listed explicitly, never p.* — a view built with * captures its
+-- Columns are listed explicitly, never p.* ,a view built with * captures its
 -- column list at creation time and silently goes stale after an ALTER TABLE.
 -- ---------------------------------------------------------------------------
 create or replace view public.pipeline_board
@@ -164,4 +164,4 @@ join public.leads l on l.id = p.lead_id
 where public.is_admin();
 
 comment on view public.pipeline_board is
-  'Admin-only pipeline rows with the derived next_step and verification state. Contains contact data — never grant to anon.';
+  'Admin-only pipeline rows with the derived next_step and verification state. Contains contact data ,never grant to anon.';

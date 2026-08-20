@@ -151,7 +151,7 @@ async function sendsToday(): Promise<number> {
  * Close leads whose sequence is exhausted.
  *
  * A lead that got follow-up 2 and never answered has nothing left to do —
- * `compute_next_step()` already says `close_workflow` — but nothing ever
+ * `compute_next_step()` already says `close_workflow` ,but nothing ever
  * performed the close, so they accumulated at stage `followup2_sent` inside
  * every figure describing live prospects.
  *
@@ -163,7 +163,7 @@ async function sendsToday(): Promise<number> {
  *
  * `auto_followups` is the other load-bearing condition. Pause means "not right
  * now, try me next quarter"; close means the sequence is over. A timer must
- * not turn one into the other — see "Pause versus close" in GUIDE.md.
+ * not turn one into the other ,see "Pause versus close" in GUIDE.md.
  *
  * Returns the ids closed so the caller can write the audit trail. Never
  * throws: housekeeping failing must not take a sending run down with it.
@@ -216,7 +216,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
    *
    * pipeline_board's body ends in `where public.is_admin()`. Service-role
    * bypasses RLS on a TABLE but satisfies no predicate written into a VIEW, so
-   * that view returns zero rows here — which is exactly how every automatic
+   * that view returns zero rows here ,which is exactly how every automatic
    * initial send silently stopped after 0028. lead_send_queue is protected by
    * grants instead, carries the computed send_priority, and already excludes
    * archived leads.
@@ -242,19 +242,19 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
      * than one just now becoming due, and the type-only order treats them
      * identically. Splitting "already overdue before today" from "newly due
      * today" and interleaving them (F2 overdue, F1 overdue, F2 today, F1
-     * today) fixes that without giving up type priority — follow-up 2 still
+     * today) fixes that without giving up type priority ,follow-up 2 still
      * outranks follow-up 1 at matching age, it just no longer outranks a
      * follow-up 1 that has been waiting since before today started.
      *
      * "Today" is a calendar day in DISPLAY_TIME_ZONE, not the server's own
-     * clock — `dayBoundsUtc` is the same helper the Email Logs date filter
+     * clock ,`dayBoundsUtc` is the same helper the Email Logs date filter
      * uses, for the same reason: the server may run in UTC while "today"
      * means Asia/Karachi's midnight to anyone reading this list.
      *
      * The today bucket ends at END OF TODAY, not at `now`.
      *
      * A due date is a whole calendar DAY (0042/0043). "Due today" therefore
-     * means due, full stop — there is no hour of the day at which a follow-up
+     * means due, full stop ,there is no hour of the day at which a follow-up
      * due today is not yet due. Bounding this at `now` re-introduced exactly
      * the minute-precision those migrations removed, for the 137 pending rows
      * still carrying a pre-0042 minute-precise value: a follow-up whose stored
@@ -264,7 +264,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
      * one.
      *
      * For a row on the current 0043 pattern this changes nothing at all —
-     * midnight is `<= now` at every hour of its own day — so the only rows
+     * midnight is `<= now` at every hour of its own day ,so the only rows
      * affected are the legacy ones, which is the point. It cannot reach into
      * tomorrow either: the upper bound is this calendar day's last
      * millisecond in DISPLAY_TIME_ZONE, so a follow-up due tomorrow stays
@@ -315,7 +315,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
 
     /*
      * No archived filter needed here any more: lead_send_queue excludes them.
-     * It matters — archiving never touches the pipeline row (it is "a
+     * It matters ,archiving never touches the pipeline row (it is "a
      * visibility choice"), so a follow-up due before the archive stays due
      * after it, and a `leads:duplicates --merge` loser shares the SURVIVOR's
      * exact address. That was an unattended second send to the same inbox.
@@ -338,12 +338,12 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
      * longest-approved goes first. Ordering only, never a gate: an address
      * confirmed from the company's own website is worth mailing, it just waits
      * behind the ones a verifier proved. `compute_send_priority()` is the one
-     * definition — do not re-derive it here.
+     * definition ,do not re-derive it here.
      *
      * Read from lead_send_queue: it computes the priority AND is readable by
      * the service-role key. `pipeline_board` computes the same priority but is
      * gated `where public.is_admin()`, which a service-role connection never
-     * satisfies — see 0035. Using it here returned zero rows on every run.
+     * satisfies ,see 0035. Using it here returned zero rows on every run.
      */
     const admin = createServiceClient();
     let query = admin
@@ -493,14 +493,14 @@ export async function runOutreachCycle(
    * Configurable because the ceiling is the hosting platform's, not ours: a
    * Vercel Hobby function is killed at 60s, Pro allows up to 300. With a 90s
    * gap and a 50s budget exactly one email goes per run, so the CRON FREQUENCY
-   * is what paces bulk sending — see the note in the cron route.
+   * is what paces bulk sending ,see the note in the cron route.
    */
   const maxRuntimeMs = options.maxRuntimeMs ?? config.outreach.maxRuntimeSeconds * 1000;
 
   /*
    * Every return path goes through here, which is what makes the close sweep
    * reportable. It runs before most of the guards, so a run that then bails on
-   * "Nothing is due" may still have closed leads — and a housekeeping action
+   * "Nothing is due" may still have closed leads ,and a housekeeping action
    * nobody is told about is indistinguishable from a bug when 56 leads quietly
    * leave the dashboard.
    */
@@ -528,7 +528,7 @@ export async function runOutreachCycle(
    * narrows when leads can be closed.
    *
    * It IS below `sending.paused`, because that switch is documented as a
-   * global kill switch — an operator who pauses expects the whole machine to
+   * global kill switch ,an operator who pauses expects the whole machine to
    * stop, not just the part that sends.
    *
    * Skipped on a dry run: a dry run reports what WOULD happen and must not
@@ -589,7 +589,7 @@ export async function runOutreachCycle(
      * Checked ahead of every send including the first of a run, and measured
      * against the last email that actually left (see gapRemainingMs). Doing it
      * afterwards only paces sends within one run, so two runs back to back —
-     * or a "Run now" during a scheduled run — would fire two emails seconds
+     * or a "Run now" during a scheduled run ,would fire two emails seconds
      * apart however large the setting.
      *
      * The queue mixes initial emails and follow-ups, so the gap applies between
@@ -601,7 +601,7 @@ export async function runOutreachCycle(
       const budgetLeft = maxRuntimeMs - (Date.now() - started);
       if (waitMs > budgetLeft) {
         // Waiting would outlive the request. Stop cleanly and let the next run
-        // pick it up — the gap is measured from the database, so nothing is
+        // pick it up ,the gap is measured from the database, so nothing is
         // lost by stopping here.
         summary.notes.push(
           `Next send is ${Math.ceil(waitMs / 1000)}s away (minimum gap of ${config.sending.minGapSeconds}s). Left for the next run.`,
@@ -674,7 +674,7 @@ export async function runOutreachCycle(
   /*
    * The failure reason goes IN THE MESSAGE, not just in `summary.notes`.
    *
-   * Every one of `summary.notes` was already computed above — `ensureDraft()`
+   * Every one of `summary.notes` was already computed above ,`ensureDraft()`
    * and `sendLeadEmail()` both return a specific, human-readable reason, and
    * this loop dutifully pushes `${leadId}: ${reason}` for every failure. But
    * only one caller (the Settings "Run now" button) ever read that array back

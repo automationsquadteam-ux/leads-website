@@ -7,7 +7,7 @@ import { runDraftSweep } from '@/lib/services/drafts/sweep';
 /**
  * Scheduled draft clean-and-approve.
  *
- * Exactly what the "Clean and approve drafts" button in Settings does — same
+ * Exactly what the "Clean and approve drafts" button in Settings does ,same
  * `runDraftSweep()`, same repair rules, same approval bar, same row in
  * `integration_runs`. Pressing the button and letting the schedule fire are
  * indistinguishable afterwards, which is the point: a cron job with its own idea
@@ -17,7 +17,7 @@ import { runDraftSweep } from '@/lib/services/drafts/sweep';
  *                  Authorization: Bearer <CRON_SECRET>
  *                  0 0,7,14,21 * * *
  *
- * Cron cannot express "every 7 hours" — `0 * / 7 * * *` restarts the count at
+ * Cron cannot express "every 7 hours" ,`0 * / 7 * * *` restarts the count at
  * midnight, so it fires at 00, 07, 14, 21 and then waits three hours rather than
  * seven. The explicit hour list above is the same four times and says outright
  * what it does. Four passes a day over a queue that only grows when the sheet
@@ -49,7 +49,7 @@ async function handle(request: NextRequest) {
        * a Vercel Hobby function is killed at 60s, and a sweep that stops itself
        * cleanly is worth far more than one cut off part-way through writing a
        * version. Whatever it does not reach stays in the queue for the next run
-       * — there are four a day, and the button is always there for a backlog.
+       * ,there are four a day, and the button is always there for a backlog.
        */
       maxRuntimeMs: 50_000,
     });

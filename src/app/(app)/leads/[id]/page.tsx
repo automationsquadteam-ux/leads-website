@@ -108,7 +108,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         A grid child defaults to `min-width: auto`, meaning it refuses to shrink
         below its widest unbreakable content. One long draft body, email address
         or generated_by string therefore widened the column, which widened the
-        grid past the viewport — and because `main` clips with
+        grid past the viewport ,and because `main` clips with
         `overflow-x-hidden` rather than scrolling, the right-hand edge of every
         card was cut off and unreachable. The Save / Cancel row sits at
         `justify-end`, so the button you most need was the first thing to

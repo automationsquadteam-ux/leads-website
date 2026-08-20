@@ -13,8 +13,8 @@ import { PIPELINE_STAGES, type PipelineStage } from '@/lib/supabase/database.typ
  * so an empty result is predictable before you click.
  *
  * This used to filter `leads.status`, a label somebody sets. It disagreed with
- * the pipeline constantly — 472 leads read `status = 'researching'` while 695
- * had research complete — so filtering by it found the wrong leads. The stage is
+ * the pipeline constantly ,472 leads read `status = 'researching'` while 695
+ * had research complete ,so filtering by it found the wrong leads. The stage is
  * derived from what is actually true, and it is what every dashboard tile counts,
  * so the filter and the tiles now describe the same thing.
  */
@@ -76,7 +76,7 @@ export function FilterPanel({
               /*
                * `lead_stage_counts` is a GROUP BY view, so a stage with
                * genuinely zero leads (active or archived) produces no row at
-               * all — not a row reading 0. Falling back to 0 here means an
+               * all ,not a row reading 0. Falling back to 0 here means an
                * honestly-empty stage still reads "0" instead of
                * vanishing, which is what made Researching / Needs Draft /
                * Draft Ready show a blank cell next to Dead Address's real 0:

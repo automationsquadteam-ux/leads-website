@@ -582,7 +582,7 @@ export interface Database {
        * 0035. Machine-facing send queue for the scheduler.
        *
        * Exists because `pipeline_board` is gated `where public.is_admin()`,
-       * which the service-role key never satisfies — it bypasses RLS on a
+       * which the service-role key never satisfies ,it bypasses RLS on a
        * table, but a predicate in a view body is an ordinary WHERE clause.
        * That returned zero rows to the scheduler and stopped every automatic
        * initial send after 0028. This view is protected by grants instead
@@ -713,7 +713,7 @@ export interface Database {
           reply_rate_pct: number | null;
           avg_response_hours: number | null;
           dead_email: number;
-          /** 0036. Distinct non-archived leads with an initial send — businesses reached, not messages sent. */
+          /** 0036. Distinct non-archived leads with an initial send ,businesses reached, not messages sent. */
           leads_contacted: number;
         };
         Relationships: [];

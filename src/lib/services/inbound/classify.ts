@@ -151,7 +151,7 @@ export function classifyKind(raw: RawInbound): InboundKind {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Sentiment — rules first                                                     */
+/* Sentiment ,rules first                                                     */
 /* -------------------------------------------------------------------------- */
 
 const UNSUBSCRIBE_PATTERNS = [

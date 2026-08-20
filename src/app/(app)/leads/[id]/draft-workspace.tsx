@@ -50,7 +50,7 @@ interface Props {
   leadId: string;
   /**
    * The lead's own real values, threaded down to the placeholder check so a
-   * bracketed tag genuinely part of its name — "…Center [EDCC]" — is not
+   * bracketed tag genuinely part of its name ,"…Center [EDCC]" ,is not
    * flagged as an unfilled `[Business Owner]`. Same context the send path and
    * the sweep use (0040); without it here the review UI would show a blocking
    * warning for a draft that sends fine, which is the inconsistency this
@@ -91,7 +91,7 @@ export function DraftWorkspace({ leadId, versions, hasEmail, sentTypes, context 
           predictable set of buttons rather than a half-implemented widget.
 
           `overflow-x-auto` because the three tabs total roughly 400px once each
-          carries its version chip and sent icon — wider than a 386px phone. In a
+          carries its version chip and sent icon ,wider than a 386px phone. In a
           plain `flex` they overflowed the card, and the shell clips horizontally
           rather than scrolling, so "Follow-up 2" was simply unreachable. Tabs
           scroll rather than wrap: a wrapped tab strip moves the row the content
@@ -234,7 +234,7 @@ function DraftIssues({
 }
 
 /*
- * This chip describes ONE DRAFT, and a lead has three of them — initial,
+ * This chip describes ONE DRAFT, and a lead has three of them ,initial,
  * follow-up 1, follow-up 2. So it says "Approved" and not "Initial Approved":
  * the latter was applied here by a find-and-replace and read wrong on every
  * follow-up. "Initial approved" is a fact about the LEAD, and lives on the

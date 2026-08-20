@@ -49,7 +49,7 @@ function parseLabel(raw: string): ReplySentiment | null {
 
 /**
  * Ask the configured model. Returns null when the provider is not Ollama, is
- * unreachable, or answers with something unusable — the caller keeps the rule
+ * unreachable, or answers with something unusable ,the caller keeps the rule
  * based guess in every one of those cases, so a model outage degrades the
  * classification rather than blocking ingestion.
  */
@@ -100,7 +100,7 @@ export async function classifyReplyWithModel(
 
   return {
     sentiment: label,
-    // Not a probability the model reported — it does not report one. This is a
+    // Not a probability the model reported ,it does not report one. This is a
     // fixed "a model said so", deliberately below the confidence given to an
     // unsubscribe rule match.
     confidence: 0.7,

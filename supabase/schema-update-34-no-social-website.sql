@@ -12,7 +12,7 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0044 — website rejects social-media links, at insert/update and once
+-- 0044 ,website rejects social-media links, at insert/update and once
 -- retroactively.
 -- ---------------------------------------------------------------------------
 
@@ -51,7 +51,7 @@ end;
 $$;
 
 comment on function public.normalize_blank_lead_fields() is
-  'Turns an empty/whitespace-only string into NULL for the optional identity fields, and a social-media profile URL into NULL for website specifically (0044), before leads_email_format / leads_website_scheme (and dedupe key computation) see the row. Protects any direct writer that sends "" for "no value" instead of omitting the field or sending null — n8n''s direct-insert workflow being the reason this exists — and stops a Facebook/Instagram/etc. profile link from being read as the business''s own site anywhere downstream.';
+  'Turns an empty/whitespace-only string into NULL for the optional identity fields, and a social-media profile URL into NULL for website specifically (0044), before leads_email_format / leads_website_scheme (and dedupe key computation) see the row. Protects any direct writer that sends "" for "no value" instead of omitting the field or sending null ,n8n''s direct-insert workflow being the reason this exists ,and stops a Facebook/Instagram/etc. profile link from being read as the business''s own site anywhere downstream.';
 
 -- ---------------------------------------------------------------------------
 -- Backfill: leads already carrying a social-media link as their "website".

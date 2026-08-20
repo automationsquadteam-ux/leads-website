@@ -8,12 +8,12 @@ import { getLeadsMissingEmail, toCsv } from '@/lib/services/email-verification';
  *
  * Leads with no email address, with what's useful for finding one and a
  * blank `email` column to fill in and hand straight back through the upload
- * below it — `importFoundEmailsCsv()` matches rows on business_name + city +
+ * below it ,`importFoundEmailsCsv()` matches rows on business_name + city +
  * country + niche against `getLeadsMissingEmail()`, the same query this file
  * runs, so the two halves of the round trip can never disagree about which
  * leads are in scope.
  *
- * Website and phone are deliberately NOT columns here — asked for directly,
+ * Website and phone are deliberately NOT columns here ,asked for directly,
  * after they turned out not to be part of how this file actually gets
  * worked. `social` (the first usable link out of `social_links`) stays.
  */

@@ -35,7 +35,7 @@ import {
  * The email gate is a DROPDOWN, not a tick box, because the thing it records has
  * five values and a tick box can show two. Catch-all and unknown rendered as an
  * empty circle indistinguishable from "nobody has checked", so 173 addresses
- * that a verifier had already answered on read as unchecked — on this panel and
+ * that a verifier had already answered on read as unchecked ,on this panel and
  * on the dashboard. It is first because it is the first gate: nothing below it
  * matters until there is an address worth writing to.
  */
@@ -61,8 +61,8 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
    * The verification verdict is CHOSEN here and COMMITTED by the Save button,
    * rather than writing the moment the select changes.
    *
-   * Everything else on this page works that way — Business information, the
-   * research panels, the draft editor all stage an edit and wait for Save — and
+   * Everything else on this page works that way ,Business information, the
+   * research panels, the draft editor all stage an edit and wait for Save ,and
    * a control that saved on change was the odd one out in a way that mattered:
    * marking an address dead removes the lead from every queue and can stop the
    * sender, so brushing the wrong option with a scroll wheel had consequences
@@ -89,7 +89,7 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
    *
    * A "sent" or "replied" stamp is a real instant something happened at, and
    * the minute is part of the fact. A "due" stamp is a whole calendar day
-   * (0042/0043) — the schedule stores it as that day's midnight, so rendering
+   * (0042/0043) ,the schedule stores it as that day's midnight, so rendering
    * it at minute precision produced a countdown to a meaningless boundary:
    * "Follow-up 2 due in 3 minutes" for a lead whose rule is simply "three days
    * after follow-up 1". `day: true` picks the day-granular formatter.
@@ -174,7 +174,7 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
 
           {/*
             What the VERIFIER said, kept separately from what you said. Without
-            this the two are indistinguishable once you override — and the
+            this the two are indistinguishable once you override ,and the
             difference is the whole basis of the send order below.
           */}
           {pipeline.email_verifier_status &&
@@ -247,7 +247,7 @@ export function PipelinePanel({ pipeline }: { pipeline: PipelineBoardRow }) {
         <div className="space-y-2 border-t border-border pt-3">
           {/*
             Two ways to stop emailing someone, and they mean different things.
-            Spelled out because "they replied saying no thanks — do I pause or
+            Spelled out because "they replied saying no thanks ,do I pause or
             close?" is the question this panel gets asked, and a wrong guess
             either keeps mailing someone who declined or buries a lead who only
             asked to be left alone until next quarter.

@@ -12,7 +12,7 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0041 — publish the tables the UI reads, so a change reaches an open page
+-- 0041 ,publish the tables the UI reads, so a change reaches an open page
 -- without somebody pressing refresh.
 --
 -- Asked for as: "data is updated automatically instead of a refresh".
@@ -24,8 +24,8 @@
 -- publication emits nothing, which is why this is a migration and not a
 -- settings toggle in the app.
 --
--- The application side uses these events as a SIGNAL ONLY — "something you
--- are looking at changed" — and then calls Next's router.refresh(), which
+-- The application side uses these events as a SIGNAL ONLY ,"something you
+-- are looking at changed" ,and then calls Next's router.refresh(), which
 -- re-runs the server components and therefore the real data functions in
 -- src/lib/data/. It does NOT patch changed rows into client state.
 --
@@ -35,8 +35,8 @@
 -- needs its ACTIVE version to be approved (0039), the send queue has a
 -- three-part ordering that mirrors findDueWork(). Rebuilding any of that in
 -- a browser to patch a row would be a second implementation of a rule this
--- project has already been burned by duplicating — the same argument the
--- comment on compute_pipeline_stage() makes ("the ONE definition — do not
+-- project has already been burned by duplicating ,the same argument the
+-- comment on compute_pipeline_stage() makes ("the ONE definition ,do not
 -- re-implement in application code"). A refresh costs one re-query and keeps
 -- one definition.
 --
@@ -52,7 +52,7 @@
 -- One honest caveat: for DELETE, Postgres emits only the primary key of the
 -- old row, so Realtime cannot evaluate an RLS policy against it and delivers
 -- deletes to every subscriber of the table. That is acceptable here precisely
--- BECAUSE the client treats events as a signal — it reads no column off the
+-- BECAUSE the client treats events as a signal ,it reads no column off the
 -- payload, so the most anyone learns is "a row with this id went away", and
 -- the pages that subscribe are admin-only at the middleware AND at
 -- requireAdmin() anyway.
@@ -62,7 +62,7 @@
 --
 -- `replica identity full` would put the entire old row in the WAL for every
 -- update and delete. It is what you need when a client diffs old-vs-new to
--- patch its own state — which is exactly what this design does not do. The
+-- patch its own state ,which is exactly what this design does not do. The
 -- default (primary key) is enough to say "this changed", so the WAL stays
 -- small and a bulk update of 500 leads does not multiply into 500 full-row
 -- WAL records for the sake of a signal we would throw away.
@@ -94,7 +94,7 @@ begin
     -- is the table that moves when almost anything happens, so it is the one
     -- that makes the dashboard tiles live.
     'lead_pipeline',
-    -- Sends and, since 0040, refusals — Email Logs and Send Failures.
+    -- Sends and, since 0040, refusals ,Email Logs and Send Failures.
     'email_logs',
     -- Draft history and approvals. Drives the approval queue and the draft
     -- workspace.

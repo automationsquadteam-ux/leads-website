@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0044 — a social-media profile link is not a website, and leads.website was
+-- 0044 ,a social-media profile link is not a website, and leads.website was
 -- treating it as one.
 --
 -- Reported directly: a batch of leads carry `website` values that are
@@ -13,13 +13,13 @@
 -- got caught on the way in.
 --
 -- Fixed at the one point every writer of `leads.website` already passes
--- through — `normalize_blank_lead_fields()`, the same BEFORE trigger 0031
--- added to turn a blank string into NULL — rather than in application code,
+-- through ,`normalize_blank_lead_fields()`, the same BEFORE trigger 0031
+-- added to turn a blank string into NULL ,rather than in application code,
 -- because application code is not the only writer: n8n inserts and updates
 -- `leads` directly, and the workbook importer (`lib/import/normalize.ts`,
 -- given the same check today as a courtesy for an early, visible warning at
 -- import time) is a second, separate path. One rule, enforced once, in the
--- place every writer already goes through — same reasoning as 0021, 0028,
+-- place every writer already goes through ,same reasoning as 0021, 0028,
 -- 0031 and every other centralized gate in this project.
 -- ---------------------------------------------------------------------------
 
@@ -58,7 +58,7 @@ end;
 $$;
 
 comment on function public.normalize_blank_lead_fields() is
-  'Turns an empty/whitespace-only string into NULL for the optional identity fields, and a social-media profile URL into NULL for website specifically (0044), before leads_email_format / leads_website_scheme (and dedupe key computation) see the row. Protects any direct writer that sends "" for "no value" instead of omitting the field or sending null — n8n''s direct-insert workflow being the reason this exists — and stops a Facebook/Instagram/etc. profile link from being read as the business''s own site anywhere downstream.';
+  'Turns an empty/whitespace-only string into NULL for the optional identity fields, and a social-media profile URL into NULL for website specifically (0044), before leads_email_format / leads_website_scheme (and dedupe key computation) see the row. Protects any direct writer that sends "" for "no value" instead of omitting the field or sending null ,n8n''s direct-insert workflow being the reason this exists ,and stops a Facebook/Instagram/etc. profile link from being read as the business''s own site anywhere downstream.';
 
 -- ---------------------------------------------------------------------------
 -- Backfill: leads already carrying a social-media link as their "website".

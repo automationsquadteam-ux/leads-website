@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0020 — How long one scheduled run may take.
+-- 0020 ,How long one scheduled run may take.
 --
 -- The sender waits out `sending.min_gap_seconds` between emails, and that wait
 -- happens inside the HTTP request the cron service made. The ceiling is
@@ -7,7 +7,7 @@
 -- kills a function at 60s, Pro allows up to 300.
 --
 -- 50s is the safe default. With a 90s gap that means exactly one email per run,
--- which is fine — the CRON FREQUENCY is what paces bulk sending, not the length
+-- which is fine ,the CRON FREQUENCY is what paces bulk sending, not the length
 -- of any single run. Raise this towards 280 on Pro to fit several gap waits
 -- into one invocation.
 --

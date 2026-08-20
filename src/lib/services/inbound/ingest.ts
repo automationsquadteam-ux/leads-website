@@ -56,7 +56,7 @@ interface MatchOutcome {
 /**
  * Attribute a message to a lead.
  *
- * Threading first, and it is not merely "more accurate" — it is the only method
+ * Threading first, and it is not merely "more accurate" ,it is the only method
  * that survives the normal case. You email `info@company.com`; the owner reads
  * it and answers from their personal address. From-address matching loses that
  * reply entirely. `In-Reply-To` still carries the Message-ID we recorded on the
@@ -150,7 +150,7 @@ async function applyBounce(raw: RawInbound, leadId: string | null, emailLogId: s
     await recordActivity({
       leadId,
       kind: 'reply_received',
-      summary: 'Hard bounce — address marked invalid',
+      summary: 'Hard bounce ,address marked invalid',
       detail: `From ${raw.from}. The lead is back at the Need Email stage.`,
     });
   }
@@ -299,7 +299,7 @@ export async function ingestInboundMessage(raw: RawInbound): Promise<IngestResul
  * Create the public.replies row and link it back.
  *
  * Shared by automatic ingestion and manual assignment so both produce identical
- * state — the pipeline trigger fires either way, which is what stops follow-ups
+ * state ,the pipeline trigger fires either way, which is what stops follow-ups
  * and feeds every reply figure.
  */
 export async function createReply(input: {

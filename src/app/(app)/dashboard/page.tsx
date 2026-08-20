@@ -248,13 +248,13 @@ export default async function DashboardPage() {
               <div>
                 <CardTitle>Send queue</CardTitle>
                 {/*
-                  Not "what the sender would act on next" any more — that read
+                  Not "what the sender would act on next" any more ,that read
                   as a preview, but it was sorted by when each lead's INITIAL
                   draft was approved (a timestamp that never updates again),
                   so a follow-up waiting weeks could show below a brand-new
                   initial candidate. This is now the real order: follow-up 2s
                   due, then follow-up 1s due, then initial sends by verifier
-                  tier — the exact three-part order the scheduler itself uses.
+                  tier ,the exact three-part order the scheduler itself uses.
                   Empty here with a healthy Approval Queue above means the
                   hold-up IS the Approval Queue, not a bug in the sender.
                 */}
@@ -266,7 +266,7 @@ export default async function DashboardPage() {
                 <EmptyState
                   icon={CalendarClock}
                   title="Nothing due"
-                  description="Nothing is verifiably ready to send right now. If leads are waiting, look at Approval Queue above — that is the usual reason this is empty."
+                  description="Nothing is verifiably ready to send right now. If leads are waiting, look at Approval Queue above ,that is the usual reason this is empty."
                 />
               ) : (
                 <ul className="divide-y divide-border">

@@ -138,7 +138,7 @@
    *
    * On a phone every page could be dragged sideways into empty space: the
    * layout had collapsed to one column correctly, but a single long token —
-   * a curl command, a URL, an email address — kept the document wider than the
+   * a curl command, a URL, an email address ,kept the document wider than the
    * viewport. `overflow-x: clip` on the root stops the drag without creating a
    * scroll container, so `position: sticky` on the topbar keeps working, which
    * `overflow: hidden` here would have broken.

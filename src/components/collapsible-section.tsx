@@ -45,7 +45,7 @@ export function CollapsibleSection({
         It was `shrink-0` next to a `min-w-0 flex-1` title, and every Badge is
         `whitespace-nowrap`. On a 386px screen a badge reading
         "From: send@team-automationsolutions.me" therefore kept its full ~250px
-        and the title absorbed everything left — about 30px, which rendered
+        and the title absorbed everything left ,about 30px, which rendered
         "Integrations" as "Int / eg / rat / io / ns" straight down the card.
         
         `flex-wrap` alone does NOT fix this: the title has `min-w-0`, so the

@@ -14,7 +14,7 @@
  *     name:<name>|<city> last resort
  *
  * A sheet row with no email gets `site:` or `name:`. If the address is filled
- * in later — upstream, or by hand in the CRM — the key is NOT recomputed,
+ * in later ,upstream, or by hand in the CRM ,the key is NOT recomputed,
  * because it is not in REFRESHABLE_FIELDS and nothing else touches it. So two
  * rows for one business can end up with different keys and the same address,
  * and the UNIQUE index is perfectly happy.
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
    *   same email        the classic case: one business, two rows, one address.
    *   same SHEET ROW    two leads pointing at one row of the spreadsheet. This
    *                     is the one grouping by email cannot see, because the
-   *                     addresses DIFFER — it is what editing an email used to
+   *                     addresses DIFFER ,it is what editing an email used to
    *                     cause before 0028, when dedupe_key was left holding the
    *                     old address and the next sync inserted a second lead:
    *

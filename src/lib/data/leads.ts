@@ -108,14 +108,14 @@ export interface LeadListParams {
   verification?: EmailVerificationStatus[];
   /**
    * Archived leads are hidden by default. 'only' shows the archive and nothing
-   * else, which is what you want when reviewing what you put away — 'include'
+   * else, which is what you want when reviewing what you put away ,'include'
    * mixed them into 700 live leads and made them impossible to find.
    */
   archived?: 'exclude' | 'only';
   /**
    * Split by whether a website is on file. Empty means no filter.
    *
-   * Deliberately independent of `stages`/`verification`/`view` — a website is
+   * Deliberately independent of `stages`/`verification`/`view` ,a website is
    * a fact about the LEAD, not a position in the outreach pipeline, so it
    * composes with any of them ("verified AND has a website" is exactly the
    * two filters applied together) rather than being folded into one.
@@ -164,7 +164,7 @@ async function idsForView(
   switch (view) {
     // One stage per view. Sourcing an address and replacing a dead one are
     // different jobs, so 0027 gave them a stage each rather than splitting one
-    // stage on a flag — which is what made the tiles read 307 and 19 against a
+    // stage on a flag ,which is what made the tiles read 307 and 19 against a
     // filter reading 326.
     case 'missing_email':
       query = query.eq('current_stage', 'need_email');
@@ -178,7 +178,7 @@ async function idsForView(
      * caused the "it says verification wasn't done when it was" complaint:
      * every one of the 173 leads here HAS been through a verifier, which came
      * back catch-all or unknown. Counting them as "awaiting verification"
-     * promised a re-run that resolves nothing — a catch-all domain returns
+     * promised a re-run that resolves nothing ,a catch-all domain returns
      * catch-all every single time.
      */
     case 'awaiting_verification':
@@ -205,16 +205,16 @@ async function idsForView(
       /*
        * `current_stage = 'approved'` IS all four gates.
        *
-       * Reaching that stage means every earlier gate was cleared — an address
+       * Reaching that stage means every earlier gate was cleared ,an address
        * exists, EMAIL_VERIFIED IS TRUE, research is done, a draft exists,
-       * and a human signed it off — and that nothing above it has happened yet,
+       * and a human signed it off ,and that nothing above it has happened yet,
        * since sent / replied / closed are pinned higher in the ladder. One
        * equality replaces six conditions that used to be copied between here
        * and the dashboard, out of step twice.
        *
        * "A verifier called it valid" (this comment's old claim) is not the
        * same thing as email_verified = true, and that gap is real: found live,
-       * 3 leads with email_verified = true — a HUMAN ticked it — while
+       * 3 leads with email_verified = true ,a HUMAN ticked it ,while
        * email_verifier_status was still 'invalid' from an earlier verifier
        * check nobody overruled by correcting the address, only by ticking a
        * box. compute_pipeline_stage() only ever reads the boolean, so those 3
@@ -232,12 +232,12 @@ async function idsForView(
        * would once again promise something the sender refuses.
        */
       /*
-       * CANDIDATES FIRST, then their drafts — never the whole table.
+       * CANDIDATES FIRST, then their drafts ,never the whole table.
        *
        * This used to select every approved+active initial version with no
        * `.limit()` and intersect the result. PostgREST caps a response at
        * 1000 rows on this project, and that cap is SERVER-side: it is not
-       * lifted by asking for `.limit(10000)`, and it reports no error — you
+       * lifted by asking for `.limit(10000)`, and it reports no error ,you
        * simply get 1000 rows and a Set that is missing everyone else.
        * Measured live: 1,239 such versions exist, the query returned exactly
        * 1000, and the intersection produced 79 against 138 genuinely-ready
@@ -377,7 +377,7 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
 
   /*
    * Archived means "put this out of the way", so the default list honours that.
-   * Leaving them in made archiving pointless — the row you wanted gone was
+   * Leaving them in made archiving pointless ,the row you wanted gone was
    * still in every count and every page of results.
    *
    * It is the ONE thing `leads.status` is still read for in the UI, because
@@ -395,12 +395,12 @@ export async function getLeads(params: LeadListParams = {}): Promise<LeadListRes
     : query.neq('status', 'archived');
 
   /*
-   * Has a website on file, or not — a fact about the lead, so it filters
+   * Has a website on file, or not ,a fact about the lead, so it filters
    * `leads` directly rather than going through the idFilters intersection
    * above (which is for questions about the PIPELINE: stage, verification,
    * a named view). Applied straight on `query`, the same way `archived` and
    * `search` are, so it combines with every other filter by plain AND and
-   * touches nothing else — "verified and has a website" is just both
+   * touches nothing else ,"verified and has a website" is just both
    * conditions on the one query, not a third mode to keep in sync.
    *
    * `website is null` is the whole check: 0031's normalizer turns a blank
@@ -531,7 +531,7 @@ export async function getLeadDetail(id: string): Promise<LeadDetail> {
  *
  * Counted WITH the archived filter the list is actually using. Reading
  * analytics_stage_distribution instead meant the chip said `Initial Sent 94`
- * and the page it opened showed 93 — one of the two archived leads sits at that
+ * and the page it opened showed 93 ,one of the two archived leads sits at that
  * stage, and the list hides archived by default. A facet that does not answer
  * the same question as the list is worse than no facet.
  */

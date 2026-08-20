@@ -13,13 +13,13 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0034 — an archived lead is counted nowhere.
+-- 0034 ,an archived lead is counted nowhere.
 --
 -- Reported: the Dead Addresses tile read 12 while the list it links to showed
 -- 11. Both were right about their own query. The list resolves ids through
 -- lead_pipeline and then queries `leads`, which excludes archived by default
 -- (0023). Every COUNT, in the views below and in lib/data/admin-dashboard.ts,
--- queried `lead_pipeline` directly — and lead_pipeline HAS NO status COLUMN,
+-- queried `lead_pipeline` directly ,and lead_pipeline HAS NO status COLUMN,
 -- so there was nothing to exclude by. One archived dead address was the whole
 -- difference.
 --
@@ -36,12 +36,12 @@
 -- 724-vs-723 confusion that started the 2026-08-09 audit.
 --
 -- Every view below keeps its exact column list and order, so CREATE OR REPLACE
--- is safe (it can only append, never rename or reorder — see the gotcha table).
+-- is safe (it can only append, never rename or reorder ,see the gotcha table).
 --
 -- `pipeline_board` is deliberately NOT changed: it already exposes
 -- `lead_status`, so its callers filter for themselves, and the leads list needs
 -- to be able to SHOW archived rows when the Archived toggle is on.
--- `lead_stage_counts` is already correct — it has carried both figures since
+-- `lead_stage_counts` is already correct ,it has carried both figures since
 -- 0027 and is the model the rest of this follows.
 -- ---------------------------------------------------------------------------
 
@@ -142,8 +142,8 @@ comment on view public.public_stats_stages is
 -- 3. The opt-in public lead list.
 --
 -- This one is a disclosure fix, not just an arithmetic one: with
--- public.show_leads on, an archived lead — typically a duplicate the admin
--- deliberately took out of circulation — could be published by name on the
+-- public.show_leads on, an archived lead ,typically a duplicate the admin
+-- deliberately took out of circulation ,could be published by name on the
 -- front page.
 -- ---------------------------------------------------------------------------
 create or replace view public.public_stats_leads

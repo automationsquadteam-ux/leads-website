@@ -111,7 +111,7 @@ export function VerificationPanel({
             */}
             <Link
               href="/leads?view=missing_email"
-              title="No address at all. Nothing to verify — these need one found."
+              title="No address at all. Nothing to verify ,these need one found."
               className="rounded-md border border-dashed border-border px-2.5 py-2 transition-colors hover:border-primary hover:bg-surface-hover"
             >
               <span className="block text-xs text-muted-foreground">No address</span>
@@ -169,7 +169,7 @@ export function VerificationPanel({
 
             <p className="text-xs text-muted-foreground">
               The main download contains <strong>only addresses never checked before</strong>, so
-              re-running it never spends a credit twice. Leads with no address are excluded — you
+              re-running it never spends a credit twice. Leads with no address are excluded ,you
               cannot verify one you do not have. The second button deliberately re-checks the{' '}
               {formatNumber(inconclusive)} catch-all and unknown results; worth doing occasionally,
               but a catch-all domain returns catch-all every time, so it usually buys nothing.
@@ -283,7 +283,7 @@ export function VerificationPanel({
 
             <p className="text-xs text-muted-foreground">
               There is no address to match rows on yet, so matching is on business name + city +
-              country + niche exactly as the download had them — leave those columns as they
+              country + niche exactly as the download had them ,leave those columns as they
               were and only fill in <strong>email</strong>. A row that matches more than one lead
               is left alone rather than guessed at. Every address applied here starts as
               &quot;never checked&quot;, same as typing one in on the lead page.
@@ -353,7 +353,7 @@ export function VerificationPanel({
               {sweep.approvedLeads.length > 0 ? (
                 <details className="text-xs">
                   <summary className="cursor-pointer font-medium text-success">
-                    {formatNumber(sweep.approved)} approved — show a sample
+                    {formatNumber(sweep.approved)} approved ,show a sample
                   </summary>
                   <ul className="mt-1 space-y-0.5">
                     {sweep.approvedLeads.map((lead) => (
@@ -370,7 +370,7 @@ export function VerificationPanel({
               {sweep.blockedLeads.length > 0 ? (
                 <details className="text-xs" open>
                   <summary className="cursor-pointer font-medium text-warning">
-                    {formatNumber(sweep.blocked)} need a look — open the list
+                    {formatNumber(sweep.blocked)} need a look ,open the list
                   </summary>
                   <ul className="mt-1 max-h-72 space-y-1 overflow-y-auto pr-1">
                     {sweep.blockedLeads.map((lead) => (
@@ -409,7 +409,7 @@ export function VerificationPanel({
               <code className="font-mono">&quot;</code>, a{' '}
               <code className="font-mono">{'"body": "'}</code> prefix,{' '}
               <code className="font-mono">\n</code> that should be a line break, and code fences.
-              A quote inside the email is left alone — only an unmatched one is treated as debris.
+              A quote inside the email is left alone ,only an unmatched one is treated as debris.
               Each clean is saved as a new version, so the original stays in the history.
             </p>
             <p>
@@ -436,7 +436,7 @@ export function VerificationPanel({
           {/*
             Leads first, drafts second. The badge used to show the draft count
             alone, so 60 emailed leads produced "118 missing" and read like a
-            contradiction — each lead needs two drafts.
+            contradiction ,each lead needs two drafts.
           */}
           <Badge tone={leadsMissingFollowups > 0 ? 'warning' : 'neutral'}>
             {formatNumber(leadsMissingFollowups)} lead{leadsMissingFollowups === 1 ? '' : 's'}
@@ -472,7 +472,7 @@ export function VerificationPanel({
 
           {/*
             Separate button, deliberately. The one above never overwrites
-            anything — that promise is what makes it safe to press — so it can
+            anything ,that promise is what makes it safe to press ,so it can
             only ever fill gaps. Rewriting a draft the template has since
             changed is a different, and destructive-sounding, operation, and it
             should read as one.
@@ -490,7 +490,7 @@ export function VerificationPanel({
 
             <p className="text-xs text-muted-foreground">
               Use this after the wording in the template changes. A draft written days ago keeps
-              whatever the generator said at the time, and the sender will not rewrite it — it only
+              whatever the generator said at the time, and the sender will not rewrite it ,it only
               writes a follow-up when none exists at all. This regenerates the ones that would come
               out differently today. It touches <strong>only</strong> drafts the template itself
               wrote and that have not been sent: anything you edited by hand, anything a model

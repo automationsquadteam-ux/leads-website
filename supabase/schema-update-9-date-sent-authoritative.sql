@@ -16,7 +16,7 @@
 --     the only record that exists
 -- ===========================================================================
 -- ---------------------------------------------------------------------------
--- 0019 — The sheet's "Date Sent" is authoritative for upstream sends.
+-- 0019 ,The sheet's "Date Sent" is authoritative for upstream sends.
 --
 -- Migration 0015 backfilled first_email_sent from imported_at, because the
 -- sheet's Date Sent column was empty at the time. It has since been filled in

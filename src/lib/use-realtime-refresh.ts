@@ -9,14 +9,14 @@ import { createClient } from '@/lib/supabase/client';
  * Live updates, without a second copy of the rules.
  *
  * Every page in this app is a SERVER component: the row it shows comes from
- * `src/lib/data/*`, and those functions are where the rules live — archived
+ * `src/lib/data/*`, and those functions are where the rules live ,archived
  * leads are excluded (0034), Ready to Send needs `send_priority < 9`, an
  * initial send needs its ACTIVE version approved (0039), the send queue has a
  * three-part order that mirrors `findDueWork()`, business names are resolved
  * by a keyed second query.
  *
  * So this hook does NOT patch changed rows into client state. It treats a
- * Realtime event purely as a SIGNAL — "something you are looking at changed" —
+ * Realtime event purely as a SIGNAL ,"something you are looking at changed" —
  * and calls `router.refresh()`, which re-runs those same server components and
  * therefore those same rules. One definition, still in one place.
  *
@@ -28,14 +28,14 @@ import { createClient } from '@/lib/supabase/client';
  * number on a dashboard that nobody notices for a week.
  *
  * `router.refresh()` also preserves client state, which a `location.reload()`
- * would throw away — the leads table keeps its selection and any half-typed
+ * would throw away ,the leads table keeps its selection and any half-typed
  * inline email edit, an open dialog stays open, scroll position holds.
  */
 
 /**
- * Quiet period before refreshing. Long enough that a bulk action — approving
+ * Quiet period before refreshing. Long enough that a bulk action ,approving
  * forty leads, or a send run touching `leads`, `lead_pipeline` and
- * `email_logs` for every message — collapses into ONE refresh instead of one
+ * `email_logs` for every message ,collapses into ONE refresh instead of one
  * per row.
  */
 const COALESCE_MS = 400;
@@ -57,8 +57,8 @@ export function useRealtimeRefresh(tables: readonly string[]): void {
 
   /*
    * Each mount gets its own channel topic. Two subscribers sharing one topic
-   * is a real footgun in supabase-js — the second `subscribe()` on an
-   * identical topic does not get its own subscription — and React Strict Mode
+   * is a real footgun in supabase-js ,the second `subscribe()` on an
+   * identical topic does not get its own subscription ,and React Strict Mode
    * mounts every effect twice in development, which would hit it immediately.
    */
   const instanceId = React.useId();
@@ -66,7 +66,7 @@ export function useRealtimeRefresh(tables: readonly string[]): void {
   /*
    * The dependency is the JOINED string, not the array. Callers pass an inline
    * literal (`tables={['leads', ...]}`), which is a new array identity on
-   * every render — depending on the array itself would tear down and rebuild
+   * every render ,depending on the array itself would tear down and rebuild
    * the websocket subscription on every parent re-render.
    */
   const key = tables.join(',');
@@ -108,7 +108,7 @@ export function useRealtimeRefresh(tables: readonly string[]): void {
 
     const channel = supabase.channel(`realtime-refresh:${instanceId}`);
     for (const table of list) {
-      // INSERT, UPDATE and DELETE alike — all three mean the page is stale.
+      // INSERT, UPDATE and DELETE alike ,all three mean the page is stale.
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, schedule);
     }
 
@@ -117,7 +117,7 @@ export function useRealtimeRefresh(tables: readonly string[]): void {
        * Degrades to exactly the old behaviour. If Realtime is unreachable, or
        * migration 0041 has not been pasted so nothing is published, the page
        * still renders and still updates on navigation and after a server
-       * action — it simply stops updating by itself. Worth one dev-only line
+       * action ,it simply stops updating by itself. Worth one dev-only line
        * so that "why is it not live" is answerable without guessing.
        */
       if (

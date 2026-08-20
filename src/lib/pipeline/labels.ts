@@ -33,7 +33,7 @@ export const STAGE_META: Record<PipelineStage, StageMeta> = {
    * Split out of need_email in 0026/0027.
    *
    * Both stages end in "go and find an address", which is why they shared one
-   * for a while — but the dashboard has always shown them as two tiles, because
+   * for a while ,but the dashboard has always shown them as two tiles, because
    * a lead that was never sourced and a lead whose address bounced are different
    * work. Sharing a stage meant the tiles read 307 and 19 while the stage filter
    * read 326, and nothing on screen explained the arithmetic.
@@ -65,7 +65,7 @@ export const STAGE_META: Record<PipelineStage, StageMeta> = {
   },
   /*
    * "Approved" in this system always means ONE DRAFT was signed off, and this
-   * stage is reached only by the INITIAL one — `lead_pipeline.approved` is set
+   * stage is reached only by the INITIAL one ,`lead_pipeline.approved` is set
    * by the email_versions trigger for type='initial' and by nothing else.
    * Approving a follow-up marks that draft and moves no stage.
    */
@@ -219,7 +219,7 @@ export const VERIFICATION_META: Record<
 /**
  * Send priority, from public.compute_send_priority().
  *
- * Ordering only — nothing here gates a send. An address confirmed from the
+ * Ordering only ,nothing here gates a send. An address confirmed from the
  * company's own website is worth mailing; it simply goes out after the ones a
  * verifier proved, so a bad hand-confirmation costs less reputation.
  *

@@ -16,7 +16,7 @@
 -- end clears the flag for any lead whose only replies were automatic.
 -- ===========================================================================
 -- ---------------------------------------------------------------------------
--- 0016 — Inbound mail: staging, matching, and the auto-reply trigger fix.
+-- 0016 ,Inbound mail: staging, matching, and the auto-reply trigger fix.
 --
 -- Two things here.
 --
@@ -168,7 +168,7 @@ create policy inbound_messages_delete_admin on public.inbound_messages
 -- replies would include a robot.
 --
 -- Under the design above an auto-reply never reaches public.replies at all, so
--- this is belt and braces — but the trigger is what enforces it, and a rule
+-- this is belt and braces ,but the trigger is what enforces it, and a rule
 -- enforced only by the code that happens to call it is not enforced.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_reply()
@@ -215,7 +215,7 @@ update public.lead_pipeline p
 -- ---------------------------------------------------------------------------
 -- Admin-facing view: an inbound message plus the lead it belongs to.
 --
--- Columns listed explicitly, never p.* — a view built with * captures its
+-- Columns listed explicitly, never p.* ,a view built with * captures its
 -- column list at creation and silently goes stale after an ALTER TABLE.
 -- ---------------------------------------------------------------------------
 create or replace view public.inbound_inbox
@@ -242,7 +242,7 @@ left join public.leads l on l.id = m.lead_id
 where public.is_admin();
 
 comment on view public.inbound_inbox is
-  'Admin-only. Inbound mail joined to its lead. Contains sender addresses and message bodies — never grant to anon.';
+  'Admin-only. Inbound mail joined to its lead. Contains sender addresses and message bodies ,never grant to anon.';
 
 revoke all on public.inbound_inbox from anon;
 grant select on public.inbound_inbox to authenticated;

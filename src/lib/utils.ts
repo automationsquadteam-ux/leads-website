@@ -33,7 +33,7 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
  * the recipients, not about who happens to be reading the screen.
  *
  * Written as a literal `process.env.NEXT_PUBLIC_*` read because Next inlines
- * those at build time by textual substitution — destructuring breaks it.
+ * those at build time by textual substitution ,destructuring breaks it.
  */
 export const DISPLAY_TIME_ZONE =
   process.env.NEXT_PUBLIC_DISPLAY_TIMEZONE?.trim() || 'Asia/Karachi';
@@ -42,7 +42,7 @@ export const DISPLAY_TIME_ZONE =
  * Short label appended to times.
  *
  * Hardcoded rather than taken from `timeZoneName: 'short'`, which renders
- * Asia/Karachi as "GMT+5" — accurate but not what anyone calls it, and easy to
+ * Asia/Karachi as "GMT+5" ,accurate but not what anyone calls it, and easy to
  * misread as the UTC the sending window uses.
  */
 export const DISPLAY_TIME_ZONE_LABEL =
@@ -163,12 +163,12 @@ function zoneOffsetString(dateStr: string, zone: string): string | null {
 }
 
 /**
- * Midnight-to-midnight for a calendar date, as UTC instants — in
+ * Midnight-to-midnight for a calendar date, as UTC instants ,in
  * DISPLAY_TIME_ZONE by default, not the server's own clock.
  *
  * A `<input type="date">` value like "2026-08-12" carries no timezone of its
  * own. Every timestamp in this app is shown in DISPLAY_TIME_ZONE, so a date
- * typed into a filter means midnight-to-midnight THERE — not in whatever
+ * typed into a filter means midnight-to-midnight THERE ,not in whatever
  * zone the server process happens to run in, which on Vercel is UTC. Getting
  * this wrong does not error, it just silently shifts the boundary by the
  * zone's offset: for Asia/Karachi (+05:00) that is five hours, enough to
@@ -193,7 +193,7 @@ export function dayBoundsUtc(
 }
 
 /**
- * Today's midnight-to-midnight, in DISPLAY_TIME_ZONE — never falls back to
+ * Today's midnight-to-midnight, in DISPLAY_TIME_ZONE ,never falls back to
  * `now` on its own, so a caller cannot silently treat "no bounds" as "no
  * filter" the way `dayBoundsUtc()`'s null return invites.
  *
@@ -201,10 +201,10 @@ export function dayBoundsUtc(
  * exact three-line computation duplicated between them. Found while chasing
  * a live report ("23 follow-up 2s are due, but the send queue shows none and
  * nothing but initial emails went out"): a THIRD, independent spot —
- * `getDashboardWidgets()` — had drifted from both,
+ * `getDashboardWidgets()` ,had drifted from both,
  * using the server's own local clock via bare `Date.setHours(0,0,0,0)`
  * instead. On Vercel that is UTC, not Asia/Karachi, and the two clocks
- * disagree by up to five hours — a follow-up due at Karachi midnight can
+ * disagree by up to five hours ,a follow-up due at Karachi midnight can
  * read as "due today" on a UTC clock a full day early). One function, so a
  * fourth call site cannot reintroduce the same drift.
  */
@@ -214,7 +214,7 @@ export function todayBoundsUtc(zone: string = DISPLAY_TIME_ZONE): { start: strin
   // dayBoundsUtc only returns null for a malformed date string or an
   // unresolvable zone; todayDateStr is always well-formed (Intl guarantees
   // it) and DISPLAY_TIME_ZONE is a real, validated IANA name, so this can't
-  // actually happen — the fallback exists only so the return type stays
+  // actually happen ,the fallback exists only so the return type stays
   // non-nullable for every caller.
   return bounds ?? { start: new Date().toISOString(), end: new Date().toISOString() };
 }
@@ -222,7 +222,7 @@ export function todayBoundsUtc(zone: string = DISPLAY_TIME_ZONE): { start: strin
 /**
  * The calendar date an instant falls on in a zone, as [year, month, day].
  *
- * Month is 1-based, as Intl reports it — callers doing arithmetic must pass
+ * Month is 1-based, as Intl reports it ,callers doing arithmetic must pass
  * `month - 1` to `Date.UTC`, or a comparison that straddles a month boundary
  * silently gains or loses a day.
  */
@@ -251,7 +251,7 @@ function zoneCalendarDay(date: Date, zone: string): [number, number, number] | n
  * email is three days old", not "this email is three days and four hours old".
  * `formatRelative()` reads the same value at minute precision, so a due date
  * eleven hours out rendered as "in 11 hours" and one three minutes out as
- * "in 3 minutes" — a countdown to a boundary that carries no meaning, and
+ * "in 3 minutes" ,a countdown to a boundary that carries no meaning, and
  * which invited the reading that a follow-up was about to go out at 00:03.
  *
  * Counted as a difference of CALENDAR DAYS in DISPLAY_TIME_ZONE, not as

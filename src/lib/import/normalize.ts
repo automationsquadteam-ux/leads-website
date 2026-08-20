@@ -89,11 +89,11 @@ export function normalizeEmail(value: unknown): EmailResult {
 }
 
 /**
- * A social-media profile is not the business's own website — it is a
+ * A social-media profile is not the business's own website ,it is a
  * SUBSTITUTE for not having one, and `leads.social_links` is where a real
  * profile link belongs. The `leads` table itself enforces this too
  * (`normalize_blank_lead_fields()`, 0044), because this app is not the only
- * writer — n8n inserts and updates `leads.website` directly. This is the
+ * writer ,n8n inserts and updates `leads.website` directly. This is the
  * same rule stated a second time, deliberately, so a bad value is caught
  * (and reported with a warning) at import time rather than only discovered
  * silently blanked out later.

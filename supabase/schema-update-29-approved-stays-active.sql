@@ -12,10 +12,10 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0039 — an approved version stays the active one, and a line ending is not
+-- 0039 ,an approved version stays the active one, and a line ending is not
 -- an edit.
 --
--- Reported as: "I changed the email status and it made another version — the
+-- Reported as: "I changed the email status and it made another version ,the
 -- approved one was 5 Aug, then one more appeared 12 minutes ago."
 --
 -- ---------------------------------------------------------------------------
@@ -25,7 +25,7 @@
 --
 --   1. The lead page's Business-information form carries the whole draft body
 --      in a HIDDEN INPUT (`draft_email`), so it is re-submitted on every save
---      of that card — even a save that only changed the email address.
+--      of that card ,even a save that only changed the email address.
 --   2. HTML form submission normalises line breaks to CRLF. The stored draft
 --      used LF, so the value came back with every "\n" turned into "\r\n".
 --   3. `updateLead()` wrote that to `leads.draft_email`.
@@ -35,14 +35,14 @@
 --   5. `enforce_single_active_version()` then deactivated the approved one.
 --
 -- So saving the form silently replaced an approved draft with a byte-identical
--- copy that nobody had approved — and because the sender requires the ACTIVE
+-- copy that nobody had approved ,and because the sender requires the ACTIVE
 -- version to be approved, those leads stopped being sendable while still
 -- reading `approved` on the pipeline. Measured live: 4 leads, and in all four
 -- the replacement differed from the approved text ONLY by line endings.
 --
 -- The UI half of this fix removes the hidden inputs, so the form stops
 -- round-tripping a draft it does not edit. This migration closes the same hole
--- at the database level, where every writer passes — including n8n, which
+-- at the database level, where every writer passes ,including n8n, which
 -- writes `leads` directly and cannot be fixed from the application.
 --
 -- ---------------------------------------------------------------------------
@@ -55,12 +55,12 @@
 -- 2. A new auto-captured version NO LONGER STEALS `active` from an approved
 --    one. The approved version is the text a human signed off and the text the
 --    sender will actually send, so it stays active until somebody explicitly
---    chooses otherwise. History is still recorded — the new row is inserted,
+--    chooses otherwise. History is still recorded ,the new row is inserted,
 --    just inactive.
 --
 --    This applies ONLY to this trigger, which fires on an incidental write to
---    `leads.draft_email`. Explicit actions — Regenerate, Save draft, activating
---    a version from the history list — go through `createEmailVersion()` and
+--    `leads.draft_email`. Explicit actions ,Regenerate, Save draft, activating
+--    a version from the history list ,go through `createEmailVersion()` and
 --    still activate what they create, because there a human asked for it.
 -- ---------------------------------------------------------------------------
 
@@ -117,14 +117,14 @@ end;
 $$;
 
 comment on function public.version_lead_draft() is
-  'Captures an external edit to leads.draft_email as a new version. Line endings are normalised before comparing, so a form round trip is not an edit, and the new row is left INACTIVE when an approved version already exists — an approved draft stays the one that sends.';
+  'Captures an external edit to leads.draft_email as a new version. Line endings are normalised before comparing, so a form round trip is not an edit, and the new row is left INACTIVE when an approved version already exists ,an approved draft stays the one that sends.';
 
 -- ---------------------------------------------------------------------------
 -- Repair: put the approved version back in charge.
 --
 -- One statement per side, and the deactivate runs FIRST, because
 -- email_versions carries a partial unique index on (lead_id, type) where
--- active — activating the approved row while its usurper is still active
+-- active ,activating the approved row while its usurper is still active
 -- would violate it.
 -- ---------------------------------------------------------------------------
 with stranded as (

@@ -139,7 +139,7 @@ export async function runOutreachNow(dryRun: boolean): Promise<ActionResult> {
     skipped: summary.skipped,
     failed: summary.failed,
     closed: summary.closed,
-    // The full list, not just the one folded into `summary.message` — kept so
+    // The full list, not just the one folded into `summary.message` ,kept so
     // a run that failed on several different leads for different reasons has
     // more than the first one on record.
     notes: summary.notes,
@@ -148,7 +148,7 @@ export async function runOutreachNow(dryRun: boolean): Promise<ActionResult> {
   refreshIntegrationViews();
   revalidatePath('/email-logs');
 
-  // `summary.message` already carries the first failure's reason — see the
+  // `summary.message` already carries the first failure's reason ,see the
   // comment at the bottom of runOutreachCycle(). Appending notes[0] again here
   // would just print it twice.
   return { ok: summary.ok, message: summary.message };

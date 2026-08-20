@@ -15,7 +15,7 @@
 -- never softened by unticking: a hard bounce is evidence.
 -- ===========================================================================
 -- ---------------------------------------------------------------------------
--- 0023 — Ticking "Email verified" IS a verdict.
+-- 0023 ,Ticking "Email verified" IS a verdict.
 --
 -- The relationship between the flag and the status was one-directional:
 --
@@ -24,7 +24,7 @@
 --
 -- so a verifier result updated both, but an admin ticking the box on the lead
 -- page set only `email_verified`. The status stayed `unverified`, the leads
--- table kept showing "Never checked", and the lead stayed in the export — being
+-- table kept showing "Never checked", and the lead stayed in the export ,being
 -- re-billed to a verifier for an address a human had already confirmed.
 --
 -- Made bidirectional. Which side wins is decided by WHICH ONE CHANGED in this

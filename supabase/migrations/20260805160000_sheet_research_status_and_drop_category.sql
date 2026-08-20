@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- 0024 — The sheet's "research status" column decides whether research is done.
+-- 0024 ,The sheet's "research status" column decides whether research is done.
 --
 -- Migration 0021 inferred it from whether any of seven research fields was
 -- filled in. That was a big improvement on "does research_summary exist", but
@@ -128,8 +128,8 @@ update public.lead_pipeline p
 -- `category` is being retired from the sheet.
 --
 -- The COLUMN IS DEPRECATED, NOT DROPPED. It currently holds a real
--- qualification signal on every lead — 348 "Skip", 241 "Needs Automation",
--- 112 "No Website" — and dropping it would destroy that with no way back.
+-- qualification signal on every lead ,348 "Skip", 241 "Needs Automation",
+-- 112 "No Website" ,and dropping it would destroy that with no way back.
 -- Nothing reads or writes it any more: the importer no longer maps it, the
 -- Sheets write-back no longer sends it, and it is gone from the UI.
 --

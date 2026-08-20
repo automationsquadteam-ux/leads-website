@@ -41,7 +41,7 @@ export function MetricCard({
         {/*
           Wraps on a phone, truncates from `sm` up.
           Two-column grid on a 360px screen leaves ~150px per card, which cuts
-          "Initial Approval Queue" to "Initial Appr…" — a label that no longer
+          "Initial Approval Queue" to "Initial Appr…" ,a label that no longer
           says what the number is. On a wide screen the row rhythm matters more
           and every label fits anyway, so truncation returns there.
         */}

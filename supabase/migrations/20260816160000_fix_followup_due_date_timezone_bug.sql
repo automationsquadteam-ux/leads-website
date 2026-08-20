@@ -1,10 +1,10 @@
 -- ---------------------------------------------------------------------------
--- 0043 — 0042's day-truncation formula was wrong: `date AT TIME ZONE zone`
+-- 0043 ,0042's day-truncation formula was wrong: `date AT TIME ZONE zone`
 -- is genuinely ambiguous in Postgres, and it silently resolved to the wrong
 -- meaning.
 --
 -- Reported as: "didn't we change followups to be due by date, not the exact
--- minute — so why does one still say due in 5 hours and 3 hours?" Checked
+-- minute ,so why does one still say due in 5 hours and 3 hours?" Checked
 -- live and the picture was worse than "not applied yet": 0042 WAS applied,
 -- but a fresh throwaway lead sent at a known, deliberately odd instant
 -- (16 Aug, 21:47:13 PKT) computed a due date of **23 Aug, 10:00:00 PKT** —
@@ -16,7 +16,7 @@
 --
 --   ((sent_at at time zone tz)::date + d1) at time zone tz
 --
--- The first `at time zone` is fine — `sent_at` is unambiguously `timestamptz`,
+-- The first `at time zone` is fine ,`sent_at` is unambiguously `timestamptz`,
 -- so `timestamptz AT TIME ZONE zone -> timestamp` is the only possible
 -- reading. The SECOND one is the bug: by that point the expression
 -- `(...)::date + d1` is a bare `date`, and Postgres has BOTH `date ->
@@ -40,30 +40,30 @@
 --      -> final stored instant `2026-08-23T05:00:00Z` = 10:00 PKT.
 --
 -- Two silent implicit casts through UTC, in a row, is exactly a double
--- application of the +5:00 offset — which is exactly the 10-hour gap
+-- application of the +5:00 offset ,which is exactly the 10-hour gap
 -- observed. Neither `tsc` nor a browser could ever have caught this; it is
 -- purely a Postgres operator-resolution quirk, invisible until the DDL is
--- actually executed — which this machine cannot do, so it went unverified
+-- actually executed ,which this machine cannot do, so it went unverified
 -- and shipped wrong. Owning that plainly rather than glossing over it.
 -- ---------------------------------------------------------------------------
 -- THE FIX
 --
 -- Force the correct overload with an EXPLICIT `::timestamp` cast before the
 -- final `AT TIME ZONE`, so there is no `date` operand left for Postgres to
--- resolve ambiguously — only `timestamp AT TIME ZONE zone -> timestamptz`
+-- resolve ambiguously ,only `timestamp AT TIME ZONE zone -> timestamptz`
 -- can apply once the type is exactly `timestamp`:
 --
 --   (((sent_at at time zone tz)::date + d1)::timestamp) at time zone tz
 --
 -- Same principle 0042 already stated (day-granular, midnight of the Nth
 -- day, same two functions, same 'Asia/Karachi' literal for the reasons
--- given there) — only the one cast changes.
+-- given there) ,only the one cast changes.
 -- ---------------------------------------------------------------------------
 -- REPAIR, SCOPED TIGHTLY
 --
 -- Exactly one pending row was found live with the buggy signature. A pending
 -- due date can only be in one of three states: (a) the pre-0042 pattern,
--- exactly `sent_at + N days` — deliberately left alone, same as 0042 itself
+-- exactly `sent_at + N days` ,deliberately left alone, same as 0042 itself
 -- chose; (b) already correct, landing on 00:00:00 PKT; or (c) neither, which
 -- can only mean the buggy 0042 formula touched it. The repair below matches
 -- state (c) only, so it cannot touch a row 0042 never got the chance to
@@ -71,7 +71,7 @@
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 1. sync_pipeline_from_email_log() — sends this app records.
+-- 1. sync_pipeline_from_email_log() ,sends this app records.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_email_log()
 returns trigger
@@ -128,7 +128,7 @@ comment on function public.sync_pipeline_from_email_log() is
   'Advances the sequence on a recorded send and treats acceptance as proof the address works. Follow-up due dates land on midnight (Asia/Karachi) of the Nth calendar day after the triggering send (0042), via an explicit ::timestamp cast before AT TIME ZONE so the date->timestamp/timestamptz cast ambiguity cannot silently pick the wrong overload again (0043). A later hard bounce (0016) revises verification to invalid.';
 
 -- ---------------------------------------------------------------------------
--- 2. sync_pipeline_from_lead() — an initial send reported by a direct write
+-- 2. sync_pipeline_from_lead() ,an initial send reported by a direct write
 --    to `leads` (n8n). Same fix, same two call sites as 0042.
 -- ---------------------------------------------------------------------------
 create or replace function public.sync_pipeline_from_lead()
@@ -196,7 +196,7 @@ end;
 $$;
 
 comment on function public.sync_pipeline_from_lead() is
-  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` — email_versions owns that. followup1_due lands on midnight (Asia/Karachi) of the Nth calendar day after the send, via an explicit ::timestamp cast (0043) so it matches sync_pipeline_from_email_log() exactly.';
+  'Projects lead columns onto the pipeline. Research is complete when the sheet says so (researched_at) OR when any research field is filled. Does NOT touch `approved` ,email_versions owns that. followup1_due lands on midnight (Asia/Karachi) of the Nth calendar day after the send, via an explicit ::timestamp cast (0043) so it matches sync_pipeline_from_email_log() exactly.';
 
 -- ---------------------------------------------------------------------------
 -- 3. Repair the one pending row 0042 computed wrong before this ran.

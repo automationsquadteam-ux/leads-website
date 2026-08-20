@@ -38,7 +38,7 @@ const HEADER_MAP: Record<string, string> = {
 
   'email sent status': 'sent_status',
   // "Email draft Status" was removed from the sheet (2026-08-04). It was mapped
-  // but never read by anything — deriveStatus uses the draft body itself, which
+  // but never read by anything ,deriveStatus uses the draft body itself, which
   // is a fact rather than a label someone remembered to update.
   'email data done': 'draft_done',
   'research status': 'research_status',
@@ -133,8 +133,8 @@ export function mapRow(row: SheetRow, options: MapOptions): MapResult {
    *     {"header": "Quick idea", "body": "Hi,\n\nI came across..."}
    *
    * Unwrapping it here means the CRM stores an email rather than a payload, and
-   * every downstream consumer — the review screen, the sender, the Sheets
-   * write-back — deals in prose. Cleaning it later, per feature, would mean
+   * every downstream consumer ,the review screen, the sender, the Sheets
+   * write-back ,deals in prose. Cleaning it later, per feature, would mean
    * remembering to do it in each one.
    *
    * A draft that is already plain prose passes through untouched, and anything
@@ -158,7 +158,7 @@ export function mapRow(row: SheetRow, options: MapOptions): MapResult {
    * sync_pipeline_from_lead() treats as authoritative.
    *
    * The timestamp is when we LEARNED the research was done, not when it
-   * happened — the sheet does not record that. Date Added is used when
+   * happened ,the sheet does not record that. Date Added is used when
    * available because it is at least bounded by reality; otherwise the import
    * time. An approximate date that makes the flag work beats an exact NULL that
    * leaves 260 finished leads sitting in the research queue.
@@ -234,7 +234,7 @@ export function mapRow(row: SheetRow, options: MapOptions): MapResult {
  *
  * `last_contacted_at` is the one deliberate exception. It carries the sheet's
  * "Date Sent", and for emails sent by the upstream n8n pipeline the sheet is
- * the ONLY record of when that happened — the CRM has no email_logs row for
+ * the ONLY record of when that happened ,the CRM has no email_logs row for
  * them. Without it here, a corrected Date Sent would sync into nothing and the
  * follow-up schedule would stay anchored to the import date instead of the real
  * send date.

@@ -11,8 +11,8 @@ export interface EmailLogRow extends EmailLog {
  * A calendar-date range for `getEmailLogs`, as the raw `YYYY-MM-DD` strings a
  * date `<input>` produces. Either end may be omitted.
  *
- * Interpreted as "select a date" when only one bound is given — that single
- * day, not an open-ended "from here on" or "up to here" — because that is
+ * Interpreted as "select a date" when only one bound is given ,that single
+ * day, not an open-ended "from here on" or "up to here" ,because that is
  * what picking ONE date in a filter like this means. Both bounds together
  * make a period. Neither means all time, which stays the default.
  */
@@ -67,7 +67,7 @@ export async function getEmailLogs(
   /*
    * Filtered on `created_at`, the one column every row has. `sent_at` is only
    * ever set on success (null for queued/failed/bounced), so filtering on it
-   * would drop every failure out of "today" instead of counting it — and the
+   * would drop every failure out of "today" instead of counting it ,and the
    * two are the same instant in all but a vanishingly small number of rows
    * anyway, since a row is inserted 'queued' and updated to its final status
    * moments later in the same request.
@@ -108,7 +108,7 @@ export async function getEmailLogs(
 
   /*
    * The stats row summarises the SAME filtered population the list below it
-   * shows — every attempt in range, not just the successful ones — so the
+   * shows ,every attempt in range, not just the successful ones ,so the
    * two never disagree about what "this time frame" means. Scoped to the
    * same date bounds but NOT to the page: a stat that only covered the
    * current 50 rows would change when you paged, which answers "what's on
@@ -149,7 +149,7 @@ export const FAILURE_SUMMARY_WINDOW_DAYS = 14;
  * Every send refusal (archived, no email, unverified, no draft, no subject,
  * provider misconfigured, unresolved placeholder) and every genuine
  * provider-level rejection, all writing `status='failed'` (0040). Before
- * this, only the provider-level case ever touched email_logs at all — the
+ * this, only the provider-level case ever touched email_logs at all ,the
  * other eight return points in sendLeadEmail() just returned, leaving no
  * trace anywhere.
  *

@@ -19,13 +19,13 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0028 — A verdict belongs to an ADDRESS, and so does a lead's identity.
+-- 0028 ,A verdict belongs to an ADDRESS, and so does a lead's identity.
 --
 -- Two bugs with one root cause: changing `leads.email` left everything that was
 -- true of the OLD address attached to the lead.
 --
 -- ---------------------------------------------------------------------------
--- BUG 1 — editing an email created a duplicate lead on the next sync.
+-- BUG 1 ,editing an email created a duplicate lead on the next sync.
 --
 -- `dedupe_key` is computed once at import and nothing recomputed it. So:
 --
@@ -53,7 +53,7 @@
 -- which is a true and useful thing to say to whoever just typed it.
 --
 -- ---------------------------------------------------------------------------
--- BUG 2 — the verification verdict transferred to an address it was never about.
+-- BUG 2 ,the verification verdict transferred to an address it was never about.
 --
 -- NeverBounce judged info@abc.com. Someone corrects a typo to info@abd.com. The
 -- verdict stayed:
@@ -289,7 +289,7 @@ comment on function public.compute_send_priority(public.lead_pipeline) is
 
 -- ---------------------------------------------------------------------------
 -- 6. Expose it on the board, appended at the end (CREATE OR REPLACE can only
---    add columns there — inserting mid-list raises 42P16).
+--    add columns there ,inserting mid-list raises 42P16).
 -- ---------------------------------------------------------------------------
 drop view if exists public.pipeline_board;
 create view public.pipeline_board
@@ -332,6 +332,6 @@ join public.leads l on l.id = p.lead_id
 where public.is_admin();
 
 comment on view public.pipeline_board is
-  'Admin-only pipeline rows with the derived next_step, verification state and send priority. Contains contact data — never grant to anon.';
+  'Admin-only pipeline rows with the derived next_step, verification state and send priority. Contains contact data ,never grant to anon.';
 
 grant select on public.pipeline_board to authenticated;

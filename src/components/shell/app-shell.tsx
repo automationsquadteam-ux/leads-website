@@ -36,7 +36,7 @@ export function AppShell({
       {/*
         `min-w-0` is the load-bearing class here, not `overflow-x-hidden`.
         A grid or flex child defaults to `min-width: auto`, meaning it refuses to
-        shrink below its widest CONTENT — so one long unbreakable string (a curl
+        shrink below its widest CONTENT ,so one long unbreakable string (a curl
         command, an email address, a URL) silently widened this column, which
         widened the page, which is why every screen could be dragged sideways
         into blank space on a phone while the content itself had gone one-column.

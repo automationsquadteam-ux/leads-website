@@ -72,7 +72,7 @@ export function LeadsTable({
   /*
    * Selected-but-filtered-out rows stay visible until Clear.
    *
-   * The list is a live query, not a snapshot — every filter/stage/verify
+   * The list is a live query, not a snapshot ,every filter/stage/verify
    * param in the URL is re-run on the server on every refresh, on purpose,
    * so the numbers never lie. But that collides with a workflow this table
    * exists to support: select a batch of catch-all addresses, fix one,
@@ -80,7 +80,7 @@ export function LeadsTable({
    * so Mark verified can run on the corrected address next), which is a
    * DIFFERENT filter value than the one that put it on screen. The next
    * `router.refresh()` re-runs the current filter, the lead no longer
-   * matches it, and the row vanishes from `rows` — while `selected` still
+   * matches it, and the row vanishes from `rows` ,while `selected` still
    * names it, on purpose, so the next bulk action can still reach it. The
    * result without this cache: a "1 selected" chip with nothing on screen
    * to point it at.
@@ -90,14 +90,14 @@ export function LeadsTable({
    * contains can still be resurrected below.
    *
    * `cachedFromRows` tracks which `rows` array is already folded into it, and
-   * the comparison runs DURING RENDER, not inside a `useEffect` — the same
+   * the comparison runs DURING RENDER, not inside a `useEffect` ,the same
    * idiom `pipeline-panel.tsx` and `lead-detail.tsx` use for the identical
    * reason: React explicitly supports a conditional `setState` call in the
    * render body as a "bail out and re-render before committing" step, so the
    * cache is already correct on the render that just received new `rows`.
    * Doing this in an effect would cost an extra full commit-then-rerender
    * cycle for something that only needs to be ready in time for THIS render's
-   * `pinnedIds`/`displayRows` below — and, separately, this project's lint
+   * `pinnedIds`/`displayRows` below ,and, separately, this project's lint
    * config rejects `setState` inside an effect entirely (`react-hooks/set-
    * state-in-effect`), so an effect was never the sanctioned option here.
    */
@@ -146,7 +146,7 @@ export function LeadsTable({
    *
    * `editingEmails` holds the drafts by lead id while the operator types, so a
    * re-render (a toast, a router refresh) cannot lose half-typed input. It is
-   * cleared on Save and on Cancel, never on a selection change — the selection
+   * cleared on Save and on Cancel, never on a selection change ,the selection
    * is what says WHICH rows are editable, and clearing one on the other would
    * throw away typing the moment somebody ticks one more box.
    */
@@ -192,7 +192,7 @@ export function LeadsTable({
             </Link>
             {pinnedIds.includes(lead.id) ? (
               <span
-                title="Selected, but this lead no longer matches the current filter — likely from your own edit. It stays on screen until you Clear."
+                title="Selected, but this lead no longer matches the current filter ,likely from your own edit. It stays on screen until you Clear."
                 className="shrink-0 rounded border border-warning/40 bg-warning-subtle px-1 py-0.5 text-[10px] font-medium text-warning"
               >
                 filtered out
@@ -206,7 +206,7 @@ export function LeadsTable({
         header: 'Website',
         width: 200,
         /*
-         * No website is not nothing to say — it is the moment you go and look
+         * No website is not nothing to say ,it is the moment you go and look
          * the business up. A dash sent you off to open a tab and retype the
          * name, so the empty state is a Google search for this business narrowed
          * by its city and country, which is the difference between finding the
@@ -250,8 +250,8 @@ export function LeadsTable({
         width: 220,
         /*
          * Editable in place, but ONLY for selected rows while Edit addresses is
-         * on. Sourcing addresses is a batch job — you sit with a list of tabs
-         * open and type twenty of them — and making that twenty round trips
+         * on. Sourcing addresses is a batch job ,you sit with a list of tabs
+         * open and type twenty of them ,and making that twenty round trips
          * through the lead page is the difference between doing it and not.
          *
          * `stopPropagation` on every interaction because the row itself
@@ -383,7 +383,7 @@ export function LeadsTable({
     ],
     /*
      * These deps are load-bearing, not tidiness. The array was `[]`, which was
-     * correct while every cell was a pure function of its row — but the Email
+     * correct while every cell was a pure function of its row ,but the Email
      * cell now renders an input driven by `emailEdits` and `selected`, and a
      * memo that never re-runs would hand it first-render values: the edit mode
      * would never appear and typing would go nowhere.
@@ -424,7 +424,7 @@ export function LeadsTable({
           reach for before a send run.
 
           "No email" and "Never checked" are named views rather than
-          ?verify= values, because both would otherwise be `unverified` — a
+          ?verify= values, because both would otherwise be `unverified` ,a
           lead with no address has nothing to verify, so it carries that status
           too. Filtering on the raw enum would return all 308 of them under a
           chip that claims to show the handful with an unchecked address.
@@ -522,7 +522,7 @@ export function LeadsTable({
 
         {/*
           Website is a fact about the LEAD, independent of stage or
-          verification — a verified lead can still have no site, and a
+          verification ,a verified lead can still have no site, and a
           websiteless lead can still be fully worked. So it is its own
           two-way toggle rather than folded into the stage or verification
           filters, and composes with either: pick "Verified" above and
@@ -593,7 +593,7 @@ export function LeadsTable({
             {formatNumber(selected.size)} selected
             {pinnedIds.length > 0 ? (
               <span className="ml-1 font-normal text-muted-foreground">
-                ({pinnedIds.length} no longer match this filter — pinned below, marked
+                ({pinnedIds.length} no longer match this filter ,pinned below, marked
                 &quot;filtered out&quot;)
               </span>
             ) : null}
@@ -601,15 +601,15 @@ export function LeadsTable({
           <div className="flex-1" />
           {/*
             "Mark invalid" used to sit here setting leads.status = 'invalid'.
-            That status meant nothing to the pipeline — whether an address is
+            That status meant nothing to the pipeline ,whether an address is
             dead is `email_verification_status`, which the verification control
-            on the lead page sets — so the button changed a label and no
+            on the lead page sets ,so the button changed a label and no
             behaviour. It is gone rather than reimplemented in bulk.
           */}
           {/*
             Two approvals, and they are NOT the same decision.
 
-            "Approve drafts" is a judgement about the WORDS — it approves the
+            "Approve drafts" is a judgement about the WORDS ,it approves the
             active initial draft. "Mark verified" is a verdict about the
             ADDRESS. A lead needs both before it can be sent, and the old single
             "Approve" button read as though it did both, which is how copy gets
@@ -619,7 +619,7 @@ export function LeadsTable({
           <Button
             size="sm"
             variant="secondary"
-            title="Approves the active initial DRAFT — the wording. Does not touch the address."
+            title="Approves the active initial DRAFT ,the wording. Does not touch the address."
             onClick={() => runBulk(() => bulkApproveDrafts([...selected]))}
           >
             <CheckCircle2 className="size-3.5" aria-hidden="true" />

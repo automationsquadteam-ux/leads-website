@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
  * on a request after about 30 seconds and reports it as a failed run. A sheet
  * sync over 700 rows and a draft sweep over a queue of 90 both take longer than
  * that legitimately, so both were reported as failures while actually running to
- * completion in the background — the worst of both worlds, since the alarm was
+ * completion in the background ,the worst of both worlds, since the alarm was
  * false AND a real failure would have looked identical.
  *
  * `/api/cron/outreach` appeared to work only because it usually has nothing to
@@ -22,7 +22,7 @@ import { NextResponse } from 'next/server';
  * landed; it is not the thing that reads the result.
  *
  * **The trade-off, stated plainly.** The cron service can no longer tell you
- * whether the work SUCCEEDED, only that it started — so it will show green even
+ * whether the work SUCCEEDED, only that it started ,so it will show green even
  * when a run fails. That is acceptable only because every one of these jobs
  * writes an `integration_runs` row with its real outcome, which the Settings
  * page lists. If you add a cron route that does not record a run, do not use

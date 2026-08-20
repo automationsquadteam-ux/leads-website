@@ -16,7 +16,7 @@ import { LogPagination } from './log-pagination';
 
 export const metadata = { title: 'Email Logs' };
 
-/** A bare `YYYY-MM-DD`, or '' — anything else is a hand-edited URL, ignored. */
+/** A bare `YYYY-MM-DD`, or '' ,anything else is a hand-edited URL, ignored. */
 function parseDateParam(raw: string | undefined): string {
   return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
 }
@@ -32,7 +32,7 @@ export default async function EmailLogsPage({
   const page = parsePageNumber(pageParam);
 
   /*
-   * Every attempt ever made is in this table and reachable — the query has no
+   * Every attempt ever made is in this table and reachable ,the query has no
    * date filter and never had one. What was missing was any way to leave page 1,
    * so on a day with a full send quota the newest 50 rows WERE that day and the
    * log looked like it only kept today.
@@ -62,7 +62,7 @@ export default async function EmailLogsPage({
         <DateRangeFilter from={from} to={to} />
 
         {/*
-          One row, same population the list below shows — every attempt in
+          One row, same population the list below shows ,every attempt in
           the selected range, not just the ones that succeeded. Neither date
           set means all time, so this reads the same as the page always has.
         */}
@@ -95,7 +95,7 @@ export default async function EmailLogsPage({
                 `table-fixed` they end up ~45px each and every cell becomes an
                 ellipsis, which is the "congested" complaint. Horizontal
                 scrolling would keep the data but makes the reader drag
-                sideways to answer "did this one bounce?" — the single most
+                sideways to answer "did this one bounce?" ,the single most
                 common question of this page.
 
                 So below `md` each attempt is a card with the same facts in

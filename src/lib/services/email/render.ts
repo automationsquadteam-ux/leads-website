@@ -69,7 +69,7 @@ export function renderPlaceholders(template: string, lead: Lead, signature: stri
  * Returns the offending strings, de-duplicated, in the order found.
  *
  * `knownValues` is the lead's own real field values (business_name, niche,
- * city, country) — text that is legitimately IN the draft because it was
+ * city, country) ,text that is legitimately IN the draft because it was
  * merged in, not a placeholder nobody filled. Found live: leads whose actual
  * name carries a bracketed tag —
  *
@@ -77,12 +77,12 @@ export function renderPlaceholders(template: string, lead: Lead, signature: stri
  *     [UNEC] United Engineering Construction Company
  *     Shiny Smile Aesthetic Dental Clinic [Pasang Behel dan Implan Gigi]
  *
- * — trip the `[Title Case]` rule below on every field it appears in,
+ * ,trip the `[Title Case]` rule below on every field it appears in,
  * indistinguishable from a genuine `[Business Owner]`. Blocking is
  * unconditional and every send path goes through it, so these three leads
  * failed their follow-up on EVERY cron tick, forever, with no way to fix the
  * data (the bracket is the business's real name) and no send attempted to
- * even reach `email_logs` — the block fires before that write. A match is
+ * even reach `email_logs` ,the block fires before that write. A match is
  * only excluded when its bracket CONTENT (not the brackets) appears
  * case-insensitively inside one of the known values, so a coincidental
  * one-word overlap cannot mask an unrelated genuine placeholder.

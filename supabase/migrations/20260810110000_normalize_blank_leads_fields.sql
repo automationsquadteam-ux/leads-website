@@ -1,10 +1,10 @@
 -- ---------------------------------------------------------------------------
--- 0031 — blank optional fields normalize to NULL before the CHECK constraints
+-- 0031 ,blank optional fields normalize to NULL before the CHECK constraints
 -- see them.
 --
 -- A direct writer (n8n, since 2026-08-10) that has no value for an optional
 -- field understandably sends an empty string rather than omitting the key or
--- explicitly sending null — that is what "no data" looks like coming out of
+-- explicitly sending null ,that is what "no data" looks like coming out of
 -- most upstream nodes and expressions. leads.email and leads.website both
 -- have a format CHECK that only exempts NULL, not '':
 --
@@ -57,7 +57,7 @@ end;
 $$;
 
 comment on function public.normalize_blank_lead_fields() is
-  'Turns an empty/whitespace-only string into NULL for the optional identity fields, before leads_email_format / leads_website_scheme (and dedupe key computation) see the row. Protects any direct writer that sends "" for "no value" instead of omitting the field or sending null — n8n''s direct-insert workflow being the reason this exists.';
+  'Turns an empty/whitespace-only string into NULL for the optional identity fields, before leads_email_format / leads_website_scheme (and dedupe key computation) see the row. Protects any direct writer that sends "" for "no value" instead of omitting the field or sending null ,n8n''s direct-insert workflow being the reason this exists.';
 
 drop trigger if exists leads_normalize_blank_fields on public.leads;
 create trigger leads_normalize_blank_fields
@@ -65,4 +65,4 @@ create trigger leads_normalize_blank_fields
   for each row execute function public.normalize_blank_lead_fields();
 
 comment on trigger leads_normalize_blank_fields on public.leads is
-  'Runs before leads_assign_dedupe_key and leads_rekey_on_email_change (trigger order does not matter between them — both already coalesce a null/blank email the same way), so email/website/phone/city/country/niche are already clean by the time either reads them.';
+  'Runs before leads_assign_dedupe_key and leads_rekey_on_email_change (trigger order does not matter between them ,both already coalesce a null/blank email the same way), so email/website/phone/city/country/niche are already clean by the time either reads them.';

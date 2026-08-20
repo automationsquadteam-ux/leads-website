@@ -12,7 +12,7 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 0026 — Add the `dead_email` stage value. NOTHING ELSE.
+-- 0026 ,Add the `dead_email` stage value. NOTHING ELSE.
 --
 -- This migration is one statement on purpose. Postgres will not let a new enum
 -- value be USED in the same transaction that added it:
@@ -26,7 +26,7 @@
 --
 -- Why the split is worth it: `need_email` was answering two questions at once.
 -- 307 leads never had an address; 19 had one a verifier proved dead. Both need
--- an address FOUND, so both landed on the same stage — and the dashboard, which
+-- an address FOUND, so both landed on the same stage ,and the dashboard, which
 -- splits them because the work is different, then disagreed with the stage
 -- filter: tiles reading 307 and 19 against a filter reading 326.
 --
