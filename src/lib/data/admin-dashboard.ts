@@ -216,22 +216,46 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
      * card whose whole job is "does the displayed count match what can
      * actually send" (0037) disagreed with this one next to it.
      */
+    /*
+     * CANDIDATES FIRST, then their drafts — never the whole table.
+     *
+     * This tile read 79 against 138 genuinely-ready leads for exactly one
+     * reason, and it was not a data problem: the version lookup selected
+     * EVERY approved+active initial version with no `.limit()`, and
+     * PostgREST caps a response at 1000 rows on this project. That cap is
+     * SERVER-side — `.limit(10000)` does not lift it (verified: still 1000)
+     * — and it is silent, so the Set simply came back missing 239 of the
+     * 1,239 rows that exist, and 59 ready leads fell out of the
+     * intersection by row order alone.
+     *
+     * Inverting the order removes the cap from the picture: the lookup is
+     * bounded by the candidate list, chunked so `in()` cannot build a URL
+     * PostgREST rejects. `lib/data/leads.ts`'s ready_to_send view had the
+     * identical bug and the identical fix — the two must stay in step, as
+     * this tile links straight to that list.
+     */
     (async () => {
-      const [{ data: approvedVersions }, { data: pipelineReady }] = await Promise.all([
-        supabase
+      const { data: pipelineReady } = await activePipelineLeadIds(supabase)
+        .eq('current_stage', 'approved')
+        .lt('send_priority', 9)
+        .limit(1000);
+
+      const candidateIds = (pipelineReady ?? []).map((r) => r.lead_id);
+      if (candidateIds.length === 0) return 0;
+
+      const withApprovedDraft = new Set<string>();
+      for (let i = 0; i < candidateIds.length; i += 300) {
+        const { data } = await supabase
           .from('email_versions')
           .select('lead_id')
+          .in('lead_id', candidateIds.slice(i, i + 300))
           .eq('type', 'initial')
           .eq('active', true)
-          .eq('status', 'approved'),
-        activePipelineLeadIds(supabase)
-          .eq('current_stage', 'approved')
-          .lt('send_priority', 9)
-          .limit(5000),
-      ]);
+          .eq('status', 'approved');
+        for (const v of data ?? []) withApprovedDraft.add(v.lead_id);
+      }
 
-      const withApprovedDraft = new Set((approvedVersions ?? []).map((v) => v.lead_id));
-      return (pipelineReady ?? []).filter((r) => withApprovedDraft.has(r.lead_id)).length;
+      return candidateIds.filter((id) => withApprovedDraft.has(id)).length;
     })(),
     countOf(() =>
       activePipelineCount(supabase)

@@ -24,10 +24,14 @@ function formatScheduleDate(dateStr: string, index: number): string {
  * "Whenever will the next 100 emails actually go out" (asked for directly).
  *
  * Reads the same due dates and the same approved-candidate pool
- * `findDueWork()` sends from, spread across the next 14 days under the same
- * priority order (follow-up 2, then follow-up 1, then initial) and the same
- * daily cap. See getEmailScheduleForecast()'s own comment for exactly what
- * this does and does not simulate.
+ * `findDueWork()` sends from, then simulates forward across 14 days under
+ * the same priority order (follow-up 2, then follow-up 1, then initial), the
+ * same daily cap, AND the real knock-on effect of a send: an initial sent on
+ * a simulated day schedules its own follow-up 1 `followup1DelayDays` later,
+ * and a follow-up 1 sent schedules its own follow-up 2 `followup2DelayDays`
+ * later — both read from settings. See getEmailScheduleForecast()'s own
+ * comment for exactly what this does and does not simulate (the initial pool
+ * is a fixed, depleting starting count — never treated as self-refilling).
  */
 export default async function EmailSchedulePage() {
   await requireAdmin();
@@ -97,7 +101,10 @@ export default async function EmailSchedulePage() {
                   <TR key={day.date}>
                     <TD className="font-medium">
                       {formatScheduleDate(day.date, index)}
-                      {!day.isWorkingDay ? (
+                      {day.isActual ? (
+                        <span className="ml-1.5 text-xs font-normal text-success">sent</span>
+                      ) : null}
+                      {!day.isWorkingDay && !day.isActual ? (
                         <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                           not a sending day
                         </span>
@@ -137,12 +144,37 @@ export default async function EmailSchedulePage() {
           </p>
         ) : null}
 
-        <p className="text-xs text-muted-foreground">
-          Dates are calendar days in {DISPLAY_TIME_ZONE_LABEL}. Built from what is already due or
-          approved right now — a lead approved tomorrow, or a follow-up 1 sent today that schedules
-          its own follow-up 2 down the line, will not appear here until that happens. If today&rsquo;s
-          row looks light, some of today&rsquo;s cap may already be spent — see Email Logs.
-        </p>
+        <div className="space-y-1.5 text-xs text-muted-foreground">
+          <p>
+            <strong className="text-foreground">Today&rsquo;s row is what actually sent</strong> —
+            read from the send log ({formatNumber(forecast.alreadySentToday)} of{' '}
+            {formatNumber(forecast.dailyLimit)} used), not a projection. Every row below it is
+            projected.
+          </p>
+          <p>
+            <strong className="text-foreground">Follow-ups cascade.</strong> An initial sent
+            schedules its own follow-up 1 {forecast.followup1DelayDays} day
+            {forecast.followup1DelayDays === 1 ? '' : 's'} later; a follow-up 1 sent schedules its
+            own follow-up 2 {forecast.followup2DelayDays} day
+            {forecast.followup2DelayDays === 1 ? '' : 's'} later. Both appear in this table once
+            they land. Sends that already happened had their next step written to the database at
+            the time, so they are counted from there rather than re-simulated.
+          </p>
+          <p>
+            <strong className="text-foreground">Send failures are priced in</strong> at{' '}
+            {(forecast.failureRate * 100).toFixed(1)}%, measured over the last{' '}
+            {forecast.failureRateWindowDays} days. A failed send does not use up a slot in the
+            daily cap — the sender simply moves to the next lead — so a failure drains the queue
+            slightly faster rather than making a day send less.
+          </p>
+          <p>
+            Dates are calendar days in {DISPLAY_TIME_ZONE_LABEL}. The initial pool started at{' '}
+            <strong className="text-foreground">{formatNumber(forecast.initialPoolStart)}</strong>{' '}
+            (approved, verified and unsent right now) and is <em>not</em> treated as refilling — a
+            lead approved after this page loaded is not in it, so once the pool runs dry the
+            Initial column reads zero rather than guessing at drafts nobody has approved yet.
+          </p>
+        </div>
       </div>
     </>
   );

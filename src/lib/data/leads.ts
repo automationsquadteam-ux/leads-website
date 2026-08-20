@@ -231,26 +231,46 @@ async function idsForView(
        * VERSION immediately before an initial send. Without this, the count
        * would once again promise something the sender refuses.
        */
-      const { data: approvedVersions } = await supabase
-        .from('email_versions')
-        .select('lead_id')
-        .eq('type', 'initial')
-        .eq('active', true)
-        .eq('status', 'approved');
-
-      const withApprovedDraft = new Set((approvedVersions ?? []).map((v) => v.lead_id));
-      if (withApprovedDraft.size === 0) return [];
-
+      /*
+       * CANDIDATES FIRST, then their drafts — never the whole table.
+       *
+       * This used to select every approved+active initial version with no
+       * `.limit()` and intersect the result. PostgREST caps a response at
+       * 1000 rows on this project, and that cap is SERVER-side: it is not
+       * lifted by asking for `.limit(10000)`, and it reports no error — you
+       * simply get 1000 rows and a Set that is missing everyone else.
+       * Measured live: 1,239 such versions exist, the query returned exactly
+       * 1000, and the intersection produced 79 against 138 genuinely-ready
+       * leads. 59 leads were dropped purely by row order.
+       *
+       * Inverting it removes the cap from the picture entirely: the version
+       * lookup is now bounded by the candidate list (a few hundred at most),
+       * chunked so the `in()` filter cannot build a URL PostgREST rejects.
+       * This is the shape `getSendQueuePreview()` already used correctly.
+       */
       const { data: pipelineReady } = await supabase
         .from('pipeline_board')
         .select('lead_id')
         .eq('current_stage', 'approved')
         .lt('send_priority', 9)
-        .limit(5000);
+        .limit(1000);
 
-      return (pipelineReady ?? [])
-        .map((r) => r.lead_id)
-        .filter((id) => withApprovedDraft.has(id));
+      const candidateIds = (pipelineReady ?? []).map((r) => r.lead_id);
+      if (candidateIds.length === 0) return [];
+
+      const withApprovedDraft = new Set<string>();
+      for (let i = 0; i < candidateIds.length; i += 300) {
+        const { data } = await supabase
+          .from('email_versions')
+          .select('lead_id')
+          .in('lead_id', candidateIds.slice(i, i + 300))
+          .eq('type', 'initial')
+          .eq('active', true)
+          .eq('status', 'approved');
+        for (const v of data ?? []) withApprovedDraft.add(v.lead_id);
+      }
+
+      return candidateIds.filter((id) => withApprovedDraft.has(id));
     }
     /*
      * Due TODAY means due today, both ends.
