@@ -46,6 +46,11 @@ export interface IntegrationConfig {
      * 0 disables the sweep. Paused leads are never closed this way.
      */
     closeAfterFollowup2Days: number;
+    /**
+     * Where the "daily cap reached" summary goes. Empty disables the alert
+     * entirely rather than sending to nobody-in-particular.
+     */
+    dailyCapAlertEmail: string;
   };
   sending: {
     /** Global kill switch. Nothing leaves the system while this is true. */
@@ -114,6 +119,7 @@ export async function getIntegrationConfig(): Promise<IntegrationConfig> {
       // limit. Raise it towards 280 on Pro to fit more gap waits per run.
       maxRuntimeSeconds: asNumber(get('outreach.max_runtime_seconds'), 50),
       closeAfterFollowup2Days: asNumber(get('outreach.close_after_followup2_days'), 14),
+      dailyCapAlertEmail: asString(get('outreach.daily_cap_alert_email')),
     },
     sending: {
       paused: asBoolean(get('sending.paused'), false),

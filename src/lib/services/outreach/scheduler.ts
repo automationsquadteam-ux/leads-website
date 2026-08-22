@@ -2,12 +2,14 @@ import 'server-only';
 
 import { createServiceClient } from '@/lib/supabase/service-client';
 import type { EmailType } from '@/lib/supabase/database.types';
-import { todayBoundsUtc } from '@/lib/utils';
+import { DISPLAY_TIME_ZONE, todayBoundsUtc } from '@/lib/utils';
 import { getIntegrationConfig, type IntegrationConfig } from '../config';
 import { recordActivity } from '../activity';
 import { createEmailVersion } from '../email-versions';
 import { generateEmail } from '../ai';
 import { sendLeadEmail } from '../email/send-lead-email';
+import { getActiveProvider } from '../email';
+import { EmailConfigError } from '../email/types';
 
 /**
  * The automatic sender.
@@ -133,18 +135,143 @@ async function gapRemainingMs(minGapSeconds: number): Promise<number> {
   return Math.max(0, minGapSeconds * 1000 - elapsed);
 }
 
+/**
+ * How many have gone out so far today, in DISPLAY_TIME_ZONE.
+ *
+ * Was `new Date().setHours(0,0,0,0)` — the SERVER's own local clock, not
+ * DISPLAY_TIME_ZONE, exactly the drift `findDueWork()`'s due-date bucketing
+ * and `getDashboardWidgets()`'s tiles both already had to be fixed for. On
+ * Vercel (UTC) this let the daily cap's "today" run five hours ahead of the
+ * calendar day everyone reading this app means by "today" — this function
+ * gates the cap the daily-cap-alert email is keyed to, so leaving it
+ * inconsistent would make the alert fire against the wrong day's boundary.
+ */
 async function sendsToday(): Promise<number> {
   const admin = createServiceClient();
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  const { start, end } = todayBoundsUtc();
 
   const { count } = await admin
     .from('email_logs')
     .select('*', { count: 'exact', head: true })
     .in('status', ['sent', 'delivered', 'opened', 'clicked'])
-    .gte('sent_at', startOfDay.toISOString());
+    .gte('sent_at', start)
+    .lte('sent_at', end);
 
   return count ?? 0;
+}
+
+/**
+ * Email a same-day summary the first time the daily cap is found reached.
+ *
+ * Guarded by a settings ROW (`outreach.daily_cap_alert_date`), not an
+ * in-memory flag or a module-level variable: the cron fires every few
+ * minutes and each invocation is a separate cold serverless process, so
+ * "have I already sent today's alert" has to be a question asked of the
+ * database — the identical reasoning `gapRemainingMs()` above already
+ * applies to send pacing, just for a once-a-day event instead of a
+ * between-sends one.
+ *
+ * Called from the branch that already detects "nothing more can send
+ * today", so it fires whether the cap was reached by this run's own sends,
+ * an earlier run's, or even a manual Send-button click outside the
+ * scheduler entirely — `sendsToday()` counts every send regardless of
+ * origin, and an operator who set a daily cap almost certainly wants to
+ * know it was reached no matter which path reached it.
+ */
+async function notifyDailyCapReachedOnce(config: IntegrationConfig, alreadySent: number): Promise<void> {
+  if (!config.outreach.dailyCapAlertEmail) return;
+
+  const admin = createServiceClient();
+  const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TIME_ZONE }).format(new Date());
+
+  const { data: marker } = await admin
+    .from('settings')
+    .select('value')
+    .eq('key', 'outreach.daily_cap_alert_date')
+    .maybeSingle();
+  if (marker?.value === todayDateStr) return; // already sent today
+
+  const { start, end } = todayBoundsUtc();
+  const { data: sendRows } = await admin
+    .from('email_logs')
+    .select('lead_id, email_type, sent_at')
+    .in('status', ['sent', 'delivered', 'opened', 'clicked'])
+    .gte('sent_at', start)
+    .lte('sent_at', end)
+    .order('sent_at', { ascending: true })
+    .limit(1000);
+
+  const rows = sendRows ?? [];
+  const leadIds = [...new Set(rows.map((r) => r.lead_id))];
+  const nameById = new Map<string, { business_name: string; email: string | null }>();
+  if (leadIds.length > 0) {
+    const { data: leads } = await admin
+      .from('leads')
+      .select('id, business_name, email')
+      .in('id', leadIds);
+    for (const lead of leads ?? []) nameById.set(lead.id, { business_name: lead.business_name, email: lead.email });
+  }
+
+  const { count: failedToday } = await admin
+    .from('email_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'failed')
+    .gte('created_at', start)
+    .lte('created_at', end);
+
+  const byType: Record<EmailType, typeof rows> = { initial: [], followup1: [], followup2: [] };
+  for (const row of rows) byType[row.email_type].push(row);
+
+  const TYPE_LABEL: Record<EmailType, string> = {
+    initial: 'Initial',
+    followup1: 'Follow-up 1',
+    followup2: 'Follow-up 2',
+  };
+  const timeOf = (iso: string | null) =>
+    iso
+      ? new Intl.DateTimeFormat('en-GB', { timeZone: DISPLAY_TIME_ZONE, hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
+      : '';
+
+  const sections = (['followup2', 'followup1', 'initial'] as EmailType[])
+    .map((type) => {
+      const items = byType[type];
+      if (items.length === 0) return null;
+      const lines = items.map((row) => {
+        const lead = nameById.get(row.lead_id);
+        return `  - ${lead?.business_name ?? row.lead_id} <${lead?.email ?? 'unknown'}>  ${timeOf(row.sent_at)}`;
+      });
+      return `${TYPE_LABEL[type]} (${items.length}):\n${lines.join('\n')}`;
+    })
+    .filter((s): s is string => s !== null);
+
+  const text =
+    `Today's send cap (${config.sending.dailyLimit}) has been reached — ${alreadySent}/${config.sending.dailyLimit} sent, ${todayDateStr} (${DISPLAY_TIME_ZONE}).\n\n` +
+    sections.join('\n\n') +
+    (failedToday && failedToday > 0
+      ? `\n\n${failedToday} send attempt${failedToday === 1 ? '' : 's'} failed today (does not count against the cap) — see Send Failures.`
+      : '') +
+    '\n\nAutomatic, from the scheduled sender. This does not mean sending has stopped for good — it resumes once tomorrow\'s cap resets.';
+
+  try {
+    const provider = await getActiveProvider();
+    await provider.send({
+      to: config.outreach.dailyCapAlertEmail,
+      subject: `Daily send cap reached — ${alreadySent}/${config.sending.dailyLimit} sent ${todayDateStr}`,
+      text,
+    });
+  } catch (error) {
+    // A failed NOTIFICATION must never fail the outreach run itself, and
+    // must not block the marker write below — an unconfigured provider
+    // would otherwise retry (and fail) on every tick for the rest of the
+    // day, same as any other alert with no working transport.
+    const message = error instanceof EmailConfigError ? error.message : 'Could not send the alert email.';
+    console.error(`[runOutreachCycle] daily cap alert failed: ${message}`);
+  }
+
+  await admin
+    .from('settings')
+    .update({ value: todayDateStr as never })
+    .eq('key', 'outreach.daily_cap_alert_date');
 }
 
 /**
@@ -558,6 +685,10 @@ export async function runOutreachCycle(
   const alreadySent = await sendsToday();
   const dailyRemaining = Math.max(0, config.sending.dailyLimit - alreadySent);
   if (dailyRemaining === 0) {
+    // Skipped on a dry run, same rule as the close sweep above: a dry run
+    // reports what WOULD happen and must not write — and this both sends
+    // real email and writes the alert-sent marker.
+    if (!dryRun) await notifyDailyCapReachedOnce(config, alreadySent);
     return finish(`Daily limit reached (${alreadySent}/${config.sending.dailyLimit}). Nothing was sent.`);
   }
 
