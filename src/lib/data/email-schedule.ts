@@ -30,6 +30,17 @@ import { dayBoundsUtc, DISPLAY_TIME_ZONE } from '@/lib/utils';
  * the window, because nothing here can predict a draft nobody has approved
  * yet. A cascade from today's sends is a certainty already set in motion; a
  * future approval is a guess, and this function does not make that one.
+ *
+ * Every draw assumes success ,nothing is discounted by a predicted failure
+ * rate (see `drawDay()`'s own comment for why that used to make the 14-day
+ * total quietly add up to less than the pool it started from). Today (day 0)
+ * is `alreadySentToday` (a fact, from `email_logs`) plus a `drawDay()` pass
+ * over whatever capacity the sending window has left for the rest of today
+ * ,so it reads as one settled number like every other row instead of
+ * shrinking through the day as real sends move it out of Tomorrow's bucket
+ * one at a time. A real failure among today's actual attempts is surfaced
+ * separately as `todayFailedCount` rather than folded into any total; see
+ * `/send-failures` for why each one happened.
  */
 
 export interface ScheduleDay {
@@ -41,11 +52,10 @@ export interface ScheduleDay {
   /** False when this date falls outside sending.working_hours.days ,always 0/0/0. */
   isWorkingDay: boolean;
   /**
-   * True for today's row only: these are SENDS THAT ACTUALLY HAPPENED, read
-   * from email_logs, not a projection. Today is already partly (or fully)
-   * spent by the time anyone loads this page, so projecting it would be
-   * predicting the past ,and predicting it wrong, since the real day's mix
-   * is a fact sitting in the database.
+   * True for today's row only. The figures in it are `alreadySentToday` (a
+   * fact, from email_logs) plus whatever the rest of today's sending window
+   * would still draw, assumed successful ,see the module comment. Not a
+   * signal that the whole row is history; it just marks "this is today."
    */
   isActual: boolean;
 }
@@ -58,12 +68,13 @@ export interface EmailScheduleForecast {
   /** Sent so far today, in DISPLAY_TIME_ZONE ,what's already spent of day one's cap. */
   alreadySentToday: number;
   /**
-   * Observed share of send ATTEMPTS that failed over the recent window, as a
-   * fraction (0.003 = 0.3%). Applied to future days only.
+   * Failed send ATTEMPTS today (any refusal or provider rejection ,see
+   * `/send-failures`), in DISPLAY_TIME_ZONE. Today's row assumes the rest of
+   * the day succeeds, so a real failure would otherwise just vanish from every
+   * total on this page; this is how it stays visible instead ,named here
+   * rather than subtracted from the count.
    */
-  failureRate: number;
-  /** How many days of history `failureRate` was measured over. */
-  failureRateWindowDays: number;
+  todayFailedCount: number;
   /** The initial pool the simulation started from ,approved, verified, unsent, right now. */
   initialPoolStart: number;
   /** Sending is off entirely, or one/both categories are switched off. */
@@ -78,9 +89,6 @@ export interface EmailScheduleForecast {
 }
 
 const FORECAST_DAYS = 14;
-
-/** How far back to measure the send-failure rate applied to future days. */
-const FAILURE_WINDOW_DAYS = 14;
 
 /**
  * PostgREST caps a response at 1000 rows on this project, SERVER-side —
@@ -111,6 +119,77 @@ function weekdayOf(dateStr: string): number {
   return ((jsDay + 6) % 7) + 1;
 }
 
+/** Minutes since midnight, right now, in `zone`. Same shape as scheduler.ts's localClock(). */
+function minutesNowIn(zone: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: zone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date());
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+    return hour * 60 + minute;
+  } catch {
+    // An invalid IANA name must not stop the forecast; fall back to the host clock.
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }
+}
+
+/** "HH:MM" -> minutes since midnight. */
+function toMinutes(value: string): number {
+  const [h, m] = value.split(':');
+  return Number(h) * 60 + Number(m);
+}
+
+/**
+ * One day's draw against the three backlogs, in priority order (follow-up 2,
+ * then follow-up 1, then initial) ,the same order `findDueWork()` sends in.
+ *
+ * Every queued item is assumed to send successfully. This used to be
+ * discounted by an observed failure rate (`successesFrom`/`drawnFor`), which
+ * silently removed a few items from every backlog on every projected day
+ * without the removal ever being shown anywhere on this page ,it just made
+ * the 14-day total, plus the "still waiting" backlog badge, add up to less
+ * than the pool actually started at. A real failure is now surfaced
+ * separately instead (`todayFailedCount`, today only ,it is the only day
+ * anything has actually been attempted).
+ */
+function drawDay(
+  capacity: number,
+  f2Backlog: number,
+  f1Backlog: number,
+  initialRemaining: number,
+): {
+  followup2: number;
+  followup1: number;
+  initial: number;
+  f2BacklogAfter: number;
+  f1BacklogAfter: number;
+  initialRemainingAfter: number;
+} {
+  let remaining = capacity;
+
+  const followup2 = Math.min(remaining, f2Backlog);
+  remaining -= followup2;
+
+  const followup1 = Math.min(remaining, f1Backlog);
+  remaining -= followup1;
+
+  const initial = Math.min(remaining, initialRemaining);
+
+  return {
+    followup2,
+    followup1,
+    initial,
+    f2BacklogAfter: f2Backlog - followup2,
+    f1BacklogAfter: f1Backlog - followup1,
+    initialRemainingAfter: initialRemaining - initial,
+  };
+}
+
 export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast> {
   const empty: EmailScheduleForecast = {
     days: [],
@@ -118,8 +197,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
     followup1DelayDays: 0,
     followup2DelayDays: 0,
     alreadySentToday: 0,
-    failureRate: 0,
-    failureRateWindowDays: FAILURE_WINDOW_DAYS,
+    todayFailedCount: 0,
     initialPoolStart: 0,
     paused: true,
     autoFollowups: false,
@@ -147,22 +225,37 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
   const todayEnd = todayBounds?.end ?? new Date().toISOString();
 
   /*
-   * (A) TODAY IS READ, NOT PROJECTED.
+   * (A) TODAY IS "WHAT ALREADY SENT" PLUS "WHAT THE REST OF THE DAY WOULD
+   * SEND, ASSUMING SUCCESS" ,not a bare read of the log.
    *
-   * By the time anyone loads this page today is already partly or entirely
-   * spent, and the real mix that went out is a fact sitting in email_logs.
-   * Projecting it would be predicting the past ,and predicting it wrong,
-   * since the projection would re-derive a queue that has already been
-   * drained. Verified live: today's row reads 2 follow-up 2, 51 follow-up 1,
-   * 7 initial, which is exactly what the send log holds.
+   * The real mix that already went out is a fact sitting in email_logs, and
+   * that part is never re-derived. But treating the WHOLE of today as
+   * history made the row shrink through the day and dumped whatever was
+   * still due-but-unsent wholesale into Tomorrow ,work the cron was still
+   * going to attempt before the sending window closed tonight, displayed as
+   * if it had already rolled over. Today is now folded into the same
+   * day-by-day draw every later day gets (below), seeded with whatever
+   * capacity is left after `alreadySentToday`, so it reads as a completed
+   * day like every other row ,and a failed attempt is surfaced via
+   * `todayFailedCount` instead of just quietly not being counted anywhere.
    */
-  const { data: todaySendRows } = await supabase
-    .from('email_logs')
-    .select('email_type')
-    .in('status', ['sent', 'delivered', 'opened', 'clicked'])
-    .gte('sent_at', todayStart)
-    .lte('sent_at', todayEnd)
-    .limit(PAGE);
+  const [{ data: todaySendRows }, { count: todayFailedCount }] = await Promise.all([
+    supabase
+      .from('email_logs')
+      .select('email_type')
+      .in('status', ['sent', 'delivered', 'opened', 'clicked'])
+      .gte('sent_at', todayStart)
+      .lte('sent_at', todayEnd)
+      .limit(PAGE),
+    // `created_at`, not `sent_at` ,a failed row never gets sent_at set (same
+    // reasoning as getEmailLogs()'s own date filter in lib/data/misc.ts).
+    supabase
+      .from('email_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'failed')
+      .gte('created_at', todayStart)
+      .lte('created_at', todayEnd),
+  ]);
 
   const todayActual = { followup2: 0, followup1: 0, initial: 0 };
   for (const row of todaySendRows ?? []) {
@@ -171,34 +264,6 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
     else if (row.email_type === 'initial') todayActual.initial += 1;
   }
   const alreadySentToday = todayActual.followup2 + todayActual.followup1 + todayActual.initial;
-
-  /*
-   * (B) SEND FAILURES, MEASURED RATHER THAN ASSUMED.
-   *
-   * Applied to FUTURE days only ,today is read from the log, so its
-   * failures are already reflected in what did or didn't send.
-   *
-   * The mechanic that matters: a failed send does NOT consume the daily
-   * cap. `sendsToday()` counts only sent/delivered/opened/clicked, so the
-   * scheduler keeps going until it has `dailyLimit` SUCCESSES. What a
-   * failure consumes is a QUEUE ITEM ,so the pool drains slightly faster
-   * than the send count suggests, rather than the day sending less.
-   */
-  const failureSince = new Date(Date.now() - FAILURE_WINDOW_DAYS * 86_400_000).toISOString();
-  const [{ count: okCount }, { count: failedCount }] = await Promise.all([
-    supabase
-      .from('email_logs')
-      .select('*', { count: 'exact', head: true })
-      .in('status', ['sent', 'delivered', 'opened', 'clicked'])
-      .gte('created_at', failureSince),
-    supabase
-      .from('email_logs')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'failed')
-      .gte('created_at', failureSince),
-  ]);
-  const attempts = (okCount ?? 0) + (failedCount ?? 0);
-  const failureRate = attempts > 0 ? (failedCount ?? 0) / attempts : 0;
 
   /**
    * Page through every row of a due-date query.
@@ -355,22 +420,51 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
     f1Backlog += f1DueOnDay.get(dayIndex) ?? 0;
 
     /*
-     * Day 0 is history, not a forecast: report what the send log actually
-     * holds and move on. Its consequences are already in the due-date
-     * columns read above, so nothing is cascaded from it here ,doing so
-     * would double-count today's 51 follow-up 1 sends against the 50
-     * `followup2_due` rows they already created.
+     * Day 0: what already sent, PLUS what the rest of today would still
+     * send, assuming success ,drawn from the same `drawDay()` every later
+     * day uses, seeded with whatever's left of today's cap.
      *
-     * The backlog it drained is likewise already reflected: a follow-up
-     * sent today has `followup*_sent` set, so it never appeared in the
-     * pending queries in the first place.
+     * Capacity is 0 (nothing more projected) once the sending window has
+     * actually closed for today, is paused, or today isn't a sending day at
+     * all ,at that point the row genuinely is pure history, same as before.
+     * Otherwise the still-due backlog gets drawn down here instead of
+     * rolling untouched into Tomorrow, which is what made Tomorrow visibly
+     * shrink by exactly `alreadySentToday` every time this page was
+     * reloaded later in the day (2026-08-23 changelog).
      */
     if (dayIndex === 0) {
+      const wh = config.sending.workingHours;
+      const windowClosedToday = minutesNowIn(wh.timezone) >= toMinutes(wh.end);
+      const remainingToday =
+        config.sending.paused || !isWorkingDay || windowClosedToday
+          ? 0
+          : Math.max(0, config.sending.dailyLimit - alreadySentToday);
+
+      const rest = drawDay(remainingToday, f2Backlog, f1Backlog, initialRemaining);
+      f2Backlog = rest.f2BacklogAfter;
+      f1Backlog = rest.f1BacklogAfter;
+      initialRemaining = rest.initialRemainingAfter;
+
+      // Only the PROJECTED remainder cascades ,today's real sends already
+      // wrote their own next-due-date rows via the trigger, which are
+      // already sitting in f2Dates/f1Dates read above (see the module
+      // comment on why already-happened cascades are never re-simulated).
+      if (rest.initial > 0) {
+        const f1Day = dayIndex + config.outreach.followup1DelayDays;
+        if (f1Day < FORECAST_DAYS) f1DueOnDay.set(f1Day, (f1DueOnDay.get(f1Day) ?? 0) + rest.initial);
+        else cascadeOverflow += rest.initial;
+      }
+      if (rest.followup1 > 0) {
+        const f2Day = dayIndex + config.outreach.followup2DelayDays;
+        if (f2Day < FORECAST_DAYS) f2DueOnDay.set(f2Day, (f2DueOnDay.get(f2Day) ?? 0) + rest.followup1);
+        else cascadeOverflow += rest.followup1;
+      }
+
       days.push({
         date,
-        followup2: todayActual.followup2,
-        followup1: todayActual.followup1,
-        initial: todayActual.initial,
+        followup2: todayActual.followup2 + rest.followup2,
+        followup1: todayActual.followup1 + rest.followup1,
+        initial: todayActual.initial + rest.initial,
         isWorkingDay,
         isActual: true,
       });
@@ -382,41 +476,16 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
       continue;
     }
 
-    let remaining = config.sending.dailyLimit;
+    const drawn = drawDay(config.sending.dailyLimit, f2Backlog, f1Backlog, initialRemaining);
+    f2Backlog = drawn.f2BacklogAfter;
+    f1Backlog = drawn.f1BacklogAfter;
+    initialRemaining = drawn.initialRemainingAfter;
+    const { followup2, followup1, initial } = drawn;
 
     /*
-     * Failures cost a QUEUE ITEM, not a slot in the day's cap.
-     *
-     * `successesFrom` is how many sends a queue of N can actually produce
-     * at the observed failure rate; `drawnFor` is how many items that
-     * consumes. Rounded, not floored: with a 0.3% rate a queue of 23 should
-     * still read 23, since the expected number of failures in it is 0.07 —
-     * flooring would invent a failure that the measurement does not
-     * support. The distinction only starts to bite at real volume, which is
-     * exactly when it should.
-     */
-    const successesFrom = (queue: number) =>
-      failureRate > 0 ? Math.round(queue * (1 - failureRate)) : queue;
-    const drawnFor = (sends: number, queue: number) =>
-      failureRate > 0 && failureRate < 1
-        ? Math.min(queue, Math.ceil(sends / (1 - failureRate)))
-        : sends;
-
-    const followup2 = Math.min(remaining, successesFrom(f2Backlog));
-    f2Backlog -= drawnFor(followup2, f2Backlog);
-    remaining -= followup2;
-
-    const followup1 = Math.min(remaining, successesFrom(f1Backlog));
-    f1Backlog -= drawnFor(followup1, f1Backlog);
-    remaining -= followup1;
-
-    const initial = Math.min(remaining, successesFrom(initialRemaining));
-    initialRemaining -= drawnFor(initial, initialRemaining);
-
-    /*
-     * Cascade forward from what this day PROJECTS sending. Only successful
-     * sends schedule a next step ,a failed send never writes a due date,
-     * which is why these use the send counts and not the drawn counts.
+     * Cascade forward from what this day PROJECTS sending, on the assumption
+     * every one of them succeeds (see drawDay()'s own comment on why nothing
+     * here is discounted for failure).
      * Landing beyond the window is tallied, not tracked further; see the
      * module comment on why the lookahead stops there.
      */
@@ -440,8 +509,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
     followup1DelayDays: config.outreach.followup1DelayDays,
     followup2DelayDays: config.outreach.followup2DelayDays,
     alreadySentToday,
-    failureRate,
-    failureRateWindowDays: FAILURE_WINDOW_DAYS,
+    todayFailedCount: todayFailedCount ?? 0,
     initialPoolStart,
     paused: config.sending.paused,
     autoFollowups: config.outreach.autoFollowups,

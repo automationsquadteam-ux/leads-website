@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { todayBoundsUtc } from '@/lib/utils';
 import type {
   EmailLog,
   EmailVerificationStatus,
@@ -154,10 +155,14 @@ async function idsForView(
   supabase: Awaited<ReturnType<typeof createClient>>,
   view: LeadView,
 ): Promise<string[]> {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
+  // DISPLAY_TIME_ZONE (Asia/Karachi), not the server's own clock ,the same
+  // helper admin-dashboard.ts and scheduler.ts already use. This view resolves
+  // the dashboard's Due Today / Overdue tiles, so a bare server-local
+  // `setHours(0,0,0,0)` here shifted this page's "today" by up to 5 hours from
+  // the tile that links to it on Vercel (UTC), which is exactly the class of
+  // bug GUIDE.md documents being fixed three times already elsewhere ,this
+  // was the one call site that never got it.
+  const { start: startOfToday, end: endOfToday } = todayBoundsUtc();
 
   let query = supabase.from('lead_pipeline').select('lead_id').is('closed', null);
 
@@ -285,21 +290,21 @@ async function idsForView(
       query = query
         .is('followup1_sent', null)
         .is('replied', null)
-        .gte('followup1_due', startOfToday.toISOString())
-        .lte('followup1_due', endOfToday.toISOString());
+        .gte('followup1_due', startOfToday)
+        .lte('followup1_due', endOfToday);
       break;
     case 'followup2_due':
       query = query
         .is('followup2_sent', null)
         .is('replied', null)
-        .gte('followup2_due', startOfToday.toISOString())
-        .lte('followup2_due', endOfToday.toISOString());
+        .gte('followup2_due', startOfToday)
+        .lte('followup2_due', endOfToday);
       break;
     case 'overdue_followups':
       query = query
         .is('replied', null)
         .or(
-          `and(followup1_sent.is.null,followup1_due.lt.${startOfToday.toISOString()}),and(followup2_sent.is.null,followup2_due.lt.${startOfToday.toISOString()})`,
+          `and(followup1_sent.is.null,followup1_due.lt.${startOfToday}),and(followup2_sent.is.null,followup2_due.lt.${startOfToday})`,
         );
       break;
     case 'replied':

@@ -53,6 +53,8 @@ const activePipelineLeadIds = (db: Db) =>
 
 export interface DashboardWidgets {
   emailsToday: number;
+  /** Of emailsToday, how many were refused or rejected (see /send-failures). */
+  emailsFailedToday: number;
   repliesToday: number;
   approvalQueue: number;
   followup1DueToday: number;
@@ -89,6 +91,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
 
   const [
     emailsToday,
+    emailsFailedToday,
     repliesToday,
     approvalQueue,
     followup1DueToday,
@@ -102,13 +105,30 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     readyToSend,
     invalidEmail,
   ] = await Promise.all([
+    /*
+     * Every ATTEMPT today, not just the successful ones ,same rule
+     * getEmailLogs()'s own stats row already follows ("every attempt in
+     * range ... so the two never disagree about what 'this time frame'
+     * means"), see lib/data/misc.ts. Filtered on `created_at`: `sent_at` is
+     * only ever set on success, so filtering on it silently dropped every
+     * failure out of "today", making the tile read lower than what actually
+     * got listed the moment anything failed ,exactly the gap
+     * `emailsFailedToday` below exists to keep visible instead of hidden.
+     */
     countOf(() =>
       supabase
         .from('email_logs')
         .select('*', { count: 'exact', head: true })
-        .in('status', ['sent', 'delivered', 'opened', 'clicked'])
-        .gte('sent_at', dayStart)
-        .lte('sent_at', dayEnd),
+        .gte('created_at', dayStart)
+        .lte('created_at', dayEnd),
+    ),
+    countOf(() =>
+      supabase
+        .from('email_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'failed')
+        .gte('created_at', dayStart)
+        .lte('created_at', dayEnd),
     ),
     countOf(() =>
       supabase
@@ -265,6 +285,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
 
   return {
     emailsToday,
+    emailsFailedToday,
     repliesToday,
     approvalQueue,
     followup1DueToday,

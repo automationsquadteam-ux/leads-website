@@ -89,7 +89,9 @@ export default async function DashboardPage() {
           <MetricCard
             label="Today's Emails"
             value={formatNumber(widgets.emailsToday)}
+            hint={widgets.emailsFailedToday > 0 ? `${formatNumber(widgets.emailsFailedToday)} failed` : undefined}
             icon={Mail}
+            tone={widgets.emailsFailedToday > 0 ? 'danger' : 'default'}
             href="/email-logs"
           />
           <MetricCard

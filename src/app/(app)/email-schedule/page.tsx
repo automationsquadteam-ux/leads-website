@@ -1,4 +1,5 @@
-import { PauseCircle } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, PauseCircle } from 'lucide-react';
 
 import { PageHeader } from '@/components/shell/app-shell';
 import { Badge } from '@/components/ui/badge';
@@ -68,6 +69,17 @@ export default async function EmailSchedulePage() {
             Sending is paused (sending.paused). Every row below would read zero until it&rsquo;s
             switched back on.
           </div>
+        ) : null}
+
+        {forecast.todayFailedCount > 0 ? (
+          <Link
+            href="/send-failures"
+            className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger-subtle px-3 py-2.5 text-sm text-danger hover:border-danger/50"
+          >
+            <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+            {formatNumber(forecast.todayFailedCount)} email{forecast.todayFailedCount === 1 ? '' : 's'} failed to
+            send today &mdash; Today&rsquo;s row below assumes the rest succeed. View why &rarr;
+          </Link>
         ) : null}
 
         {!forecast.autoFollowups || !forecast.autoSendInitial ? (
@@ -146,10 +158,11 @@ export default async function EmailSchedulePage() {
 
         <div className="space-y-1.5 text-xs text-muted-foreground">
           <p>
-            <strong className="text-foreground">Today&rsquo;s row is what actually sent</strong> —
-            read from the send log ({formatNumber(forecast.alreadySentToday)} of{' '}
-            {formatNumber(forecast.dailyLimit)} used), not a projection. Every row below it is
-            projected.
+            <strong className="text-foreground">Today&rsquo;s row assumes the rest of the day sends
+            successfully.</strong> {formatNumber(forecast.alreadySentToday)} of{' '}
+            {formatNumber(forecast.dailyLimit)}{' '}  have actually gone out so far, for real; the rest
+            of today&rsquo;s number is what the remaining capacity would still send. If anything
+            fails, it&rsquo;s called out above rather than quietly missing from the total.
           </p>
           <p>
             <strong className="text-foreground">Follow-ups cascade.</strong> An initial sent
