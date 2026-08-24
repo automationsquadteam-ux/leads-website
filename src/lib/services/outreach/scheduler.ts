@@ -238,25 +238,25 @@ async function notifyDailyCapReachedOnce(config: IntegrationConfig, alreadySent:
       if (items.length === 0) return null;
       const lines = items.map((row) => {
         const lead = nameById.get(row.lead_id);
-        return `  - ${lead?.business_name ?? row.lead_id} <${lead?.email ?? 'unknown'}>  ${timeOf(row.sent_at)}`;
+        return `  - ${lead?.business_name ?? row.lead_id} ${timeOf(row.sent_at)}`;
       });
       return `${TYPE_LABEL[type]} (${items.length}):\n${lines.join('\n')}`;
     })
     .filter((s): s is string => s !== null);
 
   const text =
-    `Today's send cap (${config.sending.dailyLimit}) has been reached — ${alreadySent}/${config.sending.dailyLimit} sent, ${todayDateStr} (${DISPLAY_TIME_ZONE}).\n\n` +
+    `Today's send cap (${config.sending.dailyLimit}) has been reached: ${alreadySent}/${config.sending.dailyLimit} sent, ${todayDateStr} (${DISPLAY_TIME_ZONE}).\n\n` +
     sections.join('\n\n') +
     (failedToday && failedToday > 0
-      ? `\n\n${failedToday} send attempt${failedToday === 1 ? '' : 's'} failed today (does not count against the cap) — see Send Failures.`
+      ? `\n\n${failedToday} send attempt${failedToday === 1 ? '' : 's'} failed today (does not count against the cap), see Send Failures.`
       : '') +
-    '\n\nAutomatic, from the scheduled sender. This does not mean sending has stopped for good — it resumes once tomorrow\'s cap resets.';
+    '\n\nAutomatic, from the scheduled sender. This does not mean sending has stopped for good, it resumes once tomorrow\'s cap resets.';
 
   try {
     const provider = await getActiveProvider();
     await provider.send({
       to: config.outreach.dailyCapAlertEmail,
-      subject: `Daily send cap reached — ${alreadySent}/${config.sending.dailyLimit} sent ${todayDateStr}`,
+      subject: `Daily send cap reached: ${alreadySent}/${config.sending.dailyLimit} sent ${todayDateStr}`,
       text,
     });
   } catch (error) {
