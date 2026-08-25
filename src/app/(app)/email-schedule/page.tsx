@@ -53,8 +53,9 @@ export default async function EmailSchedulePage() {
       followup2: acc.followup2 + day.followup2,
       followup1: acc.followup1 + day.followup1,
       initial: acc.initial + day.initial,
+      spareInitialCapacity: acc.spareInitialCapacity + (day.spareInitialCapacity ?? 0),
     }),
-    { followup2: 0, followup1: 0, initial: 0 },
+    { followup2: 0, followup1: 0, initial: 0, spareInitialCapacity: 0 },
   );
   const grandTotal = totals.followup2 + totals.followup1 + totals.initial;
 
@@ -170,6 +171,9 @@ export default async function EmailSchedulePage() {
                 <TH className="text-right" style={{ width: 90 }}>
                   Initial
                 </TH>
+                <TH className="text-right" style={{ width: 120 }}>
+                  Can Send Initials
+                </TH>
                 <TH className="text-right">Total</TH>
               </tr>
             </THead>
@@ -192,6 +196,9 @@ export default async function EmailSchedulePage() {
                     <TD className="tabular text-right">{day.followup2 > 0 ? formatNumber(day.followup2) : '—'}</TD>
                     <TD className="tabular text-right">{day.followup1 > 0 ? formatNumber(day.followup1) : '—'}</TD>
                     <TD className="tabular text-right">{day.initial > 0 ? formatNumber(day.initial) : '—'}</TD>
+                    <TD className="tabular text-right">
+                      {day.spareInitialCapacity ? formatNumber(day.spareInitialCapacity) : '—'}
+                    </TD>
                     <TD className="tabular text-right font-medium">
                       {dayTotal > 0 ? formatNumber(dayTotal) : '—'}
                     </TD>
@@ -205,6 +212,7 @@ export default async function EmailSchedulePage() {
                 <TD className="tabular text-right font-medium">{formatNumber(totals.followup2)}</TD>
                 <TD className="tabular text-right font-medium">{formatNumber(totals.followup1)}</TD>
                 <TD className="tabular text-right font-medium">{formatNumber(totals.initial)}</TD>
+                <TD className="tabular text-right font-medium">{formatNumber(totals.spareInitialCapacity)}</TD>
                 <TD className="tabular text-right font-semibold">{formatNumber(grandTotal)}</TD>
               </TR>
             </tfoot>
@@ -233,20 +241,20 @@ export default async function EmailSchedulePage() {
           </p>
           <p>
             <strong className="text-foreground">Follow-ups cascade.</strong> An initial sent
-            schedules its own follow-up 1 {forecast.followup1DelayDays} day
+            schedules its own follow-up 1 = {forecast.followup1DelayDays} day
             {forecast.followup1DelayDays === 1 ? '' : 's'} later; a follow-up 1 sent schedules its
-            own follow-up 2 {forecast.followup2DelayDays} day
+            own follow-up 2 = {forecast.followup2DelayDays} day
             {forecast.followup2DelayDays === 1 ? '' : 's'} later. Both appear in this table once
             they land. Sends that already happened had their next step written to the database at
             the time, so they are counted from there rather than re-simulated.
           </p>
           <p>Dates are calendar days in {DISPLAY_TIME_ZONE_LABEL}.</p>
+          <p>
+            <strong className="text-foreground">Can Send Initials</strong> is that day&rsquo;s cap
+            minus what it already drew (follow-up 2 + follow-up 1 + initial) &mdash; room nothing
+            currently fills. It only shows up once the initial pool runs out before the cap does.
+          </p>
         </div>
-
-        <p className="text-sm font-medium text-foreground">
-          You can send {formatNumber(forecast.initialPoolStart)} more initial email
-          {forecast.initialPoolStart === 1 ? '' : 's'} right now.
-        </p>
       </div>
     </>
   );

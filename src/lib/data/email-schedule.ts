@@ -58,6 +58,15 @@ export interface ScheduleDay {
    * signal that the whole row is history; it just marks "this is today."
    */
   isActual: boolean;
+  /**
+   * Cap minus what the day already drew (follow-up 2 + follow-up 1 +
+   * initial) ,room left in that day's send count that nothing currently
+   * claims. Only ever nonzero once the initial pool (or the follow-up
+   * backlogs) run dry before the cap does; while there's enough queued to
+   * fill every day, this reads 0 everywhere. `undefined` on a `pastDays` row
+   * ,a day that already happened has no "room left", only what happened.
+   */
+  spareInitialCapacity?: number;
 }
 
 export interface EmailScheduleForecast {
@@ -182,6 +191,8 @@ function drawDay(
   f2BacklogAfter: number;
   f1BacklogAfter: number;
   initialRemainingAfter: number;
+  /** Capacity minus what got drawn ,see ScheduleDay.spareInitialCapacity. */
+  spareCapacity: number;
 } {
   let remaining = capacity;
 
@@ -192,6 +203,7 @@ function drawDay(
   remaining -= followup1;
 
   const initial = Math.min(remaining, initialRemaining);
+  remaining -= initial;
 
   return {
     followup2,
@@ -200,6 +212,7 @@ function drawDay(
     f2BacklogAfter: f2Backlog - followup2,
     f1BacklogAfter: f1Backlog - followup1,
     initialRemainingAfter: initialRemaining - initial,
+    spareCapacity: remaining,
   };
 }
 
@@ -523,12 +536,21 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
         initial: todayActual.initial + rest.initial,
         isWorkingDay,
         isActual: true,
+        spareInitialCapacity: rest.spareCapacity,
       });
       continue;
     }
 
     if (!isWorkingDay || config.sending.paused) {
-      days.push({ date, followup2: 0, followup1: 0, initial: 0, isWorkingDay, isActual: false });
+      days.push({
+        date,
+        followup2: 0,
+        followup1: 0,
+        initial: 0,
+        isWorkingDay,
+        isActual: false,
+        spareInitialCapacity: 0,
+      });
       continue;
     }
 
@@ -556,7 +578,15 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
       else cascadeOverflow += followup1;
     }
 
-    days.push({ date, followup2, followup1, initial, isWorkingDay, isActual: false });
+    days.push({
+      date,
+      followup2,
+      followup1,
+      initial,
+      isWorkingDay,
+      isActual: false,
+      spareInitialCapacity: drawn.spareCapacity,
+    });
   }
 
   return {
