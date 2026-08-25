@@ -61,6 +61,8 @@ export interface ScheduleDay {
 }
 
 export interface EmailScheduleForecast {
+  /** The 7 calendar days before today, oldest first ,what actually sent, read from email_logs. */
+  pastDays: ScheduleDay[];
   days: ScheduleDay[];
   dailyLimit: number;
   followup1DelayDays: number;
@@ -90,6 +92,9 @@ export interface EmailScheduleForecast {
 
 const FORECAST_DAYS = 14;
 
+/** How many days of actual history to show before Today's row. */
+const PAST_DAYS = 7;
+
 /**
  * PostgREST caps a response at 1000 rows on this project, SERVER-side —
  * `.limit(5000)` does not lift it and nothing errors, you just silently get
@@ -100,15 +105,23 @@ const FORECAST_DAYS = 14;
  */
 const PAGE = 1000;
 
-/** The next `count` calendar dates in `zone`, starting today, as YYYY-MM-DD strings. */
-function nextDates(count: number, zone: string): string[] {
+/**
+ * `count` calendar dates in `zone`, starting `startOffsetDays` away from
+ * today (0 = today, -7 = a week ago), as YYYY-MM-DD strings.
+ */
+function relativeDates(startOffsetDays: number, count: number, zone: string): string[] {
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(new Date());
   const [y, m, d] = todayStr.split('-').map(Number) as [number, number, number];
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
-    out.push(new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10));
+    out.push(new Date(Date.UTC(y, m - 1, d + startOffsetDays + i)).toISOString().slice(0, 10));
   }
   return out;
+}
+
+/** The next `count` calendar dates in `zone`, starting today, as YYYY-MM-DD strings. */
+function nextDates(count: number, zone: string): string[] {
+  return relativeDates(0, count, zone);
 }
 
 /** Mon=1 .. Sun=7, matching sending.working_hours.days and scheduler.ts's localClock(). */
@@ -192,6 +205,7 @@ function drawDay(
 
 export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast> {
   const empty: EmailScheduleForecast = {
+    pastDays: [],
     days: [],
     dailyLimit: 0,
     followup1DelayDays: 0,
@@ -225,6 +239,18 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
   const todayEnd = todayBounds?.end ?? new Date().toISOString();
 
   /*
+   * The 7 calendar days before today ,plain history, read from email_logs,
+   * same as today's own actual figure. `relativeDates` gives them oldest
+   * first, so `pastDates[0]` is 7 days ago and `pastDates[6]` is yesterday;
+   * their combined span is contiguous with `todayStart` (each day's bounds
+   * are computed independently in DISPLAY_TIME_ZONE, so day N's end and day
+   * N+1's start tile exactly, no gap or overlap to double-count across).
+   */
+  const pastDates = relativeDates(-PAST_DAYS, PAST_DAYS, DISPLAY_TIME_ZONE);
+  const pastStart = dayBoundsUtc(pastDates[0]!)?.start ?? todayStart;
+  const pastEnd = dayBoundsUtc(pastDates[pastDates.length - 1]!)?.end ?? todayStart;
+
+  /*
    * (A) TODAY IS "WHAT ALREADY SENT" PLUS "WHAT THE REST OF THE DAY WOULD
    * SEND, ASSUMING SUCCESS" ,not a bare read of the log.
    *
@@ -239,7 +265,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
    * day like every other row ,and a failed attempt is surfaced via
    * `todayFailedCount` instead of just quietly not being counted anywhere.
    */
-  const [{ data: todaySendRows }, { count: todayFailedCount }] = await Promise.all([
+  const [{ data: todaySendRows }, { count: todayFailedCount }, { data: pastSendRows }] = await Promise.all([
     supabase
       .from('email_logs')
       .select('email_type')
@@ -255,6 +281,15 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
       .eq('status', 'failed')
       .gte('created_at', todayStart)
       .lte('created_at', todayEnd),
+    // `PAST_DAYS * dailyLimit` is comfortably under the 1000-row cap (see the
+    // note on PAGE) for any sane daily limit, so one page is enough.
+    supabase
+      .from('email_logs')
+      .select('email_type, sent_at')
+      .in('status', ['sent', 'delivered', 'opened', 'clicked'])
+      .gte('sent_at', pastStart)
+      .lte('sent_at', pastEnd)
+      .limit(PAGE),
   ]);
 
   const todayActual = { followup2: 0, followup1: 0, initial: 0 };
@@ -264,6 +299,27 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
     else if (row.email_type === 'initial') todayActual.initial += 1;
   }
   const alreadySentToday = todayActual.followup2 + todayActual.followup1 + todayActual.initial;
+
+  const pastIndexByDate = new Map(pastDates.map((d, i) => [d, i]));
+  const pastCounts = pastDates.map(() => ({ followup2: 0, followup1: 0, initial: 0 }));
+  for (const row of pastSendRows ?? []) {
+    const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TIME_ZONE }).format(
+      new Date(row.sent_at!),
+    );
+    const idx = pastIndexByDate.get(dateStr);
+    if (idx === undefined) continue; // a row landing outside the window by a rounding edge, not this week's
+    if (row.email_type === 'followup2') pastCounts[idx]!.followup2 += 1;
+    else if (row.email_type === 'followup1') pastCounts[idx]!.followup1 += 1;
+    else if (row.email_type === 'initial') pastCounts[idx]!.initial += 1;
+  }
+  const pastDays: ScheduleDay[] = pastDates.map((date, i) => ({
+    date,
+    followup2: pastCounts[i]!.followup2,
+    followup1: pastCounts[i]!.followup1,
+    initial: pastCounts[i]!.initial,
+    isWorkingDay: config.sending.workingHours.days.includes(weekdayOf(date)),
+    isActual: true,
+  }));
 
   /**
    * Page through every row of a due-date query.
@@ -504,6 +560,7 @@ export async function getEmailScheduleForecast(): Promise<EmailScheduleForecast>
   }
 
   return {
+    pastDays,
     days,
     dailyLimit: config.sending.dailyLimit,
     followup1DelayDays: config.outreach.followup1DelayDays,

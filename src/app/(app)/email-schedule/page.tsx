@@ -21,6 +21,15 @@ function formatScheduleDate(dateStr: string, index: number): string {
   );
 }
 
+/** "Yesterday" / "Thu, 20 Aug" for a row in the past-week table. */
+function formatPastDate(dateStr: string, daysAgo: number): string {
+  if (daysAgo === 1) return 'Yesterday';
+  const [y, m, d] = dateStr.split('-').map(Number) as [number, number, number];
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).format(
+    new Date(Date.UTC(y, m - 1, d, 12)),
+  );
+}
+
 /**
  * "Whenever will the next 100 emails actually go out" (asked for directly).
  *
@@ -49,11 +58,21 @@ export default async function EmailSchedulePage() {
   );
   const grandTotal = totals.followup2 + totals.followup1 + totals.initial;
 
+  const pastTotals = forecast.pastDays.reduce(
+    (acc, day) => ({
+      followup2: acc.followup2 + day.followup2,
+      followup1: acc.followup1 + day.followup1,
+      initial: acc.initial + day.initial,
+    }),
+    { followup2: 0, followup1: 0, initial: 0 },
+  );
+  const pastGrandTotal = pastTotals.followup2 + pastTotals.followup1 + pastTotals.initial;
+
   return (
     <>
       <PageHeader
         title="Email Schedule"
-        description={`Next 14 days, in the order they'll actually send ,follow-up 2, then follow-up 1, then initial, up to ${formatNumber(forecast.dailyLimit)}/day`}
+        description={`Last 7 days, then the next 14 in the order they'll actually send ,follow-up 2, then follow-up 1, then initial, up to ${formatNumber(forecast.dailyLimit)}/day`}
       />
 
       <div className="space-y-4 p-4 sm:p-6">
@@ -89,6 +108,54 @@ export default async function EmailSchedulePage() {
           </p>
         ) : null}
 
+        <h2 className="text-xs font-medium text-muted-foreground">Last 7 days &mdash; actual</h2>
+        <TableWrap>
+          <Table style={{ minWidth: 480 }}>
+            <THead>
+              <tr>
+                <TH style={{ width: 140 }}>Date</TH>
+                <TH className="text-right" style={{ width: 100 }}>
+                  Follow-up 2
+                </TH>
+                <TH className="text-right" style={{ width: 100 }}>
+                  Follow-up 1
+                </TH>
+                <TH className="text-right" style={{ width: 90 }}>
+                  Initial
+                </TH>
+                <TH className="text-right">Total</TH>
+              </tr>
+            </THead>
+            <TBody>
+              {forecast.pastDays.map((day, index) => {
+                const dayTotal = day.followup2 + day.followup1 + day.initial;
+                const daysAgo = forecast.pastDays.length - index;
+                return (
+                  <TR key={day.date}>
+                    <TD className="font-medium">{formatPastDate(day.date, daysAgo)}</TD>
+                    <TD className="tabular text-right">{day.followup2 > 0 ? formatNumber(day.followup2) : '—'}</TD>
+                    <TD className="tabular text-right">{day.followup1 > 0 ? formatNumber(day.followup1) : '—'}</TD>
+                    <TD className="tabular text-right">{day.initial > 0 ? formatNumber(day.initial) : '—'}</TD>
+                    <TD className="tabular text-right font-medium">
+                      {dayTotal > 0 ? formatNumber(dayTotal) : '—'}
+                    </TD>
+                  </TR>
+                );
+              })}
+            </TBody>
+            <tfoot>
+              <TR className="hover:bg-transparent">
+                <TD className="font-medium text-muted-foreground">7-day total</TD>
+                <TD className="tabular text-right font-medium">{formatNumber(pastTotals.followup2)}</TD>
+                <TD className="tabular text-right font-medium">{formatNumber(pastTotals.followup1)}</TD>
+                <TD className="tabular text-right font-medium">{formatNumber(pastTotals.initial)}</TD>
+                <TD className="tabular text-right font-semibold">{formatNumber(pastGrandTotal)}</TD>
+              </TR>
+            </tfoot>
+          </Table>
+        </TableWrap>
+
+        <h2 className="text-xs font-medium text-muted-foreground">Next 14 days &mdash; projected</h2>
         <TableWrap>
           <Table style={{ minWidth: 480 }}>
             <THead>
@@ -173,11 +240,13 @@ export default async function EmailSchedulePage() {
             they land. Sends that already happened had their next step written to the database at
             the time, so they are counted from there rather than re-simulated.
           </p>
-          <p>
-            Dates are calendar days in {DISPLAY_TIME_ZONE_LABEL}. The initial pool started at{' '}
-            <strong className="text-foreground">{formatNumber(forecast.initialPoolStart)}</strong>{' '}.
-          </p>
+          <p>Dates are calendar days in {DISPLAY_TIME_ZONE_LABEL}.</p>
         </div>
+
+        <p className="text-sm font-medium text-foreground">
+          You can send {formatNumber(forecast.initialPoolStart)} more initial email
+          {forecast.initialPoolStart === 1 ? '' : 's'} right now.
+        </p>
       </div>
     </>
   );
