@@ -192,7 +192,7 @@ export function LeadsTable({
             </Link>
             {pinnedIds.includes(lead.id) ? (
               <span
-                title="Selected, but this lead no longer matches the current filter ,likely from your own edit. It stays on screen until you Clear."
+                title=" Selected, but this lead no longer matches the current filter ,likely from your own edit. It stays on screen until you Clear."
                 className="shrink-0 rounded border border-warning/40 bg-warning-subtle px-1 py-0.5 text-[10px] font-medium text-warning"
               >
                 filtered out
@@ -593,7 +593,7 @@ export function LeadsTable({
             {formatNumber(selected.size)} selected
             {pinnedIds.length > 0 ? (
               <span className="ml-1 font-normal text-muted-foreground">
-                ({pinnedIds.length} no longer match this filter ,pinned below, marked
+                ({pinnedIds.length}{' '} no longer match this filter ,pinned below, marked
                 &quot;filtered out&quot;)
               </span>
             ) : null}
