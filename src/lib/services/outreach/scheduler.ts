@@ -523,6 +523,43 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
     }
   }
 
+  /*
+   * Drop anything carrying an unresolved send failure.
+   *
+   * `sendLeadEmail()` refuses these outright and is the real gate ,this is
+   * the optimisation in front of it. Without it a blocked lead still occupies
+   * one of the run's `limit` slots, gets attempted, and is refused, so a
+   * handful of permanently-stuck leads at the front of the queue could starve
+   * every healthy one behind them (a slower version of the same starvation
+   * the overdue/today split above exists to prevent).
+   *
+   * Filtered here, once, at the end rather than inside each candidate query:
+   * `lead_send_queue` carries no failure information to filter on, so this
+   * would otherwise have to be repeated across all five branches above and
+   * kept in step by hand. Trimming after the fact can leave a run slightly
+   * under `limit`, which is deliberate and harmless ,the next cycle is three
+   * minutes away, and under-sending a cycle is a far better failure mode than
+   * re-attempting a lead that cannot succeed.
+   */
+  if (work.length > 0) {
+    const admin = createServiceClient();
+    const leadIds = [...new Set(work.map((row) => row.lead_id))];
+    const blocked = new Set<string>();
+
+    for (let i = 0; i < leadIds.length; i += 300) {
+      const { data: failures } = await admin
+        .from('email_logs')
+        .select('lead_id')
+        .eq('status', 'failed')
+        .in('lead_id', leadIds.slice(i, i + 300));
+      for (const row of failures ?? []) blocked.add(row.lead_id);
+    }
+
+    if (blocked.size > 0) {
+      return work.filter((row) => !blocked.has(row.lead_id)).slice(0, limit);
+    }
+  }
+
   return work.slice(0, limit);
 }
 

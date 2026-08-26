@@ -169,6 +169,54 @@ export async function sendLeadEmail(
     return { ok: false, message, messageId: null, logId: null };
   }
 
+  /*
+   * AN UNRESOLVED FAILURE BLOCKS EVERY FURTHER SEND, until a human clears it.
+   *
+   * Asked for directly, and the live evidence for it is unusually clean: one
+   * lead (Manpower Norge) whose address had a stray trailing dot
+   * ,`firmapost@manpower.no.` ,was rejected by the provider, and the
+   * scheduler simply tried again every cycle. It wrote 41 identical
+   * `send_rejected` rows in about fifteen minutes, burned 41 send-queue slots
+   * that could have carried real mail, and would have kept going forever,
+   * because nothing about a retry changes a malformed address.
+   *
+   * `logRefusal()`'s six-hour throttle does not help here: that only covers
+   * refusals made BEFORE the provider is reached. A genuine provider
+   * rejection takes the path at the bottom of this function, which UPDATES a
+   * freshly-inserted queued row rather than going through `logRefusal` at
+   * all ,so it was unthrottled by construction. Throttling it would only
+   * have slowed the bleeding; the retry itself is the thing that was wrong,
+   * so this stops it at the source instead.
+   *
+   * Deliberately does NOT call `logRefusal()`. The failure row that caused
+   * the block IS the record ,writing "blocked because a failure exists"
+   * rows on top of it would grow exactly the noise this gate exists to stop.
+   *
+   * Clearing is a human act, on the Send Failures page: fix the cause (a bad
+   * address, a missing draft), then clear the failure, which deletes those
+   * rows and unblocks the lead by construction ,"is this fixed?" and "are
+   * there failure rows?" are one question, so the two cannot drift apart.
+   *
+   * Placed here with the archived gate for the same stated reason: this is
+   * the one function every send path goes through (Send button, API, cron),
+   * so it is the only place that closes the hole for good.
+   */
+  const { count: openFailures } = await admin
+    .from('email_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('lead_id', lead.id)
+    .eq('status', 'failed');
+
+  if ((openFailures ?? 0) > 0) {
+    return {
+      ok: false,
+      message:
+        'This lead has an unresolved send failure. Fix what caused it, then clear it on the Send Failures page before sending again.',
+      messageId: null,
+      logId: null,
+    };
+  }
+
   if (!lead.email) {
     const message = 'This lead has no email address.';
     await logRefusal(admin, { leadId: lead.id, userId, emailType, reason: 'no_email', message });

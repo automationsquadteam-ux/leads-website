@@ -13,6 +13,7 @@ import { FAILURE_SUMMARY_WINDOW_DAYS, getEmailFailures } from '@/lib/data/misc';
 import { parsePageNumber, parsePageSize } from '@/lib/pagination';
 import { formatDateTime, formatNumber } from '@/lib/utils';
 import { LogPagination } from '../email-logs/log-pagination';
+import { ClearFailureButton } from './clear-failure-button';
 
 export const metadata = { title: 'Send Failures' };
 
@@ -48,8 +49,8 @@ export default async function SendFailuresPage({
         title="Send Failures"
         description={
           total > 0
-            ? `${formatNumber(total)} failed send${total === 1 ? '' : 's'} on record, newest first`
-            : 'Every refused or rejected send is recorded here, with why'
+            ? `${formatNumber(total)} unresolved problem${total === 1 ? '' : 's'}, each blocking that lead until you mark it fixed`
+            : 'Nothing is blocked. Every refused or rejected send lands here, with why'
         }
       />
 
@@ -88,12 +89,21 @@ export default async function SendFailuresPage({
           )}
         </section>
 
+        {total > 0 ? (
+          <p className="rounded-md border border-border bg-muted px-3 py-2.5 text-xs text-muted-foreground">
+            One row per problem, not per attempt. A lead listed here <strong className="text-foreground">cannot
+            be emailed</strong> ,by the scheduler or the Send button ,until you fix what caused it
+            and press <strong className="text-foreground">Mark fixed</strong>, which clears its attempts and
+            releases it. That is what stops a bad address being retried every few minutes.
+          </p>
+        ) : null}
+
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
           {rows.length === 0 ? (
             <EmptyState
               icon={MailWarning}
-              title="No failed sends on record"
-              description="Every refusal sendLeadEmail() makes ,archived, unverified, no draft, misconfigured provider, an unresolved placeholder, or a genuine rejection from the provider ,is logged here with why."
+              title="Nothing is blocked"
+              description="Every refusal sendLeadEmail() makes ,archived, unverified, no draft, misconfigured provider, an unresolved placeholder, or a genuine rejection from the provider ,lands here with why, and holds that lead until you mark it fixed."
             />
           ) : (
             <>
@@ -124,6 +134,9 @@ export default async function SendFailuresPage({
                         <Badge tone={log.email_type === 'initial' ? 'primary' : 'neutral'}>
                           {EMAIL_TYPE_LABELS[log.email_type]}
                         </Badge>
+                        {log.attemptCount > 1 ? (
+                          <Badge tone="danger">{formatNumber(log.attemptCount)} attempts</Badge>
+                        ) : null}
                         <span className="tabular text-xs text-muted-foreground">
                           {formatDateTime(log.created_at)}
                         </span>
@@ -133,6 +146,10 @@ export default async function SendFailuresPage({
                         <p className="text-xs wrap-break-word text-danger">{log.error}</p>
                       ) : null}
                     </Link>
+
+                    <div className="px-4 pb-3">
+                      <ClearFailureButton leadId={log.lead_id} />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -147,8 +164,14 @@ export default async function SendFailuresPage({
                         <TH style={{ width: 240 }}>Subject</TH>
                         <TH style={{ width: 110 }}>Step</TH>
                         <TH style={{ width: 190 }}>Why</TH>
-                        <TH style={{ width: 180 }}>Date</TH>
+                        <TH className="text-right" style={{ width: 90 }}>
+                          Attempts
+                        </TH>
+                        <TH style={{ width: 180 }}>Last tried</TH>
                         <TH>Error</TH>
+                        <TH className="text-right" style={{ width: 130 }}>
+                          Fixed?
+                        </TH>
                       </tr>
                     </THead>
                     <TBody>
@@ -181,8 +204,18 @@ export default async function SendFailuresPage({
                           <TD>
                             <FailureReasonBadge reason={log.failure_reason} />
                           </TD>
+                          <TD className="tabular text-right">
+                            {log.attemptCount > 1 ? (
+                              <Badge tone="danger">{formatNumber(log.attemptCount)}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">1</span>
+                            )}
+                          </TD>
                           <TD className="tabular text-muted-foreground">{formatDateTime(log.created_at)}</TD>
                           <TD className="text-danger">{log.error ?? ''}</TD>
+                          <TD>
+                            <ClearFailureButton leadId={log.lead_id} />
+                          </TD>
                         </TR>
                       ))}
                     </TBody>

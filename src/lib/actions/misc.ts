@@ -135,3 +135,68 @@ export async function updateSettings(
   revalidatePath('/settings');
   return { ok: true, message: `Saved ${updates.length} setting${updates.length === 1 ? '' : 's'}.` };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Send failures                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Clear one lead's send failures, which is also what unblocks it.
+ *
+ * A failed send stops that lead being emailed at all (`sendLeadEmail()`'s own
+ * gate, plus `findDueWork()` skipping it) until a human says the cause is
+ * dealt with. That was asked for directly, and the reason is on the record:
+ * a lead whose address carried a stray trailing dot was retried every cycle,
+ * writing 41 identical rejections in fifteen minutes and burning 41 send
+ * slots, because nothing in a retry can fix a malformed address. Only a
+ * person can.
+ *
+ * Deleting the rows IS the unblock ,there is no separate "resolved" flag to
+ * keep in step, so "is this fixed?" and "are there failure rows?" cannot
+ * drift apart. Chosen deliberately over a resolved_at column: that would have
+ * needed a migration this machine cannot apply (no CLI, paste-and-probe only),
+ * and it would have left two facts that can disagree.
+ *
+ * The trade is real and worth stating: the failure history for that lead is
+ * gone for good afterwards. That is the intent ,these rows are a work queue,
+ * not an audit trail, and the send itself is still recorded either way once it
+ * succeeds.
+ */
+export async function clearLeadSendFailures(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+  } catch {
+    return { ok: false, message: 'You do not have permission to clear send failures.' };
+  }
+
+  const leadId = formData.get('leadId');
+  if (typeof leadId !== 'string' || leadId === '') {
+    return { ok: false, message: 'No lead was given.' };
+  }
+
+  const supabase = await createClient();
+
+  const { count, error } = await supabase
+    .from('email_logs')
+    .delete({ count: 'exact' })
+    .eq('lead_id', leadId)
+    .eq('status', 'failed');
+
+  if (error) return { ok: false, message: `Could not clear: ${error.message}` };
+
+  revalidatePath('/send-failures');
+  revalidatePath('/dashboard');
+  revalidatePath(`/leads/${leadId}`);
+
+  const cleared = count ?? 0;
+  return {
+    ok: true,
+    message:
+      cleared === 0
+        ? 'Nothing left to clear for this lead.'
+        : `Cleared ${cleared} failed attempt${cleared === 1 ? '' : 's'}. This lead can be emailed again.`,
+  };
+}

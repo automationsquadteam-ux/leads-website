@@ -52,9 +52,14 @@ const activePipelineLeadIds = (db: Db) =>
   db.from('pipeline_board').select('lead_id').neq('lead_status', 'archived');
 
 export interface DashboardWidgets {
+  /** Mail that actually went out today. Successes only ,failures are below. */
   emailsToday: number;
-  /** Of emailsToday, how many were refused or rejected (see /send-failures). */
-  emailsFailedToday: number;
+  /**
+   * Unresolved send problems, collapsed one per (lead, reason) so this matches
+   * what /send-failures lists. Each one blocks that lead until a human clears
+   * it, so this is a work queue, not a statistic.
+   */
+  openSendFailures: number;
   repliesToday: number;
   approvalQueue: number;
   followup1DueToday: number;
@@ -91,7 +96,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
 
   const [
     emailsToday,
-    emailsFailedToday,
+    openSendFailures,
     repliesToday,
     approvalQueue,
     followup1DueToday,
@@ -106,30 +111,58 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     invalidEmail,
   ] = await Promise.all([
     /*
-     * Every ATTEMPT today, not just the successful ones ,same rule
-     * getEmailLogs()'s own stats row already follows ("every attempt in
-     * range ... so the two never disagree about what 'this time frame'
-     * means"), see lib/data/misc.ts. Filtered on `created_at`: `sent_at` is
-     * only ever set on success, so filtering on it silently dropped every
-     * failure out of "today", making the tile read lower than what actually
-     * got listed the moment anything failed ,exactly the gap
-     * `emailsFailedToday` below exists to keep visible instead of hidden.
+     * Mail that ACTUALLY WENT OUT today ,successes only.
+     *
+     * This counted every attempt for one day (2026-08-23) on the theory that
+     * a failure hidden from the total is a failure nobody chases. Live, that
+     * read 101 while 60 emails had really been sent: one lead's retry loop
+     * contributed 41 rejections, so the headline figure on the dashboard was
+     * 68% wrong about the thing it names. The failures are not hidden ,they
+     * have their own tile beside this one, and their own page ,but they do
+     * not belong inside a number labelled "Today's Emails".
      */
     countOf(() =>
       supabase
         .from('email_logs')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', dayStart)
-        .lte('created_at', dayEnd),
+        .in('status', ['sent', 'delivered', 'opened', 'clicked'])
+        .gte('sent_at', dayStart)
+        .lte('sent_at', dayEnd),
     ),
-    countOf(() =>
-      supabase
-        .from('email_logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'failed')
-        .gte('created_at', dayStart)
-        .lte('created_at', dayEnd),
-    ),
+    /*
+     * PROBLEMS, not attempts ,and deliberately not scoped to today.
+     *
+     * This tile links to /send-failures, so it has to count exactly what that
+     * page lists or it breaks the rule the whole file is built on ("a tile
+     * must link to exactly the rows it counted"). That page collapses by
+     * (lead, reason), so counting raw rows here would have shown 43 against a
+     * page of 3.
+     *
+     * Not date-scoped for the same reason: an unresolved failure blocks that
+     * lead's sends until a human clears it, so one from yesterday is every
+     * bit as actionable as one from an hour ago ,and clearing it deletes the
+     * rows, which is what keeps this number current rather than cumulative.
+     */
+    (async () => {
+      const { data: archived } = await supabase.from('leads').select('id').eq('status', 'archived');
+      const archivedIds = new Set((archived ?? []).map((lead) => lead.id));
+
+      const seen = new Set<string>();
+      for (let offset = 0; ; offset += 1000) {
+        const { data } = await supabase
+          .from('email_logs')
+          .select('lead_id, failure_reason')
+          .eq('status', 'failed')
+          .range(offset, offset + 999);
+        const batch = data ?? [];
+        for (const row of batch) {
+          if (archivedIds.has(row.lead_id)) continue;
+          seen.add(`${row.lead_id}|${row.failure_reason ?? 'unknown'}`);
+        }
+        if (batch.length < 1000) break;
+      }
+      return seen.size;
+    })(),
     countOf(() =>
       supabase
         .from('replies')
@@ -285,7 +318,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
 
   return {
     emailsToday,
-    emailsFailedToday,
+    openSendFailures,
     repliesToday,
     approvalQueue,
     followup1DueToday,

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
   AlertTriangle, CalendarClock, CheckSquare, Lock, Mail, MailQuestion,
-  MailX, PenLine, RefreshCw, Reply, Search, Send, ShieldQuestion, Sparkles,
+  MailWarning, MailX, RefreshCw, Reply, Send, ShieldQuestion, Sparkles,
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/shell/app-shell';
@@ -89,9 +89,8 @@ export default async function DashboardPage() {
           <MetricCard
             label="Today's Emails"
             value={formatNumber(widgets.emailsToday)}
-            hint={widgets.emailsFailedToday > 0 ? `${formatNumber(widgets.emailsFailedToday)} failed` : undefined}
+            hint="Actually sent"
             icon={Mail}
-            tone={widgets.emailsFailedToday > 0 ? 'danger' : 'default'}
             href="/email-logs"
           />
           <MetricCard
@@ -179,20 +178,23 @@ export default async function DashboardPage() {
           />
         </section>
 
+        {/*
+          "Needs Research" and "Needs Draft" stood here until 2026-08-26. Both
+          had read 0 for weeks (n8n writes research and drafts before a lead
+          ever lands, so those stages are empty by construction ,confirmed by
+          a direct probe of lead_pipeline.current_stage on 2026-08-20), so the
+          row spent its space on two permanent zeroes. Send Failures is the
+          work that actually queues up, and every entry in it is blocking a
+          lead from being emailed until someone clears it.
+        */}
         <section aria-label="Pipeline work" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <MetricCard
-            label="Needs Research"
-            value={formatNumber(widgets.needsResearch)}
-            hint="Verified, nothing written yet"
-            icon={Search}
-            href="/leads?view=needs_research"
-          />
-          <MetricCard
-            label="Needs Draft"
-            value={formatNumber(widgets.needsDraft)}
-            hint="Research done, no draft"
-            icon={PenLine}
-            href="/leads?view=needs_draft"
+            label="Send Failures"
+            value={formatNumber(widgets.openSendFailures)}
+            hint="Unresolved, blocking sends until fixed"
+            icon={MailWarning}
+            tone={widgets.openSendFailures > 0 ? 'danger' : 'default'}
+            href="/send-failures"
           />
           <MetricCard
             label="Ready to Send"

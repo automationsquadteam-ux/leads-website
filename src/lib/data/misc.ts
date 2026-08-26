@@ -72,9 +72,20 @@ export async function getEmailLogs(
    * anyway, since a row is inserted 'queued' and updated to its final status
    * moments later in the same request.
    */
+  /*
+   * Failures are excluded here and own their own page (/send-failures).
+   *
+   * Asked for directly, and it settles a split this app kept re-litigating:
+   * one lead's retry loop put 41 rejection rows in this list in fifteen
+   * minutes, so "what went out today" was mostly things that did not go out.
+   * Email Logs is now the record of mail that WAS sent; Send Failures is the
+   * record of mail that was not, collapsed one row per problem. Two pages,
+   * two questions, neither burying the other.
+   */
   let query = supabase
     .from('email_logs')
     .select('*', { count: 'exact' })
+    .neq('status', 'failed')
     .order('created_at', { ascending: false })
     .range(from, from + pageSize - 1);
   if (bounds) query = query.gte('created_at', bounds.start).lte('created_at', bounds.end);
@@ -114,7 +125,7 @@ export async function getEmailLogs(
    * current 50 rows would change when you paged, which answers "what's on
    * this page" instead of the question this row exists to answer.
    */
-  let statsQuery = supabase.from('email_logs').select('email_type', { count: 'exact' });
+  let statsQuery = supabase.from('email_logs').select('email_type', { count: 'exact' }).neq('status', 'failed');
   if (bounds) statsQuery = statsQuery.gte('created_at', bounds.start).lte('created_at', bounds.end);
   const { data: statsRows, count: statsTotal } = await statsQuery;
 
@@ -135,6 +146,13 @@ export async function getEmailLogs(
 export interface EmailFailureRow extends EmailLog {
   businessName: string | null;
   recipient: string | null;
+  /**
+   * How many attempts this row stands for. One lead failing the same way
+   * repeatedly is ONE problem to fix, so the page shows the newest attempt
+   * with a count rather than N near-identical rows ,a malformed address
+   * produced 41 of them in fifteen minutes before the send gate existed.
+   */
+  attemptCount: number;
 }
 
 export interface FailureReasonCount {
@@ -173,25 +191,58 @@ export async function getEmailFailures(
   error: string | null;
 }> {
   const supabase = await createClient();
-  const from = (page - 1) * pageSize;
 
   const { data: archivedLeads } = await supabase.from('leads').select('id').eq('status', 'archived');
   const archivedIds = (archivedLeads ?? []).map((lead) => lead.id);
   const archivedList = archivedIds.length > 0 ? `(${archivedIds.join(',')})` : null;
 
-  let query = supabase
-    .from('email_logs')
-    .select('*', { count: 'exact' })
-    .eq('status', 'failed')
-    .order('created_at', { ascending: false })
-    .range(from, from + pageSize - 1);
-  if (archivedList) query = query.not('lead_id', 'in', archivedList);
+  /*
+   * Every failure row is read, then collapsed by (lead, reason) BEFORE
+   * paging ,the page numbers count problems, not attempts.
+   *
+   * Paged with `.range()` rather than one big select: PostgREST's 1000-row
+   * cap is server-side and silent on this project (see getDashboardWidgets's
+   * readyToSend comment for what that cost once), and a retry loop is exactly
+   * the thing that can produce thousands of rows.
+   */
+  const allFailures: EmailLog[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    let query = supabase
+      .from('email_logs')
+      .select('*')
+      .eq('status', 'failed')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + 999);
+    if (archivedList) query = query.not('lead_id', 'in', archivedList);
 
-  const { data, count, error } = await query;
+    const { data, error } = await query;
+    if (error) return { rows: [], total: 0, summary: [], error: error.message };
 
-  if (error) return { rows: [], total: 0, summary: [], error: error.message };
+    const batch = data ?? [];
+    allFailures.push(...batch);
+    if (batch.length < 1000) break;
+  }
 
-  const logs = data ?? [];
+  /*
+   * Newest attempt per (lead, reason) wins, carrying the count of the rest.
+   * The list is already newest-first, so the first one seen for a key is the
+   * one to keep.
+   */
+  const grouped = new Map<string, { log: EmailLog; attemptCount: number }>();
+  for (const log of allFailures) {
+    const key = `${log.lead_id}|${log.failure_reason ?? 'unknown'}`;
+    const existing = grouped.get(key);
+    if (existing) existing.attemptCount += 1;
+    else grouped.set(key, { log, attemptCount: 1 });
+  }
+
+  const problems = [...grouped.values()];
+  const total = problems.length;
+  const from = (page - 1) * pageSize;
+  const pageOfProblems = problems.slice(from, from + pageSize);
+
+  const logs = pageOfProblems.map((p) => p.log);
+  const attemptsById = new Map(pageOfProblems.map((p) => [p.log.id, p.attemptCount]));
   const leadIds = [...new Set(logs.map((log) => log.lead_id))];
   const leadById = new Map<string, { business_name: string; email: string | null }>();
 
@@ -211,28 +262,28 @@ export async function getEmailFailures(
       ...log,
       businessName: lead?.business_name ?? null,
       recipient: lead?.email ?? null,
+      attemptCount: attemptsById.get(log.id) ?? 1,
     };
   });
 
+  /*
+   * The "why" summary counts PROBLEMS too, over the same collapsed set ,not
+   * raw attempts. Counting attempts made one stuck lead read as 41 failures
+   * of one kind and drowned out two genuinely separate problems sitting
+   * beside it, which is the opposite of what a "why" breakdown is for.
+   */
   const since = new Date(Date.now() - FAILURE_SUMMARY_WINDOW_DAYS * 86_400_000).toISOString();
-  let summaryQuery = supabase
-    .from('email_logs')
-    .select('failure_reason')
-    .eq('status', 'failed')
-    .gte('created_at', since);
-  if (archivedList) summaryQuery = summaryQuery.not('lead_id', 'in', archivedList);
-  const { data: summaryRows } = await summaryQuery;
-
   const counts = new Map<string, number>();
-  for (const row of summaryRows ?? []) {
-    const key = row.failure_reason ?? 'unknown';
+  for (const { log } of problems) {
+    if (log.created_at < since) continue;
+    const key = log.failure_reason ?? 'unknown';
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const summary = [...counts.entries()]
     .map(([reason, count]) => ({ reason, count }))
     .sort((a, b) => b.count - a.count);
 
-  return { rows, total: count ?? 0, summary, error: null };
+  return { rows, total, summary, error: null };
 }
 
 export interface ReplyRow extends Reply {
