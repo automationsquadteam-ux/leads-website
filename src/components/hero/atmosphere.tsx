@@ -40,9 +40,14 @@ export function CenterGlow({ className }: { className?: string }) {
           <feGaussianBlur stdDeviation="25" />
         </filter>
         <linearGradient id="hero-glow-fill" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#0e5c46" stopOpacity="0.55" />
-          <stop offset="50%" stopColor="#5ed29c" stopOpacity="0.42" />
-          <stop offset="100%" stopColor="#2fb6c4" stopOpacity="0.5" />
+          {/*
+            Cyan through teal, matching the brand accent. Deliberately does NOT
+            reach the success green: the glow sits directly behind the headline
+            and the metric tiles, and a green cast there would read as state.
+          */}
+          <stop offset="0%" stopColor="#0d4f5c" stopOpacity="0.55" />
+          <stop offset="50%" stopColor="#4fd1e0" stopOpacity="0.42" />
+          <stop offset="100%" stopColor="#2f9ec4" stopOpacity="0.5" />
         </linearGradient>
       </defs>
       <ellipse

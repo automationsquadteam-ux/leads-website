@@ -10,7 +10,9 @@
   Design system: "Liquid Glass / Deep Forest".
 
   Dark-first. The palette is anchored on #070b0a (near-black with a green cast)
-  and a single mint accent #5ed29c, with glass surfaces layered over a glow.
+  with a cyan brand accent (#4fd1e0) over glass surfaces and a glow. Green
+  (#5ed29c) is deliberately NOT the brand colour ,it is reserved for success
+  and positive state, so a link can never be mistaken for a status.
   Tokens stay semantic (surface, muted, border) rather than literal, which is
   what lets the whole app be re-skinned from this block alone every component
   reads these and nothing hardcodes a colour.
@@ -29,10 +31,20 @@
   --border: #dde5e1;
   --border-strong: #c3cfc9;
 
-  --primary: #0f9d63;
-  --primary-hover: #0c8553;
+  /*
+   * BRAND is cyan; GREEN is reserved for "this went well".
+   *
+   * They were the same mint for one revision and that was a real problem, not
+   * a cosmetic one: on a dashboard whose whole job is reporting state, a link
+   * and a "Ready to Send" badge rendering in one colour invites reading the
+   * brand accent as a status. Green keeps the meaning everyone already brings
+   * to it, and the accent moved instead ,cyan was already in the hero glow,
+   * so it costs nothing elsewhere.
+   */
+  --primary: #0e7f92;
+  --primary-hover: #0b6a7a;
   --primary-foreground: #ffffff;
-  --primary-subtle: #e6f6ef;
+  --primary-subtle: #e4f4f7;
 
   --success: #0f9d63;
   --success-subtle: #e6f6ef;
@@ -46,7 +58,7 @@
   --violet: #6d28d9;
   --violet-subtle: #f1ecfd;
 
-  --ring: #0f9d63;
+  --ring: #0e7f92;
   --overlay: rgb(7 11 10 / 0.5);
 
   /* Glass: opaque enough to read data through in light mode. */
@@ -55,7 +67,7 @@
   --glass-highlight: rgb(255 255 255 / 0.9);
   --glass-blur: 12px;
 
-  --accent-glow: rgb(15 157 99 / 0.18);
+  --accent-glow: rgb(14 127 146 / 0.18);
   --grid-line: rgb(7 11 10 / 0.06);
 
   /* Density scale 8/10 (dashboard). */
@@ -76,10 +88,11 @@
   --border: #1b2724;
   --border-strong: #2b3a35;
 
-  --primary: #5ed29c;
-  --primary-hover: #7ee0b3;
-  --primary-foreground: #070b0a;
-  --primary-subtle: #0e1f19;
+  /* Brand cyan; green stays reserved for success. See the light block above. */
+  --primary: #4fd1e0;
+  --primary-hover: #7ce0eb;
+  --primary-foreground: #061417;
+  --primary-subtle: #0c2429;
 
   --success: #5ed29c;
   --success-subtle: #0e1f19;
@@ -93,7 +106,7 @@
   --violet: #a78bfa;
   --violet-subtle: #1a1630;
 
-  --ring: #5ed29c;
+  --ring: #4fd1e0;
   --overlay: rgb(3 6 5 / 0.72);
 
   --glass-bg: rgb(255 255 255 / 0.03);
@@ -101,7 +114,7 @@
   --glass-highlight: rgb(255 255 255 / 0.14);
   --glass-blur: 14px;
 
-  --accent-glow: rgb(94 210 156 / 0.14);
+  --accent-glow: rgb(79 209 224 / 0.14);
   --grid-line: rgb(255 255 255 / 0.05);
 }
 
@@ -282,6 +295,37 @@
     background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px);
     background-size: 25% 100%;
     background-position: 0 0;
+  }
+
+  /*
+   * Admin shell sitting over the looping backdrop.
+   *
+   * Re-points the surface tokens to translucent versions rather than editing
+   * any component: everything already reads `--surface`, so one class is what
+   * lets the video show faintly through the chrome and the cards.
+   *
+   * The values are chosen for a contrast floor, not for maximum effect. At
+   * 0.72 alpha over the scrim in `AdminBackdrop`, body text on `--surface`
+   * still clears 4.5:1 against the darkest frame of the video; going much
+   * thinner starts to fail on bright frames, which is the failure mode that
+   * matters here because it is intermittent and therefore easy to miss.
+   *
+   * Deliberately NOT adding `backdrop-filter` to cards. The dashboard renders
+   * 20+ of them and the leads table many more rows; blur is per-element and
+   * the cost is real. Translucency alone gives the depth without it.
+   */
+  .admin-video {
+    --surface: rgb(12 18 17 / 0.72);
+    --surface-raised: rgb(17 25 23 / 0.82);
+    --surface-hover: rgb(22 32 29 / 0.85);
+    --muted: rgb(16 23 22 / 0.7);
+  }
+
+  :root:not(.dark) .admin-video {
+    --surface: rgb(255 255 255 / 0.86);
+    --surface-raised: rgb(255 255 255 / 0.92);
+    --surface-hover: rgb(238 242 240 / 0.9);
+    --muted: rgb(238 242 240 / 0.85);
   }
 
   /* Tabular figures wherever a number sits next to another number. */

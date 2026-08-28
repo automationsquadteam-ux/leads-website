@@ -4,6 +4,7 @@ import * as React from 'react';
 
 import { ToastProvider } from '@/components/ui/toast';
 import type { AppRole } from '@/lib/supabase/database.types';
+import { AdminBackdrop } from './admin-backdrop';
 import { DesktopSidebar, MobileSidebar } from './sidebar';
 import { Topbar } from './topbar';
 
@@ -30,32 +31,53 @@ export function AppShell({
         Skip to main content
       </a>
 
-      <DesktopSidebar role={role} />
-      <MobileSidebar role={role} open={navOpen} onClose={() => setNavOpen(false)} />
-
       {/*
-        `min-w-0` is the load-bearing class here, not `overflow-x-hidden`.
-        A grid or flex child defaults to `min-width: auto`, meaning it refuses to
-        shrink below its widest CONTENT ,so one long unbreakable string (a curl
-        command, an email address, a URL) silently widened this column, which
-        widened the page, which is why every screen could be dragged sideways
-        into blank space on a phone while the content itself had gone one-column.
-        Clipping alone would have hidden the symptom and kept the layout wrong.
+        `admin-video` is on a wrapper rather than on <body> so the translucent
+        surface tokens are scoped to the signed-in shell ,the login page and
+        the public front page keep their own treatment.
       */}
-      <div className="min-w-0 lg:pl-[var(--sidebar-width)]">
-        <Topbar
-          email={email}
-          role={role}
-          onOpenNav={() => setNavOpen(true)}
-          signOutAction={signOutAction}
-        />
-        <main
-          id="main"
-          tabIndex={-1}
-          className="min-h-[calc(100dvh-var(--header-height))] overflow-x-hidden"
-        >
-          {children}
-        </main>
+      {/*
+        `admin-video` re-points the surface tokens to translucent versions for
+        everything inside it, so the backdrop shows through the chrome. It is
+        on a wrapper rather than on <body> to keep that scoped to the signed-in
+        shell ,the login and public pages have their own treatment.
+
+        `contents` so the wrapper itself creates no box: the sidebar is
+        `position: fixed` and the column below it relies on being a direct
+        child here, and an extra block box would change neither's containing
+        block but would add a layout node for no reason. Custom properties
+        still inherit through `display: contents`, which is the whole trick.
+      */}
+      <div className="admin-video contents">
+        <AdminBackdrop />
+
+        <DesktopSidebar role={role} />
+        <MobileSidebar role={role} open={navOpen} onClose={() => setNavOpen(false)} />
+
+        {/*
+          `min-w-0` is the load-bearing class here, not `overflow-x-hidden`.
+          A grid or flex child defaults to `min-width: auto`, meaning it refuses to
+          shrink below its widest CONTENT ,so one long unbreakable string (a curl
+          command, an email address, a URL) silently widened this column, which
+          widened the page, which is why every screen could be dragged sideways
+          into blank space on a phone while the content itself had gone one-column.
+          Clipping alone would have hidden the symptom and kept the layout wrong.
+        */}
+        <div className="relative min-w-0 lg:pl-[var(--sidebar-width)]">
+          <Topbar
+            email={email}
+            role={role}
+            onOpenNav={() => setNavOpen(true)}
+            signOutAction={signOutAction}
+          />
+          <main
+            id="main"
+            tabIndex={-1}
+            className="min-h-[calc(100dvh-var(--header-height))] overflow-x-hidden"
+          >
+            {children}
+          </main>
+        </div>
       </div>
     </ToastProvider>
   );
