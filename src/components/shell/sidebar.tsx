@@ -27,9 +27,12 @@ export function SidebarNav({ role, onNavigate }: { role: AppRole; onNavigate?: (
             // the colour change alone would not.
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+              'relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
+              // The active item gets a mint rail on its leading edge as well as
+              // the tint: on the dark palette the subtle background alone is
+              // only a few points of luminance away from the rail behind it.
               active
-                ? 'bg-primary-subtle font-medium text-primary'
+                ? 'bg-primary-subtle font-semibold text-primary before:absolute before:inset-y-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-primary'
                 : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground',
             )}
           >
@@ -50,8 +53,12 @@ export function SidebarBrand() {
     >
       <BrandMark size={28} />
       <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold tracking-tight">Automation Squad</span>
-        <span className="block text-[11px] text-muted-foreground">Leads CRM</span>
+        <span className="font-display block truncate text-sm font-bold tracking-tight">
+          Automation <span className="text-primary">Squad</span>
+        </span>
+        <span className="font-display block text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+          Leads CRM
+        </span>
       </span>
     </Link>
   );

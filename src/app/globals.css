@@ -7,40 +7,56 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
-  Design system: "Data-Dense Dashboard" Linear / Vercel / GitHub register.
-  Tokens are semantic (surface, muted, border) rather than literal (gray-100) so
-  a theme change never requires touching a component.
+  Design system: "Liquid Glass / Deep Forest".
+
+  Dark-first. The palette is anchored on #070b0a (near-black with a green cast)
+  and a single mint accent #5ed29c, with glass surfaces layered over a glow.
+  Tokens stay semantic (surface, muted, border) rather than literal, which is
+  what lets the whole app be re-skinned from this block alone every component
+  reads these and nothing hardcodes a colour.
+
+  Light mode is kept working (the top-bar toggle is not a decoration) but is
+  deliberately the secondary experience: same mint accent, warm-neutral paper.
 */
 :root {
-  --background: #f8fafc;
+  --background: #f6f8f7;
   --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-hover: #f1f5f9;
-  --foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --surface-hover: #eef2f0;
+  --foreground: #070b0a;
+  --muted: #eef2f0;
+  --muted-foreground: #5c6b65;
+  --border: #dde5e1;
+  --border-strong: #c3cfc9;
 
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
+  --primary: #0f9d63;
+  --primary-hover: #0c8553;
   --primary-foreground: #ffffff;
-  --primary-subtle: #eff6ff;
+  --primary-subtle: #e6f6ef;
 
-  --success: #059669;
-  --success-subtle: #ecfdf5;
-  --warning: #d97706;
-  --warning-subtle: #fffbeb;
-  --danger: #dc2626;
-  --danger-hover: #b91c1c;
-  --danger-subtle: #fef2f2;
-  --info: #0891b2;
-  --info-subtle: #ecfeff;
-  --violet: #7c3aed;
-  --violet-subtle: #f5f3ff;
+  --success: #0f9d63;
+  --success-subtle: #e6f6ef;
+  --warning: #b45309;
+  --warning-subtle: #fdf5e7;
+  --danger: #c8372d;
+  --danger-hover: #a82d24;
+  --danger-subtle: #fbeceb;
+  --info: #0e7490;
+  --info-subtle: #e6f5f8;
+  --violet: #6d28d9;
+  --violet-subtle: #f1ecfd;
 
-  --ring: #2563eb;
-  --overlay: rgb(15 23 42 / 0.5);
+  --ring: #0f9d63;
+  --overlay: rgb(7 11 10 / 0.5);
+
+  /* Glass: opaque enough to read data through in light mode. */
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-border: rgb(7 11 10 / 0.08);
+  --glass-highlight: rgb(255 255 255 / 0.9);
+  --glass-blur: 12px;
+
+  --accent-glow: rgb(15 157 99 / 0.18);
+  --grid-line: rgb(7 11 10 / 0.06);
 
   /* Density scale 8/10 (dashboard). */
   --sidebar-width: 240px;
@@ -50,35 +66,43 @@
 }
 
 .dark {
-  --background: #09090b;
-  --surface: #121215;
-  --surface-raised: #18181c;
-  --surface-hover: #1f1f24;
-  --foreground: #fafafa;
-  --muted: #1c1c20;
-  --muted-foreground: #a1a1aa;
-  --border: #27272a;
-  --border-strong: #3f3f46;
+  --background: #070b0a;
+  --surface: #0c1211;
+  --surface-raised: #111917;
+  --surface-hover: #16201d;
+  --foreground: #f2f7f5;
+  --muted: #101716;
+  --muted-foreground: #8ba39a;
+  --border: #1b2724;
+  --border-strong: #2b3a35;
 
-  --primary: #3b82f6;
-  --primary-hover: #60a5fa;
-  --primary-foreground: #ffffff;
-  --primary-subtle: #17233f;
+  --primary: #5ed29c;
+  --primary-hover: #7ee0b3;
+  --primary-foreground: #070b0a;
+  --primary-subtle: #0e1f19;
 
-  --success: #10b981;
-  --success-subtle: #0d2a22;
-  --warning: #f59e0b;
-  --warning-subtle: #2e2410;
-  --danger: #ef4444;
-  --danger-hover: #f87171;
-  --danger-subtle: #33191b;
-  --info: #22d3ee;
-  --info-subtle: #0d2a30;
+  --success: #5ed29c;
+  --success-subtle: #0e1f19;
+  --warning: #e0b45e;
+  --warning-subtle: #241d10;
+  --danger: #f26a5f;
+  --danger-hover: #ff8a80;
+  --danger-subtle: #2a1513;
+  --info: #5ec8d2;
+  --info-subtle: #0c1f22;
   --violet: #a78bfa;
-  --violet-subtle: #221c3a;
+  --violet-subtle: #1a1630;
 
-  --ring: #3b82f6;
-  --overlay: rgb(0 0 0 / 0.65);
+  --ring: #5ed29c;
+  --overlay: rgb(3 6 5 / 0.72);
+
+  --glass-bg: rgb(255 255 255 / 0.03);
+  --glass-border: rgb(255 255 255 / 0.1);
+  --glass-highlight: rgb(255 255 255 / 0.14);
+  --glass-blur: 14px;
+
+  --accent-glow: rgb(94 210 156 / 0.14);
+  --grid-line: rgb(255 255 255 / 0.05);
 }
 
 @theme inline {
@@ -115,7 +139,12 @@
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);
 
+  --color-glass-border: var(--glass-border);
+  --color-grid-line: var(--grid-line);
+
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: var(--font-jakarta), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, 'Times New Roman', serif;
   --font-mono: var(--font-mono-stack), ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
 }
 
@@ -183,6 +212,86 @@
   /* Numeric columns must not jitter as values change. */
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * LIQUID GLASS.
+   *
+   * `background-blend-mode: luminosity` is what separates this from an ordinary
+   * translucent panel: the backdrop's brightness comes through while its hue
+   * does not, so a card over the green glow reads as frosted glass rather than
+   * as a green tint. The inset highlight is the light catching the top edge.
+   *
+   * Kept to a single class so the blur radius is defined once ,`backdrop-filter`
+   * is the most expensive thing on any of these pages, and a stack of nested
+   * blurred panels is how that becomes visible on a laptop GPU.
+   */
+  .glass {
+    background: var(--glass-bg);
+    background-blend-mode: luminosity;
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: inset 0 1px 1px var(--glass-highlight);
+  }
+
+  /*
+   * The 1.4px gradient frame from the spec.
+   *
+   * Two backgrounds are painted into the same box and then subtracted: one
+   * clipped to the padding box, one to the border box, with `mask-composite`
+   * removing the overlap. What survives is exactly the 1.4px ring ,a real
+   * gradient border, which `border-image` cannot do with a rounded radius.
+   *
+   * Both spellings are required and they take OPPOSITE keywords for the same
+   * operation: WebKit's `xor` and the standard's `exclude`. Shipping only one
+   * silently fills the whole element with the gradient in the other engine.
+   */
+  .glass-frame {
+    position: relative;
+  }
+
+  .glass-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1.4px;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.55),
+      rgb(255 255 255 / 0.08) 45%,
+      rgb(255 255 255 / 0.02)
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /*
+   * Three hairlines at 25 / 50 / 75%. One element, one repeating gradient —
+   * `background-size: 25%` places a line every quarter and the 4th falls on the
+   * right edge, off-screen. Desktop only: on a phone they crowd the text.
+   */
+  .grid-lines {
+    background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px);
+    background-size: 25% 100%;
+    background-position: 0 0;
+  }
+
+  /* Tabular figures wherever a number sits next to another number. */
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-serif-italic {
+    font-family: var(--font-serif);
+    font-style: italic;
   }
 
   .scrollbar-thin {

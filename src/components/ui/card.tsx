@@ -17,9 +17,22 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
    * Setting it here rather than on each grid means the fix cannot be forgotten
    * the next time a card is dropped into a layout.
    */
+  /*
+   * Deliberately NOT `.glass`. A card is a container for tables and charts,
+   * and `backdrop-filter` on a few dozen of them at once is the single most
+   * expensive thing this app could ask a GPU to do ,the dashboard alone
+   * renders more than twenty. The glass treatment is reserved for the handful
+   * of floating surfaces over the hero, where there is actually something
+   * behind them worth blurring. Here the same look is approximated with a
+   * raised surface and a top highlight, which costs nothing.
+   */
   return (
     <div
-      className={cn('min-w-0 rounded-lg border border-border bg-surface shadow-sm', className)}
+      className={cn(
+        'min-w-0 rounded-xl border border-border bg-surface',
+        'shadow-[inset_0_1px_0_var(--glass-highlight),0_1px_2px_rgb(0_0_0/0.04)]',
+        className,
+      )}
       {...props}
     />
   );

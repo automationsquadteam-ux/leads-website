@@ -68,7 +68,9 @@ export function TH({ className, ...props }: React.ThHTMLAttributes<HTMLTableCell
   return (
     <th
       className={cn(
-        'h-9 overflow-hidden px-3 text-left text-xs font-medium tracking-wide text-muted-foreground whitespace-nowrap',
+        // Small-caps column headings, matching the metric-card labels ,the two
+        // sit next to each other on most pages and used to disagree.
+        'font-display h-9 overflow-hidden px-3 text-left text-[11px] font-bold tracking-widest text-muted-foreground uppercase whitespace-nowrap',
         className,
       )}
       {...props}

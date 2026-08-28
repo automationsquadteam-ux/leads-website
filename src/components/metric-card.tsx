@@ -45,7 +45,9 @@ export function MetricCard({
           says what the number is. On a wide screen the row rhythm matters more
           and every label fits anyway, so truncation returns there.
         */}
-        <p className="text-xs font-medium text-muted-foreground sm:truncate">{label}</p>
+        <p className="font-display text-[11px] font-bold tracking-[0.12em] text-muted-foreground uppercase sm:truncate">
+          {label}
+        </p>
         {href ? (
           <ArrowUpRight
             className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
@@ -55,7 +57,7 @@ export function MetricCard({
           <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         ) : null}
       </div>
-      <p className={cn('tabular mt-1.5 text-xl font-semibold tracking-tight sm:text-2xl', toneClass)}>
+      <p className={cn('tabular mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl', toneClass)}>
         {value}
       </p>
       {hint ? (
@@ -64,7 +66,10 @@ export function MetricCard({
     </>
   );
 
-  const base = 'rounded-lg border border-border bg-surface p-3 transition-colors';
+  const base = cn(
+    'rounded-xl border border-border bg-surface p-3.5 transition-colors',
+    'shadow-[inset_0_1px_0_var(--glass-highlight)]',
+  );
 
   if (!href) {
     return <div className={cn(base, 'hover:border-border-strong', className)}>{body}</div>;
@@ -73,7 +78,7 @@ export function MetricCard({
   return (
     <Link
       href={href}
-      className={cn(base, 'group block hover:border-primary hover:bg-surface-hover', className)}
+      className={cn(base, 'group block hover:border-primary/60 hover:bg-surface-hover', className)}
     >
       {body}
       <span className="sr-only">open the leads behind this figure</span>

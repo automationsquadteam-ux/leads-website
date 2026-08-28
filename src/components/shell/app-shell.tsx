@@ -72,11 +72,21 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-6">
+    /*
+     * The mint hairline under every page header is the one piece of the hero's
+     * accent that reaches the admin routes. It is a 1px gradient rather than a
+     * solid rule so it fades out rather than stopping dead at the right edge,
+     * which is what keeps it reading as light rather than as a border.
+     */
+    <div className="relative flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-5 sm:px-6">
+      <div
+        className="absolute inset-x-0 -bottom-px h-px bg-linear-to-r from-primary/50 via-primary/10 to-transparent"
+        aria-hidden="true"
+      />
       <div className="min-w-0">
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-xl font-extrabold tracking-tight">{title}</h1>
         {description ? (
-          <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         ) : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}

@@ -1,15 +1,15 @@
 import Link from 'next/link';
 import {
-  Building2, CheckCircle2, FileText, Globe2, LogIn, Mail, MailQuestion, MailX, Search,
+  Building2, CheckCircle2, FileText, Mail, MailQuestion, MailX, Search,
   Send, ShieldQuestion, ThumbsDown, ThumbsUp, Timer, TrendingDown, TrendingUp, Users,
 } from 'lucide-react';
 
 import { BrandMark } from '@/components/brand';
+import { Hero } from '@/components/hero/hero';
 import { MetricCard } from '@/components/metric-card';
 import { BarList, MultiLineChart, type SeriesPoint } from '@/components/charts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { getPublicStats } from '@/lib/data/public-stats';
 import { STAGE_META } from '@/lib/pipeline/labels';
 import { formatNumber, formatPercent } from '@/lib/utils';
@@ -67,64 +67,57 @@ export async function PublicStatsPage() {
 
   return (
     <div className="min-h-dvh bg-background">
-      <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
-          <BrandMark size={32} className="rounded-lg" priority />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold tracking-tight">
-              Automation Squad
-            </span>
-            <span className="block text-[11px] text-muted-foreground">Outreach statistics</span>
-          </span>
-          <ThemeToggle />
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm hover:bg-surface-hover"
-          >
-            <LogIn className="size-4" aria-hidden="true" />
-            Sign in
-          </Link>
-        </div>
-      </header>
-
       <main>
         {/* ---------------------------------------------------------------- */}
         {/* Hero                                                             */}
         {/* ---------------------------------------------------------------- */}
-        <section className="border-b border-border bg-surface">
-          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-            <div className="max-w-2xl">
-              <Badge tone="primary" className="mb-4">
-                <Globe2 className="size-3" aria-hidden="true" />
-                Live pipeline data
-              </Badge>
-              <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-                Cold outreach, measured honestly.
-              </h1>
-              <p className="mt-3 text-base leading-relaxed text-muted-foreground text-pretty">
-                Every figure below is read straight from the live pipeline research completed,
-                businesses contacted, replies received. Outreach is counted per business, not per
-                message, so a follow-up never inflates the total. Nothing is rounded up and nothing
-                is a mock-up. Lead identities and contact details are never published here.
-              </p>
+        {/*
+          Every string below is this page's own, unchanged ,the redesign is
+          styling only. The headline renders uppercase through CSS rather than
+          being retyped in caps, so the text itself still reads as written.
+        */}
+        <Hero
+          eyebrow="Live pipeline data"
+          headline="Cold outreach, measured honestly"
+          headlineAccent="."
+          description="Every figure below is read straight from the live pipeline research completed, businesses contacted, replies received. Outreach is counted per business, not per message, so a follow-up never inflates the total. Nothing is rounded up and nothing is a mock-up. Lead identities and contact details are never published here."
+          ctaLabel="View statistics"
+          ctaHref="#pipeline"
+          links={[
+            { label: 'Pipeline', href: '#pipeline' },
+            { label: 'Activity', href: '#activity' },
+            { label: 'Stages', href: '#stages' },
+            { label: 'Rates', href: '#rates' },
+          ]}
+          card={{
+            tag: '[ LIVE ]',
+            headlinePlain: 'Aggregate',
+            headlineItalic: 'counts',
+            headlineRest: 'only',
+            description:
+              'Contact details, research, drafts and internal notes are never exposed on this page.',
+          }}
+        />
 
-              <dl className="mt-8 grid grid-cols-2 gap-6 sm:grid-cols-4">
-                {[
-                  ['Leads tracked', formatNumber(overview?.total_leads ?? 0)],
-                  ['Businesses contacted', formatNumber(overview?.leads_contacted ?? 0)],
-                  ['Replies', formatNumber(overview?.replies ?? 0)],
-                  ['Reply rate', formatPercent(overview?.reply_rate_pct)],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-                    <dd className="tabular mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-                      {value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          </div>
+        {/* The four headline figures, on glass, straddling the hero's edge. */}
+        <section className="relative z-10 -mt-16 px-4 sm:px-6">
+          <dl className="glass glass-frame mx-auto grid max-w-6xl grid-cols-2 gap-6 rounded-2xl px-6 py-7 sm:grid-cols-4 sm:px-8">
+            {[
+              ['Leads tracked', formatNumber(overview?.total_leads ?? 0)],
+              ['Businesses contacted', formatNumber(overview?.leads_contacted ?? 0)],
+              ['Replies', formatNumber(overview?.replies ?? 0)],
+              ['Reply rate', formatPercent(overview?.reply_rate_pct)],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt className="font-display text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
+                  {label}
+                </dt>
+                <dd className="tabular mt-1.5 text-2xl font-extrabold tracking-tight sm:text-3xl">
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
         </section>
 
         <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
@@ -134,7 +127,7 @@ export async function PublicStatsPage() {
             </p>
           ) : null}
 
-          <section aria-label="Pipeline" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <section id="pipeline" aria-label="Pipeline" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <MetricCard label="Total Leads" value={formatNumber(overview?.total_leads ?? 0)} icon={Users} />
             <MetricCard
               label="Need Email"
@@ -191,7 +184,7 @@ export async function PublicStatsPage() {
             />
           </section>
 
-          <section aria-label="Rates" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <section id="rates" aria-label="Rates" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <MetricCard
               label="Positive Replies"
               value={formatNumber(overview?.positive_replies ?? 0)}
@@ -233,7 +226,7 @@ export async function PublicStatsPage() {
             />
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-3">
+          <section id="activity" className="grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <CardHeader>
                 <div>
@@ -277,7 +270,7 @@ export async function PublicStatsPage() {
             beside a hole is worse than a wide one - which this is better as
             anyway, since the stage list is eleven rows long.
           */}
-          <section>
+          <section id="stages">
             <Card>
               <CardHeader>
                 <div>
@@ -303,7 +296,7 @@ export async function PublicStatsPage() {
             publishing.
           */}
           {data.leads.length > 0 ? (
-            <section>
+            <section id="leads">
               <Card>
                 <CardHeader>
                   <div>

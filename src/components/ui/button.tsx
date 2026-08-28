@@ -6,15 +6,24 @@ import { cn } from '@/lib/utils';
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
 type Size = 'sm' | 'md' | 'lg' | 'icon';
 
+/*
+ * `rounded-full` on the primary action is the one shape borrowed wholesale
+ * from the landing hero ,it is the CTA treatment, so the button that commits
+ * a change should read the same everywhere. Secondary and ghost keep the
+ * softer `rounded-md`: a toolbar of pills is noisier than a toolbar of
+ * rectangles, and only one action per view should look like the CTA.
+ */
 const VARIANTS: Record<Variant, string> = {
   primary:
-    'bg-primary text-primary-foreground hover:bg-primary-hover shadow-sm disabled:hover:bg-primary',
+    'rounded-full bg-primary text-primary-foreground font-semibold tracking-wide hover:bg-primary-hover shadow-[0_0_0_1px_rgb(94_210_156_/_0.2),0_6px_20px_-8px_rgb(94_210_156_/_0.5)] disabled:hover:bg-primary',
   secondary:
-    'bg-surface text-foreground border border-border hover:bg-surface-hover disabled:hover:bg-surface',
+    'rounded-md bg-surface text-foreground border border-border hover:border-border-strong hover:bg-surface-hover disabled:hover:bg-surface',
   outline:
-    'bg-transparent text-foreground border border-border-strong hover:bg-surface-hover disabled:hover:bg-transparent',
-  ghost: 'bg-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground',
-  danger: 'bg-danger text-white hover:bg-danger-hover shadow-sm disabled:hover:bg-danger',
+    'rounded-md bg-transparent text-foreground border border-border-strong hover:border-primary/50 hover:bg-surface-hover disabled:hover:bg-transparent',
+  ghost:
+    'rounded-md bg-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground',
+  danger:
+    'rounded-full bg-danger text-white font-semibold hover:bg-danger-hover shadow-[0_6px_20px_-8px_rgb(242_106_95_/_0.5)] disabled:hover:bg-danger',
 };
 
 const SIZES: Record<Size, string> = {
@@ -43,7 +52,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       aria-busy={loading || undefined}
       disabled={disabled || loading}
       className={cn(
-        'inline-flex cursor-pointer items-center justify-center rounded-md font-medium whitespace-nowrap',
+        'inline-flex cursor-pointer items-center justify-center font-medium whitespace-nowrap',
         'transition-colors duration-150',
         'disabled:pointer-events-none disabled:opacity-50',
         VARIANTS[variant],

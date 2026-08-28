@@ -23,8 +23,11 @@ const OPTIONS: Array<{ value: Theme; label: string; icon: typeof Sun }> = [
 ];
 
 export function ThemeToggle() {
-  const [stored, setStored] = usePersistedString(THEME_STORAGE_KEY, 'system');
-  const theme = (OPTIONS.some((o) => o.value === stored) ? stored : 'system') as Theme;
+  // 'dark' is the default here to match themeScript's, which paints before this
+  // component mounts. Disagreeing defaults would show the toggle highlighting
+  // one option while the page rendered as another until the first click.
+  const [stored, setStored] = usePersistedString(THEME_STORAGE_KEY, 'dark');
+  const theme = (OPTIONS.some((o) => o.value === stored) ? stored : 'dark') as Theme;
 
   // Keep following the OS while the preference is "system".
   React.useEffect(() => {

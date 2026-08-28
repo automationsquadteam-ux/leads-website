@@ -30,8 +30,10 @@ export function Badge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5',
-        'text-xs font-medium whitespace-nowrap',
+        // Pill-shaped, to rhyme with the CTA. Badges are small enough that the
+        // full radius reads as a token rather than as another button.
+        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
+        'text-xs font-semibold whitespace-nowrap',
         TONES[tone],
         className,
       )}
