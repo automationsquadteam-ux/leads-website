@@ -24,9 +24,32 @@ import type { Database, Views } from '@/lib/supabase/database.types';
  * is enforced by Postgres grants rather than by care.
  */
 
+/**
+ * How long the public page will wait for Supabase before giving up.
+ *
+ * This page is `force-dynamic`, so every visitor waits on these queries with
+ * nothing on screen until they answer. Without a bound that wait is the
+ * platform's request timeout ,measured on 2026-08-28, while this project's
+ * Supabase was degraded, the front page intermittently hung past 30s and
+ * returned nothing at all, when the honest answer ("statistics are unavailable
+ * right now") was already a supported state of this function.
+ *
+ * Eight seconds is well past a healthy read here (~300ms measured) and short
+ * enough that a visitor gets a rendered page rather than a spinner that never
+ * resolves.
+ */
+const QUERY_TIMEOUT_MS = 8_000;
+
+function timeoutFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), QUERY_TIMEOUT_MS);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 function createAnonClient() {
   return createSupabaseClient<Database>(getSupabaseUrl(), getSupabaseAnonKey(), {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: timeoutFetch },
   });
 }
 
@@ -46,18 +69,38 @@ export interface PublicStats {
 export async function getPublicStats(): Promise<PublicStats> {
   const supabase = createAnonClient();
 
-  const [overview, stages, activity, leads] = await Promise.all([
-    supabase.from('public_stats_overview').select('*').maybeSingle(),
-    supabase.from('public_stats_stages').select('*'),
-    supabase.from('public_stats_activity_daily').select('*').order('day', { ascending: true }),
-    supabase.from('public_stats_leads').select('*'),
-  ]);
+  /*
+   * A timed-out fetch REJECTS rather than resolving with an `error` field, so
+   * this needs a catch as well as the per-query error check below. Without it
+   * an abort propagates out of the render and the visitor gets a 500 instead
+   * of the page ,which defeats the point of bounding the wait at all.
+   *
+   * Every field degrades to its empty value and `error` carries the reason,
+   * which the page already renders as a notice above the (empty) figures.
+   */
+  try {
+    const [overview, stages, activity, leads] = await Promise.all([
+      supabase.from('public_stats_overview').select('*').maybeSingle(),
+      supabase.from('public_stats_stages').select('*'),
+      supabase.from('public_stats_activity_daily').select('*').order('day', { ascending: true }),
+      supabase.from('public_stats_leads').select('*'),
+    ]);
 
-  return {
-    overview: overview.data ?? null,
-    stages: stages.data ?? [],
-    activity: activity.data ?? [],
-    leads: leads.data ?? [],
-    error: overview.error?.message ?? null,
-  };
+    return {
+      overview: overview.data ?? null,
+      stages: stages.data ?? [],
+      activity: activity.data ?? [],
+      leads: leads.data ?? [],
+      error: overview.error?.message ?? null,
+    };
+  } catch (cause) {
+    const message =
+      cause instanceof Error && cause.name === 'AbortError'
+        ? `The database did not respond within ${QUERY_TIMEOUT_MS / 1000}s.`
+        : cause instanceof Error
+          ? cause.message
+          : 'The database could not be reached.';
+    console.error('[public-stats] read failed:', cause);
+    return { overview: null, stages: [], activity: [], leads: [], error: message };
+  }
 }

@@ -66,6 +66,29 @@ function isAdminRoute(pathname: string): boolean {
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
+  /*
+   * A public route that needs nothing from the session does not touch auth.
+   *
+   * This used to call readSession() FIRST and check isPublic() afterwards, so
+   * every hit on the public front page made two blocking Supabase calls whose
+   * answer was then thrown away. That is wasteful on a good day and fatal on a
+   * bad one: on 2026-08-28 this project's auth service stopped responding while
+   * the database stayed healthy, and because the front page still waited on it,
+   * the whole site answered 504 MIDDLEWARE_INVOCATION_TIMEOUT ,including a
+   * page that reads nothing but anon-granted aggregate views and has no concept
+   * of a user.
+   *
+   * `/login` is deliberately NOT in this set: it needs to know whether someone
+   * is already signed in so it can bounce them to /dashboard. It still degrades
+   * safely, because readSession() now fails closed rather than hanging.
+   *
+   * The cron and inbound routes are here for the same reason ,they carry a
+   * bearer token and check it themselves, so a session lookup for them is pure
+   * latency on a path that must not depend on auth being up.
+   */
+  const needsSession = pathname === '/login' || !isPublic(pathname);
+  if (!needsSession) return NextResponse.next();
+
   const { response, userId, role } = await readSession(request);
 
   // Signed-in users have no business on the login page.
