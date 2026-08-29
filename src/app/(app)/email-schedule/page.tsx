@@ -109,7 +109,10 @@ export default async function EmailSchedulePage() {
           </p>
         ) : null}
 
-        <h2 className="text-xs font-medium text-muted-foreground">Last 7 days &mdash; actual</h2>
+        <h2 className="text-xs font-medium text-muted-foreground">
+          Last 7 days &mdash; actual{' '}
+          <span className="font-normal">&middot; click a day to open its email log</span>
+        </h2>
         <TableWrap>
           <Table style={{ minWidth: 480 }}>
             <THead>
@@ -131,9 +134,35 @@ export default async function EmailSchedulePage() {
               {forecast.pastDays.map((day, index) => {
                 const dayTotal = day.followup2 + day.followup1 + day.initial;
                 const daysAgo = forecast.pastDays.length - index;
+                const label = formatPastDate(day.date, daysAgo);
                 return (
-                  <TR key={day.date}>
-                    <TD className="font-medium">{formatPastDate(day.date, daysAgo)}</TD>
+                  /*
+                    Each past day opens that day in the Email Logs.
+
+                    `?from=` alone, with no `to=`: the logs page reads a single
+                    bound as "that one day" (see resolveDateRange in
+                    lib/data/misc.ts) and words its own heading accordingly, so
+                    sending both would make it say "period" about one date.
+                    `day.date` is already YYYY-MM-DD in DISPLAY_TIME_ZONE,
+                    which is exactly what that filter parses.
+
+                    Stretched link, the same trick the Send Failures table
+                    uses: the anchor lives in one cell but covers the whole row
+                    via `absolute inset-0` against the row's `relative`, which
+                    makes the row one target without nesting an <a> around a
+                    <tr> ,invalid HTML a browser would hoist right back out.
+                    `overflow-visible` overrides TD's default clipping, which
+                    would otherwise shrink the target to this cell alone.
+                  */
+                  <TR key={day.date} className="relative">
+                    <TD className="overflow-visible font-medium">
+                      <Link
+                        href={`/email-logs?from=${day.date}`}
+                        className="absolute inset-0"
+                        aria-label={`View email logs for ${label}`}
+                      />
+                      {label}
+                    </TD>
                     <TD className="tabular text-right">{day.followup2 > 0 ? formatNumber(day.followup2) : '—'}</TD>
                     <TD className="tabular text-right">{day.followup1 > 0 ? formatNumber(day.followup1) : '—'}</TD>
                     <TD className="tabular text-right">{day.initial > 0 ? formatNumber(day.initial) : '—'}</TD>
