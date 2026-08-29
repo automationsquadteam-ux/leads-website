@@ -15,8 +15,11 @@ import { useEffect, useRef } from 'react';
  *
  * - `enableWorker: false`. hls.js normally demuxes in a Web Worker built from
  *   a blob: URL, which a strict CSP or a sandboxed frame refuses to execute.
- * - Safari is never given hls.js. It plays HLS natively via `src`, and
- *   attaching hls.js on top produces two pipelines on one element.
+ * - **MSE is preferred over native HLS**, not the other way round. See the long
+ *   note at the source-selection branch: Chrome claims `"maybe"` for native
+ *   HLS and cannot actually play it, so asking `canPlayType` first hands the
+ *   element a playlist it will never decode. Native is the fallback, and it is
+ *   real only on iOS Safari.
  * - `muted` + `playsInline` are both required for autoplay on iOS, and without
  *   `playsInline` iOS takes over the whole screen on first play.
  */
@@ -95,22 +98,44 @@ export function VideoBackdrop({
       for (const fn of cleanups) fn();
     };
 
-    // Safari / iOS: native HLS, no library.
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = src;
-      tryPlay();
-      return runCleanups;
-    }
-
     let destroyed = false;
     let hls: import('hls.js').default | null = null;
 
+    /*
+     * MSE FIRST, NATIVE ONLY AS FALLBACK. The order here is the bug that
+     * produced `NotSupportedError` in Chrome, and it is worth stating plainly
+     * because it looks harmless the other way round.
+     *
+     * This used to test `canPlayType('application/vnd.apple.mpegurl')` first
+     * and treat any truthy answer as "this browser plays HLS natively". But
+     * `canPlayType` returns a THREE-state string ,`""`, `"maybe"`, or
+     * `"probably"` ,and Chrome on Windows answers **"maybe"** for HLS, which
+     * is truthy while being an outright lie: Chrome has no native HLS demuxer.
+     * So the element was handed an .m3u8 as a plain `src`, could not decode a
+     * playlist as media, and every `play()` rejected with NotSupportedError.
+     *
+     * That is also the whole Chrome-vs-VS-Code difference reported earlier:
+     * Electron answers `""` for the same call, fell through to hls.js, and
+     * played fine ,so the autoplay policy was never involved.
+     *
+     * `Hls.isSupported()` (a real MSE capability check) is therefore asked
+     * first, which is the order hls.js's own documentation uses. Native is
+     * reached only where MSE genuinely is not available, which in practice
+     * means iOS Safari ,the one place native HLS is real.
+     */
     import('hls.js')
       .then(({ default: Hls }) => {
         if (destroyed) return;
 
         if (!Hls.isSupported()) {
-          console.warn('[VideoBackdrop] hls.js reports no MSE support in this browser.');
+          // No MSE. Native HLS is the only remaining option, and on iOS Safari
+          // it is a genuine one.
+          if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = src;
+            tryPlay();
+            return;
+          }
+          console.error('[VideoBackdrop] neither MSE nor native HLS is available here.');
           return;
         }
 
