@@ -31,10 +31,21 @@ export function AdminBackdrop() {
   return (
     <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
       <VideoBackdrop src={HLS_SRC} className="size-full object-cover opacity-60" />
-      {/* The contrast floor for everything above. */}
-      <div className="absolute inset-0 bg-background/70" />
-      {/* Depth on top of it, densest behind the top bar. */}
-      <div className="absolute inset-0 bg-linear-to-b from-background/80 via-background/40 to-background/75" />
+      {/*
+        ONE scrim, not two.
+
+        This stacked a flat `bg-background/70` and a gradient reaching /80 on
+        top of it, which multiply: 0.6 video x 0.3 x ~0.3 left roughly 5% of
+        the footage visible, i.e. a flat dark page ,which is exactly how it
+        was reported. A single layer is the only way the arithmetic stays
+        legible to whoever tunes this next.
+
+        0.6 over a 0.6-opacity video leaves ~24% of the footage showing:
+        clearly moving, still dark enough to read a dense table over. This is
+        the number to change if it wants to be more or less present ,adjust
+        it rather than adding another layer.
+      */}
+      <div className="absolute inset-0 bg-background/60" />
     </div>
   );
 }

@@ -15,7 +15,7 @@ type Size = 'sm' | 'md' | 'lg' | 'icon';
  */
 const VARIANTS: Record<Variant, string> = {
   primary:
-    'rounded-full bg-primary text-primary-foreground font-semibold tracking-wide hover:bg-primary-hover shadow-[0_0_0_1px_rgb(79_209_224/0.2),0_6px_20px_-8px_rgb(79_209_224/0.5)] disabled:hover:bg-primary',
+    'rounded-full bg-primary text-primary-foreground font-semibold tracking-wide hover:bg-primary-hover shadow-[0_0_0_1px_rgb(92_157_255/0.2),0_6px_20px_-8px_rgb(92_157_255/0.5)] disabled:hover:bg-primary',
   secondary:
     'rounded-md bg-surface text-foreground border border-border hover:border-border-strong hover:bg-surface-hover disabled:hover:bg-surface',
   outline:

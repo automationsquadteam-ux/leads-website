@@ -33,41 +33,73 @@ export function VideoBackdrop({
     const video = videoRef.current;
     if (!video) return;
 
+    // Belt and braces. The `muted` attribute IS present in the server-rendered
+    // HTML (verified), so this is not the fix it was first assumed to be — but
+    // setting the property costs nothing and removes one variable.
+    video.muted = true;
+    video.defaultMuted = true;
+
     /*
-     * Autoplay can be refused even when muted (Chrome weighs its Media
-     * Engagement Index). Rather than give up, arm a one-shot listener so the
-     * next click or keypress anywhere starts it ,by then the browser counts
-     * the gesture as intent.
+     * PLAYBACK IS RETRIED, NOT ATTEMPTED ONCE.
+     *
+     * The reported symptom was a still first frame in Chrome while the same
+     * build animated in VS Code's embedded browser. Both are Chromium; what
+     * differs is the autoplay policy, which Electron-based hosts usually
+     * disable and Chrome does not. A muted video is *supposed* to be allowed,
+     * but Chrome can still refuse (background tab at load, a media setting, an
+     * extension), and a single `play()` on one event gives up silently when it
+     * does.
+     *
+     * So: try on every event that can mean "there is now something to play",
+     * and arm a gesture listener UNCONDITIONALLY rather than only after a
+     * rejection ,a `play()` promise that resolves while the element stays
+     * paused is a real state, and the earlier version had no answer for it.
+     * Everything is removed as soon as playback actually starts.
      */
-    let armed = false;
+    const cleanups: Array<() => void> = [];
+
     const playOnGesture = () => {
       void video.play().catch(() => {});
+    };
+    window.addEventListener('pointerdown', playOnGesture);
+    window.addEventListener('keydown', playOnGesture);
+    cleanups.push(() => {
       window.removeEventListener('pointerdown', playOnGesture);
       window.removeEventListener('keydown', playOnGesture);
-      armed = false;
+    });
+
+    const onPlaying = () => {
+      // Playing for real: drop the gesture listeners so they cost nothing.
+      window.removeEventListener('pointerdown', playOnGesture);
+      window.removeEventListener('keydown', playOnGesture);
     };
+    video.addEventListener('playing', onPlaying);
+    cleanups.push(() => video.removeEventListener('playing', onPlaying));
+
     const tryPlay = () => {
       video.play().catch((error: unknown) => {
         const name = error instanceof Error ? error.name : 'unknown';
         console.warn(
-          `[VideoBackdrop] autoplay refused (${name}); will start on first interaction.`,
+          `[VideoBackdrop] play() refused (${name}); will retry, and on first interaction.`,
         );
-        if (!armed) {
-          armed = true;
-          window.addEventListener('pointerdown', playOnGesture, { once: true });
-          window.addEventListener('keydown', playOnGesture, { once: true });
-        }
       });
+    };
+
+    // Any of these can be the moment data first becomes playable.
+    for (const event of ['loadeddata', 'canplay', 'canplaythrough'] as const) {
+      video.addEventListener(event, tryPlay);
+      cleanups.push(() => video.removeEventListener(event, tryPlay));
+    }
+
+    const runCleanups = () => {
+      for (const fn of cleanups) fn();
     };
 
     // Safari / iOS: native HLS, no library.
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
       tryPlay();
-      return () => {
-        window.removeEventListener('pointerdown', playOnGesture);
-        window.removeEventListener('keydown', playOnGesture);
-      };
+      return runCleanups;
     }
 
     let destroyed = false;
@@ -115,8 +147,7 @@ export function VideoBackdrop({
 
     return () => {
       destroyed = true;
-      window.removeEventListener('pointerdown', playOnGesture);
-      window.removeEventListener('keydown', playOnGesture);
+      runCleanups();
       hls?.destroy();
     };
   }, [src]);

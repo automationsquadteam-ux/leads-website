@@ -10,7 +10,7 @@
   Design system: "Liquid Glass / Deep Forest".
 
   Dark-first. The palette is anchored on #070b0a (near-black with a green cast)
-  with a cyan brand accent (#4fd1e0) over glass surfaces and a glow. Green
+  with an azure brand accent (#5c9dff) over glass surfaces and a glow. Green
   (#5ed29c) is deliberately NOT the brand colour ,it is reserved for success
   and positive state, so a link can never be mistaken for a status.
   Tokens stay semantic (surface, muted, border) rather than literal, which is
@@ -32,19 +32,24 @@
   --border-strong: #c3cfc9;
 
   /*
-   * BRAND is cyan; GREEN is reserved for "this went well".
+   * BRAND is azure blue, and every other hue here is already spoken for.
    *
-   * They were the same mint for one revision and that was a real problem, not
-   * a cosmetic one: on a dashboard whose whole job is reporting state, a link
-   * and a "Ready to Send" badge rendering in one colour invites reading the
-   * brand accent as a status. Green keeps the meaning everyone already brings
-   * to it, and the accent moved instead ,cyan was already in the hero glow,
-   * so it costs nothing elsewhere.
+   * The accent has moved twice, and the reason is that this palette is
+   * crowded: on a dashboard whose whole job is reporting state, the brand
+   * colour must not be readable as a status. Green is success. Amber is
+   * warning. Red is danger. Violet is "Draft Ready". **Cyan is `info`, which
+   * is the stage badge for Researching and Needs Draft** ,which is exactly
+   * why the first cyan accent still looked wrong next to the pipeline, and
+   * why a "Send Follow-up 1" button in it read as a state rather than an
+   * action.
+   *
+   * Blue is the one region of the wheel nothing else occupies, and it is far
+   * from the background's green cast rather than a neighbour of it.
    */
-  --primary: #0e7f92;
-  --primary-hover: #0b6a7a;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
   --primary-foreground: #ffffff;
-  --primary-subtle: #e4f4f7;
+  --primary-subtle: #e8effd;
 
   --success: #0f9d63;
   --success-subtle: #e6f6ef;
@@ -58,7 +63,7 @@
   --violet: #6d28d9;
   --violet-subtle: #f1ecfd;
 
-  --ring: #0e7f92;
+  --ring: #2563eb;
   --overlay: rgb(7 11 10 / 0.5);
 
   /* Glass: opaque enough to read data through in light mode. */
@@ -67,7 +72,7 @@
   --glass-highlight: rgb(255 255 255 / 0.9);
   --glass-blur: 12px;
 
-  --accent-glow: rgb(14 127 146 / 0.18);
+  --accent-glow: rgb(37 99 235 / 0.18);
   --grid-line: rgb(7 11 10 / 0.06);
 
   /* Density scale 8/10 (dashboard). */
@@ -88,11 +93,11 @@
   --border: #1b2724;
   --border-strong: #2b3a35;
 
-  /* Brand cyan; green stays reserved for success. See the light block above. */
-  --primary: #4fd1e0;
-  --primary-hover: #7ce0eb;
-  --primary-foreground: #061417;
-  --primary-subtle: #0c2429;
+  /* Brand azure. See the light block above for why it is not green or cyan. */
+  --primary: #5c9dff;
+  --primary-hover: #82b4ff;
+  --primary-foreground: #05101f;
+  --primary-subtle: #0d1b30;
 
   --success: #5ed29c;
   --success-subtle: #0e1f19;
@@ -106,7 +111,7 @@
   --violet: #a78bfa;
   --violet-subtle: #1a1630;
 
-  --ring: #4fd1e0;
+  --ring: #5c9dff;
   --overlay: rgb(3 6 5 / 0.72);
 
   --glass-bg: rgb(255 255 255 / 0.03);
@@ -114,7 +119,7 @@
   --glass-highlight: rgb(255 255 255 / 0.14);
   --glass-blur: 14px;
 
-  --accent-glow: rgb(79 209 224 / 0.14);
+  --accent-glow: rgb(92 157 255 / 0.14);
   --grid-line: rgb(255 255 255 / 0.05);
 }
 
