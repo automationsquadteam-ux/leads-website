@@ -31,6 +31,8 @@ export interface CreateVersionInput {
   /** Make this the version shown and sent. Defaults to true. */
   activate?: boolean;
   status?: EmailVersionStatus;
+  /** ISO 639-1 (0046). Omitted means 'en', the column default, which is right for every manual save. */
+  language?: string;
 }
 
 export interface VersionResult {
@@ -59,6 +61,7 @@ export async function createEmailVersion(input: CreateVersionInput): Promise<Ver
       created_by: input.createdBy,
       active: input.activate ?? true,
       status: input.status ?? 'draft',
+      ...(input.language ? { language: input.language } : {}),
     })
     .select('*')
     .single();

@@ -3,6 +3,7 @@ import 'server-only';
 import { createServiceClient } from '@/lib/supabase/service-client';
 import type { EmailType, Lead } from '@/lib/supabase/database.types';
 import { getIntegrationConfig } from '../config';
+import { isLanguageCode, type LanguageCode } from './languages';
 import { OllamaGenerator } from './ollama';
 import { TemplateGenerator } from './template-generator';
 import type { EmailGenerator, GenerationContext, GenerationResult } from './types';
@@ -64,6 +65,40 @@ export async function buildGenerationContext(
     .eq('active', true)
     .neq('type', type);
 
+  /*
+   * LANGUAGE IS LOCKED ON THE FIRST EMAIL (0046).
+   *
+   * Read from the ACTIVE INITIAL version, never from the lead's country. A
+   * lead first contacted in English keeps getting English follow-ups even if
+   * its country maps to German ,406 live leads are mid-sequence that way,
+   * and a language switch halfway through a thread is worse than either
+   * language alone. Pre-0046 rows carry 'en' by column default, which is the
+   * lock for all of them at once.
+   *
+   * When the draft being generated IS the initial (no initial exists yet),
+   * the lock has nothing to bind to, so the country decides ,that is the
+   * one path where `country_languages` is consulted in code.
+   */
+  const { data: initial } = await admin
+    .from('email_versions')
+    .select('language, angle')
+    .eq('lead_id', leadId)
+    .eq('type', 'initial')
+    .eq('active', true)
+    .maybeSingle();
+
+  let language: LanguageCode = 'en';
+  if (initial && isLanguageCode(initial.language)) {
+    language = initial.language;
+  } else if (!initial && type === 'initial') {
+    const { data: mapping } = await admin
+      .from('country_languages')
+      .select('language')
+      .eq('country', (lead.country ?? '').trim())
+      .maybeSingle();
+    if (mapping && isLanguageCode(mapping.language)) language = mapping.language;
+  }
+
   return {
     ok: true,
     context: {
@@ -72,6 +107,8 @@ export async function buildGenerationContext(
       signature: config.email.signature,
       fromName: config.email.fromName,
       previousDrafts: previous ?? [],
+      language,
+      angle: initial?.angle?.trim() || null,
     },
   };
 }

@@ -261,6 +261,24 @@ export interface Database {
        * `version_number` is filled in by a BEFORE INSERT trigger when omitted,
        * which is why it is optional on Insert but always present on Row.
        */
+      /**
+       * 0046. Country name (as stored on leads.country) → outreach language.
+       * Absent country means English. Edited as data, never as code.
+       */
+      country_languages: {
+        Row: {
+          country: string;
+          language: string;
+          language_name: string;
+        };
+        Insert: {
+          country: string;
+          language: string;
+          language_name: string;
+        };
+        Update: Partial<Database['public']['Tables']['country_languages']['Insert']>;
+        Relationships: [];
+      };
       email_versions: {
         Row: {
           id: string;
@@ -278,6 +296,10 @@ export interface Database {
           review_note: string | null;
           /** 0030. Set when a sweep examined this version and it still had a blocking issue. NULL on every new version. */
           sweep_checked_at: string | null;
+          /** 0046. ISO 639-1 code this version is written in. Pre-0046 rows default to 'en'. Follow-ups copy the active initial's value ,language is locked on the first email. */
+          language: string;
+          /** 0046. Native one-liner n8n writes alongside the initial; follow-ups quote it. Null unless n8n wrote the version. */
+          angle: string | null;
           created_at: string;
         };
         Insert: {
@@ -295,6 +317,8 @@ export interface Database {
           reviewed_at?: string | null;
           review_note?: string | null;
           sweep_checked_at?: string | null;
+          language?: string;
+          angle?: string | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['email_versions']['Insert']>;
@@ -608,6 +632,10 @@ export interface Database {
           closed: string | null;
           auto_followups: boolean;
           send_priority: number;
+          /** 0046. language_for_country(leads.country): what this lead SHOULD be emailed in. */
+          target_language: string;
+          /** 0046. Language of the active initial version, 'en' if none: what it actually HAS. */
+          initial_language: string;
         };
         Relationships: [];
       };

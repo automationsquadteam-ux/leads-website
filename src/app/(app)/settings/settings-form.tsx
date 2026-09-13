@@ -396,6 +396,21 @@ export function SettingsForm({ values }: { values: Record<string, unknown> }) {
           </Field>
 
           <Field
+            label="Hold initials until they are in the lead's language"
+            htmlFor="require-native-language"
+            hint="On: an initial whose draft is not in the language the lead's country calls for waits for the native version instead of going out. Follow-ups always match the initial that was sent."
+          >
+            <Select
+              id="require-native-language"
+              name="bool:outreach.require_native_language"
+              defaultValue={bool('outreach.require_native_language', true) ? 'true' : 'false'}
+            >
+              <option value="true">Yes hold until native</option>
+              <option value="false">No send in whatever language it has</option>
+            </Select>
+          </Field>
+
+          <Field
             label="Follow-ups need approval"
             htmlFor="fu-approval"
             hint="On: an auto-generated follow-up waits for review instead of going out."

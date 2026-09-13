@@ -475,7 +475,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
     const admin = createServiceClient();
     let query = admin
       .from('lead_send_queue')
-      .select('lead_id, send_priority')
+      .select('lead_id, send_priority, target_language, initial_language')
       .is('replied', null)
       .is('closed', null)
       .eq('auto_followups', true)
@@ -493,6 +493,19 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
       // requireVerifiedEmail is on, but the sender must not depend on a setting
       // to avoid mailing an address a verifier called dead.
       .filter((row) => row.send_priority < 9)
+      /*
+       * THE NATIVE-LANGUAGE HOLD (0046). An initial whose active draft is
+       * not in the language the lead's country calls for is skipped ,not
+       * failed, so no email_logs row and no block-until-fixed ,until n8n
+       * writes the native version, at which point initial_language changes
+       * and the lead flows through on the next tick. Both columns come from
+       * lead_send_queue so this is one comparison, no extra query. Off in
+       * Settings sends whatever language the draft has.
+       */
+      .filter(
+        (row) =>
+          !config.outreach.requireNativeLanguage || row.initial_language === row.target_language,
+      )
       .map((row) => row.lead_id);
 
     /*
@@ -603,6 +616,9 @@ async function ensureDraft(
     // No user session in a cron run; the provenance is on generated_by.
     createdBy: null,
     activate: true,
+    // Follow-ups inherit the initial's language (0046); the generator has
+    // already resolved it, this just records it on the row.
+    language: generation.email.language,
   });
 
   if (!created.ok) return { ok: false, generated: false, message: created.message, approved: false };

@@ -1,4 +1,5 @@
 import type { EmailType, Lead } from '@/lib/supabase/database.types';
+import type { LanguageCode } from './languages';
 
 /**
  * The generation contract.
@@ -21,11 +22,26 @@ export interface GenerationContext {
    * repeats the opening line of the initial email is worse than no follow-up.
    */
   previousDrafts: Array<{ type: EmailType; subject: string | null; content: string }>;
+  /**
+   * The language this draft must be written in. LOCKED ON THE FIRST EMAIL:
+   * this is the language of the lead's active initial version, never derived
+   * from the country here — a lead first contacted in English keeps getting
+   * English, whatever its country maps to (0046). 'en' when no initial exists.
+   */
+  language: LanguageCode;
+  /**
+   * The native one-liner n8n wrote alongside the initial, if any. Follow-ups
+   * quote it in preference to the English research, so the whole email reads
+   * in one language. Null on leads whose initial predates 0046.
+   */
+  angle: string | null;
 }
 
 export interface GeneratedEmail {
   subject: string;
   content: string;
+  /** Recorded on the version row; follow-ups of it inherit this. */
+  language: LanguageCode;
   /**
    * Provenance recorded on the version row: 'template', 'ollama:llama3.1:8b'.
    * Never a bare 'ai' six months later you will want to know which model

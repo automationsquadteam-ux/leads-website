@@ -51,6 +51,12 @@ export interface IntegrationConfig {
      * entirely rather than sending to nobody-in-particular.
      */
     dailyCapAlertEmail: string;
+    /**
+     * Hold an initial whose active draft is not in the language the lead's
+     * country calls for, until a native version lands (0046). A hold, never a
+     * failure. Off sends whatever language the draft has.
+     */
+    requireNativeLanguage: boolean;
   };
   sending: {
     /** Global kill switch. Nothing leaves the system while this is true. */
@@ -120,6 +126,10 @@ export async function getIntegrationConfig(): Promise<IntegrationConfig> {
       maxRuntimeSeconds: asNumber(get('outreach.max_runtime_seconds'), 50),
       closeAfterFollowup2Days: asNumber(get('outreach.close_after_followup2_days'), 14),
       dailyCapAlertEmail: asString(get('outreach.daily_cap_alert_email')),
+      // On: an initial whose draft is not in the lead's target language is
+      // HELD (skipped, not failed) until a native version lands. Off: it
+      // sends in whatever language it has. Default on, per 0046.
+      requireNativeLanguage: asBoolean(get('outreach.require_native_language'), true),
     },
     sending: {
       paused: asBoolean(get('sending.paused'), false),

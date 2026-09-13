@@ -192,10 +192,12 @@ export async function sendLeadEmail(
    * the block IS the record ,writing "blocked because a failure exists"
    * rows on top of it would grow exactly the noise this gate exists to stop.
    *
-   * Clearing is a human act, on the Send Failures page: fix the cause (a bad
-   * address, a missing draft), then clear the failure, which deletes those
-   * rows and unblocks the lead by construction ,"is this fixed?" and "are
-   * there failure rows?" are one question, so the two cannot drift apart.
+   * Clearing happens two ways, and both delete the rows so "is this fixed?"
+   * and "are there failure rows?" stay one question: a SUCCESSFUL SEND clears
+   * every failure older than itself (see the bottom of this function ,the
+   * provider accepting the message is the proof), and a human can press
+   * "Mark fixed" on the lead page or on /send-failures for the case where a
+   * fix has not been followed by a send yet.
    *
    * Placed here with the archived gate for the same stated reason: this is
    * the one function every send path goes through (Send button, API, cron),
@@ -292,11 +294,51 @@ export async function sendLeadEmail(
 
   const { data: version } = await admin
     .from('email_versions')
-    .select('id, subject, content')
+    .select('id, subject, content, language')
     .eq('lead_id', leadId)
     .eq('type', emailType)
     .eq('active', true)
     .maybeSingle();
+
+  /*
+   * THE NATIVE-LANGUAGE HOLD, on the manual path (0046).
+   *
+   * findDueWork() already keeps these out of the scheduler's queue; this is
+   * the same rule for the Send button, in the one function every path goes
+   * through. Initial only ,a follow-up inherits its initial's language by
+   * construction, so it can never mismatch on its own.
+   *
+   * A hold, deliberately NOT a logged refusal: writing a failure row here
+   * would trip the block-until-fixed gate, and then the lead would stay
+   * blocked even after n8n delivered the native draft, because only a
+   * successful send or a human clears failure rows. The version arriving is
+   * the fix; the lead must flow the moment it does.
+   */
+  if (emailType === 'initial' && config.outreach.requireNativeLanguage) {
+    const { data: mapping } = await admin
+      .from('country_languages')
+      .select('language, language_name')
+      .eq('country', (lead.country ?? '').trim())
+      .maybeSingle();
+    const target = mapping?.language ?? 'en';
+    // No active version means the fallback to leads.draft_email below ,a
+    // mirror of whatever was last active, which is English for every pre-0046
+    // lead. Treat it as 'en' so a quarantined lead (native version rejected,
+    // nothing active) cannot be hand-sent in English past the hold.
+    const versionLanguage = version?.language ?? 'en';
+    if (versionLanguage !== target) {
+      return {
+        ok: false,
+        message:
+          `Held: this lead is in ${lead.country ?? 'a country'} and should be emailed in ` +
+          `${mapping?.language_name ?? 'English'}, but its active draft is in "${versionLanguage}". ` +
+          'It will send once a native-language draft is active, or turn off ' +
+          '"Hold initials until they are in the lead\'s language" in Settings.',
+        messageId: null,
+        logId: null,
+      };
+    }
+  }
 
   const rawSubject = version?.subject ?? (emailType === 'initial' ? lead.subject_line : null);
   const rawBody = version?.content ?? (emailType === 'initial' ? lead.draft_email : null);
@@ -446,6 +488,36 @@ export async function sendLeadEmail(
         : { status: emailType === 'initial' ? 'approved' : 'sent' },
     )
     .eq('id', lead.id);
+
+  /*
+   * A SUCCESSFUL SEND CLEARS ITS OWN PRIOR FAILURES.
+   *
+   * The block-until-fixed gate above reads "does this lead have a failed
+   * row?", and on its own that question has a false answer built in: Manpower
+   * Norge failed at 12:09 on a bad address, the address was corrected, the
+   * initial went out at 12:12 ,and the 12:09 row stayed, so the lead read as
+   * blocked for its follow-ups weeks later, over a problem the very next send
+   * had already proved was gone. Found live (2026-09-13), reported as "I
+   * fixed it but it still says not fixed".
+   *
+   * The provider accepting this message IS the evidence the earlier cause is
+   * resolved ,stronger evidence than a human clicking "Mark fixed", which
+   * only says they believe it is. So the rows go here, on success, and the
+   * button stays for the one case this cannot cover: a fix that has not been
+   * followed by a send yet.
+   *
+   * Only rows older than this send are removed. `logId` (this attempt's own
+   * row) is never a failure at this point, and a failure that lands after
+   * this instant is a new problem, not this one.
+   */
+  if (result.ok) {
+    await admin
+      .from('email_logs')
+      .delete()
+      .eq('lead_id', lead.id)
+      .eq('status', 'failed')
+      .lt('created_at', now);
+  }
 
   return {
     ok: result.ok,

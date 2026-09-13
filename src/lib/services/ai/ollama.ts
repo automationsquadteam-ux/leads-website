@@ -155,6 +155,10 @@ export class OllamaGenerator implements EmailGenerator {
         subject: parsed.subject || `Quick idea for ${context.lead.business_name}`,
         content: parsed.content,
         generatedBy: this.id,
+        // The prompt is not language-aware; this records what was asked for so
+        // a follow-up generated later matches. Not in use (ai.provider is
+        // 'template'); n8n writes initials natively on its own side.
+        language: context.language,
       },
     };
   }

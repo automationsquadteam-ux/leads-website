@@ -1,5 +1,6 @@
 import { renderPlaceholders } from '@/lib/services/email/render';
 import type { EmailType } from '@/lib/supabase/database.types';
+import { languagePack, type LanguagePack } from './languages';
 import type { EmailGenerator, GenerationContext, GenerationResult } from './types';
 
 /**
@@ -66,11 +67,11 @@ function shortName(name: string): string {
  * rule for follow-ups applies here too: the single most obvious tell of an
  * automated sequence is repeating a line verbatim.
  */
-const ASK_INITIAL = (name: string) =>
-  `But rather than guess, I would rather just ask: what is one problem you wish technology could take off your plate at ${name}? I help local businesses fix exactly that kind of thing. Tell me what is bugging you and I will tell you honestly whether I can help.`;
-
-const ASK_FOLLOWUP1 = (name: string) =>
-  `Genuine question, no pitch attached: what is one problem you wish technology could just solve for you at ${name}? I work with local businesses on exactly that. Reply with what it is and I will tell you straight whether I can help.`;
+/*
+ * Every sentence this generator composes from lives in ./languages.ts, once
+ * per outreach language (0046). The English pack there is the exact text
+ * that used to be inlined here; the shapes below only arrange it.
+ */
 
 /**
  * Follow-up skeletons. Each takes one specific line from the lead's research.
@@ -108,20 +109,17 @@ const ASK_FOLLOWUP1 = (name: string) =>
  * them up makes the third person correct instead of wrong: it is a quotation of
  * my own notes, and that is exactly what it is.
  */
-const FOLLOWUP_SHAPES: Record<Exclude<EmailType, 'initial'>, (name: string) => string[]> = {
-  followup1: (name) => [
-    `I wrote last week about ${name} and never heard back. No problem, inboxes are inboxes.`,
+const FOLLOWUP_SHAPES: Record<
+  Exclude<EmailType, 'initial'>,
+  (name: string, pack: LanguagePack) => string[]
+> = {
+  followup1: (name, pack) => [pack.followup1Opener(name), '', '{{angle}}', '', pack.askFollowup1(name)],
+  followup2: (name, pack) => [
+    pack.followup2Opener(name),
     '',
-    '{{angle}}',
+    pack.followup2Note,
     '',
-    ASK_FOLLOWUP1(name),
-  ],
-  followup2: (name) => [
-    `Last one from me about ${name}.`,
-    '',
-    'For what it is worth, here is the note I made when I looked you up: {{angle}}',
-    '',
-    'If the timing is simply wrong, no reply needed and I will close the file. If that changes later, reply to this and I will pick it back up.',
+    pack.followup2Close,
   ],
 };
 
@@ -201,8 +199,62 @@ function angleSentence(text: string | null | undefined): string | null {
  * the shape test above, not by being read last, so this keeps working if the
  * field is ever filled in properly.
  */
+/**
+ * Framing the model wraps around the angle instead of just writing it.
+ *
+ * Measured on the first live batch (259 rows, 2026-09-13): 41 began "Here is
+ * the note I made when I looked you up:" ,in ENGLISH, on Polish and
+ * Indonesian leads ,because the prompt used that exact phrase as an example
+ * of how the angle would later be quoted, and llama3.1:8b copied it. The
+ * prompt is fixed; these regexes make the rows already written safe too. The
+ * follow-up templates add their own framing in the right language, so any
+ * preamble here would double up even when it is not English.
+ */
+const ANGLE_FRAMING: RegExp[] = [
+  /^here(?:'s| is) (?:the |a )?note i (?:made|took|wrote)[^:]*:\s*/i,
+  /^(?:i (?:made|took|wrote) a note|when i looked (?:you|them) up)[^:]*:\s*/i,
+  /^(?:the )?note(?: i made)?:\s*/i,
+  /^(?:he hecho una nota|hice una nota|ich habe (?:mir )?(?:eine )?notiz|ho preso nota|j'ai noté|notei|fiz uma nota)[^:]*:\s*/i,
+];
+
+/**
+ * Turn what the model wrote into something quotable, or null.
+ *
+ * Also measured on that batch: 14 angles arrived wrapped in quote characters,
+ * one with a literal `""` and a newline in front (a parse artefact), and 16
+ * carried an unfilled [Business Name]-style placeholder. A placeholder is
+ * disqualifying: quoting it would mail "[Business Name]" to a real business,
+ * which is the exact incident 0040's placeholder guard exists to prevent. The
+ * caller then falls back to the English research, which is the honest choice.
+ */
+function cleanNativeAngle(raw: string | null | undefined): string | null {
+  let text = raw?.trim() ?? '';
+  if (!text) return null;
+
+  // Leading `""` + newline, then any wrapping quotes, then framing, then
+  // wrapping quotes again ,the framing sometimes sits inside the quotes.
+  text = text.replace(/^["'“”«»]{2,}\s*/, '').trim();
+  for (let pass = 0; pass < 2; pass++) {
+    text = text.replace(/^["'“”«»]+\s*|\s*["'“”«»]+$/g, '').trim();
+    for (const framing of ANGLE_FRAMING) text = text.replace(framing, '').trim();
+  }
+
+  if (text.length < 20) return null;
+  if (/\[[^\]\n]{2,60}\]/.test(text)) return null;
+  return text;
+}
+
 function bestAngle(context: GenerationContext): string {
   const { lead } = context;
+
+  /*
+   * The native angle n8n wrote alongside the initial wins (0046) ,after
+   * cleaning, and only if anything usable survives. It skips the advice-shape
+   * filter, which exists to catch English research written ABOUT the lead.
+   */
+  const native = cleanNativeAngle(context.angle);
+  if (native) return native;
+
   const candidates = [
     lead.outreach_angle,
     lead.automation_opportunities,
@@ -217,23 +269,23 @@ function bestAngle(context: GenerationContext): string {
     if (sentence) return sentence;
   }
 
-  return 'The specific thing I had in mind was cutting the manual admin work around enquiries and follow-up.';
+  return languagePack(context.language).angleFallback;
 }
 
 function defaultInitialBody(context: GenerationContext): string {
   const { lead } = context;
   const where = [lead.city, lead.country].filter(Boolean).join(', ');
   const name = shortName(lead.business_name);
+  const pack = languagePack(context.language);
 
   return [
-    `Hi, I came across ${name}${where ? ` in ${where}` : ''}.`,
+    pack.initialOpener(name, where),
     '',
-    lead.research_summary?.trim() ||
-      `I work with ${lead.niche?.trim() || 'businesses like yours'} on automating the repetitive parts of their day.`,
+    lead.research_summary?.trim() || pack.initialFallbackIntro(lead.niche?.trim() ?? ''),
     '',
     bestAngle(context),
     '',
-    ASK_INITIAL(name),
+    pack.askInitial(name),
     '',
     '{{signature}}',
   ].join('\n');
@@ -260,9 +312,10 @@ export class TemplateGenerator implements EmailGenerator {
     // Everywhere the business is addressed, it is addressed the way a person
     // would say it ,subject and opener alike. See `shortName()`.
     const name = shortName(lead.business_name);
+    const pack = languagePack(context.language);
 
     if (type === 'initial') {
-      subjectSource = `Quick idea for ${name}`;
+      subjectSource = pack.initialSubject(name);
       bodySource = defaultInitialBody(context);
     } else {
       /*
@@ -272,7 +325,7 @@ export class TemplateGenerator implements EmailGenerator {
        * research instead.
        */
       subjectSource =
-        type === 'followup1' ? `Following up ${name}` : `Closing the loop on ${name}`;
+        type === 'followup1' ? pack.followup1Subject(name) : pack.followup2Subject(name);
       /*
        * Replaced through a function, not a string. A string replacement treats
        * `$&`, `$'` and `$1` in the REPLACEMENT as substitution patterns, and
@@ -280,7 +333,7 @@ export class TemplateGenerator implements EmailGenerator {
        * especially. A replacer function is passed through verbatim.
        */
       const angle = bestAngle(context);
-      bodySource = FOLLOWUP_SHAPES[type](name)
+      bodySource = FOLLOWUP_SHAPES[type](name, pack)
         .join('\n')
         .replace('{{angle}}', () => angle)
         .concat('\n\n{{signature}}');
@@ -299,8 +352,8 @@ export class TemplateGenerator implements EmailGenerator {
 
     return {
       ok: true,
-      message: 'Draft composed from the lead research.',
-      email: { subject, content, generatedBy: this.id },
+      message: `Draft composed from the lead research (${pack.name}).`,
+      email: { subject, content, generatedBy: this.id, language: context.language },
     };
   }
 }

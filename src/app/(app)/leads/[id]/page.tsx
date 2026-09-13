@@ -5,8 +5,9 @@ import { ArrowLeft, Clock, Mail, MessageSquare } from 'lucide-react';
 import { PageHeader } from '@/components/shell/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ClearFailureButton } from '@/components/clear-failure-button';
 import { EmptyState } from '@/components/empty-state';
-import { EmailStatusBadge, SentimentBadge } from '@/components/status-badge';
+import { EmailStatusBadge, FailureReasonBadge, SentimentBadge } from '@/components/status-badge';
 import { PipelineTracker } from '@/components/pipeline-badge';
 import { requireAdmin } from '@/lib/auth/session';
 import { getLeadDetail } from '@/lib/data/leads';
@@ -43,6 +44,9 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         .map((log) => log.email_type),
     ),
   ] as EmailType[];
+
+  // Logs are newest-first, so [0] is the most recent failure.
+  const openFailures = emailLogs.filter((log) => log.status === 'failed');
 
   const timeline = [
     { at: lead.created_at, label: 'Lead created', detail: lead.source ?? 'Manual entry' },
@@ -88,7 +92,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         the two facts that decide what an operator does on this page, so they
         are not something to go looking for in a sidebar.
       */}
-      <div className="px-4 pt-4 sm:px-6">
+      <div className="space-y-3 px-4 pt-4 sm:px-6">
         {pipeline ? (
           <PipelineTracker
             stage={pipeline.current_stage}
@@ -100,6 +104,41 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             No pipeline row for this lead yet. It is created automatically on the next edit.
           </p>
         )}
+
+        {/*
+          BLOCKED notice, with the release button right here.
+
+          A failed send holds the lead until a human clears it (the gate in
+          sendLeadEmail()). That was only clearable from /send-failures, which
+          meant fixing an address on THIS page, then hunting for a different
+          page to release it ,and the release is the last step of the same
+          job. It sits beside the tracker because that is where the operator
+          reads what to do next, and "nothing, until you press this" is the
+          answer while a failure stands.
+
+          Derived from the logs already loaded, same rule as `sentTypes`
+          above: no extra query, and any path that wrote the failure counts.
+          A successful send now clears its own prior failures automatically,
+          so this button is for the case where nothing has been resent yet.
+        */}
+        {openFailures.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/30 bg-danger-subtle px-3 py-2.5">
+            <div className="min-w-0 text-sm text-danger">
+              <span className="font-semibold">Blocked from sending.</span>{' '}
+              {openFailures.length === 1
+                ? 'The last attempt failed'
+                : `${openFailures.length} attempts failed`}
+              {openFailures[0]?.failure_reason ? (
+                <>
+                  {' '}
+                  &mdash; <FailureReasonBadge reason={openFailures[0].failure_reason} />
+                </>
+              ) : null}
+              . Fix the cause, then mark it fixed to release the lead.
+            </div>
+            <ClearFailureButton leadId={lead.id} />
+          </div>
+        ) : null}
       </div>
 
       {/*

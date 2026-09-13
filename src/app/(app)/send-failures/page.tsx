@@ -13,7 +13,7 @@ import { FAILURE_SUMMARY_WINDOW_DAYS, getEmailFailures } from '@/lib/data/misc';
 import { parsePageNumber, parsePageSize } from '@/lib/pagination';
 import { formatDateTime, formatNumber } from '@/lib/utils';
 import { LogPagination } from '../email-logs/log-pagination';
-import { ClearFailureButton } from './clear-failure-button';
+import { ClearFailureButton } from '@/components/clear-failure-button';
 
 export const metadata = { title: 'Send Failures' };
 
