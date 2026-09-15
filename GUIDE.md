@@ -336,11 +336,57 @@ other, which shows no email log and still reads unverified.
 
 `npm run leads:duplicates` reports them; `-- --merge` moves logs, replies, activity and
 inbound messages onto the survivor and **archives** the others (never deletes). The survivor
-is chosen by evidence first ,logs, a reply, a confirmed verification ,because content can
-be copied across but a conversation cannot.
+is chosen by evidence first ,logs, a reply, a confirmed verification ,then by an address,
+because content can be copied across but a conversation cannot, and a survivor without an
+email cannot be contacted at all.
 
 Recomputing keys automatically would be worse: it would collide with the surviving row and
 fail the whole sync.
+
+### The same business under two domains, which no key can see (2026-09-15)
+
+The sheet listed **General Construction Co** twice: row 691 as "General Construction Co.
+L.L.C - GCC" with `info@gccuae.com`, and row 696 as "General Construction Co W.L.L" with
+no address at all. Row 691 was verified valid on 2026-08-05 and emailed (initial plus two
+follow-ups, closed 2026-08-23). Row 696 sat with `site:gcc-uae.net` until the found-emails
+CSV on 2026-08-20 gave it `info@gcc-uae.net` ,a different address on a different domain
+,and from then on it was a never-checked lead with an address, exactly what the verifier
+export selects. It appeared in that export today, was checked, and came back catch-all.
+
+So "why was I asked to verify a lead I had already verified and emailed" has the answer
+**you were not: you were asked to verify its twin**, and nothing in the CRM could tell the
+two apart. The dedupe key differed (`email:` vs `site:`), the address differed, the sheet
+row differed. Both rows are in the 2026-08-04 purge backup, so the duplication is the
+sheet's, from day one.
+
+`leads:duplicates` therefore now merges on three rules, in this order:
+
+1. **Same name + country + niche.** Names are normalised ,case, accents, punctuation, and
+   legal suffixes (`LLC`, `W.L.L`, `Ltd`, `Co.`) dropped.
+2. **Same name + website domain, any country.** The same business filed under two
+   countries is a branch, not a second lead: DP World Logistics sat in Sweden and Portugal
+   with one site and one contact, and rule 1 could not see it. The domain alone is not a
+   rule ,`linktr.ee` is the "website" of four unrelated businesses, and `lamborghini.com`
+   is shared by the Kuwait and București dealerships, which have different inboxes. Domains
+   are compared at the registrable level (`www.` and subdomains dropped; `onehair.com.my`
+   keeps its three labels).
+3. **Same sheet row** ,the 0028 leak.
+
+The two spellings of General Construction still do not match rule 1 exactly ("general
+construction" vs "general construction gcc"). Pairs where one normalised name is the other
+with words added at either end are listed as **near misses** and never merged on their
+own, because "Lanka Travels" and "Beauty Lanka Travels" are two businesses. Likewise
+**leads that share an email under different names** are listed, not merged: it is usually
+one business, but Al-Babtain puts one customer-care inbox behind its used-cars and INFINITI
+showrooms. `-- --merge --pair <id>,<id>` merges one of either kind deliberately. Archived
+rows are excluded from grouping altogether, so a merge loser can never come back as the
+next survivor.
+
+Merged on 2026-09-15 (loser archived, notes say so): Aannemer Amsterdam ×2 (both got an
+initial on 2026-09-11, to `.nl` and `.net`), Gorilla Gym ×2 (same address, five emails
+between them), General Construction Co ×2, Al-Romansiah ×2, Fitness Extreme Qatar ×2 (the
+branch row), DP World Logistics ×2 (rule 2). Three shared-email groups were left alone by
+instruction ,TAC Ghana, One Hair Design Center, Babtain/INFINITI ,and stay in the report.
 
 ### A tile must link to exactly the rows it counted
 
@@ -2049,6 +2095,7 @@ holes. Fixed by rebalancing rather than by padding:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-15 | **"Why was I asked to verify General Construction again?" ,you were not; the sheet had it twice under two domains.** Row 691 (`info@gccuae.com`) was verified and emailed in August; row 696 had no address until the 2026-08-20 found-emails import gave it `info@gcc-uae.net`, so it was a legitimately never-checked address and today's export picked it up. Different dedupe key, different email, different sheet row: nothing in the CRM linked them. `leads:duplicates` now merges on **normalised name + country + niche** (legal suffixes and punctuation dropped), on **name + website domain across countries** (DP World in Sweden and Portugal was one contact; the domain alone would merge every linktr.ee page and both Lamborghini dealerships), and on sheet row; shared-email and near-miss pairs are listed but not merged, `--merge --pair a,b` merges one deliberately, archived rows are ignored, and an address counts in the survivor score. Merged six pairs (Aannemer Amsterdam, Gorilla Gym, General Construction, Al-Romansiah, Fitness Extreme Qatar, DP World); losers archived. Three email-only groups deliberately left. 1333 live leads, 36 archived. See section 2, "The same business under two domains" |
 | 2026-09-14 | **Second native batch (the 145 re-runs) finished with 0047 still not pasted, so the code-only trigger re-approved 33 of 34 bad rows.** Same audit, same result: 34 failing content checks (24 placeholders, 8 English openings, 6 wrong script; overlapping), 12 of them the SAME leads failing a second time. The model fails at a steady ~13% and re-running does not converge on its own. Quarantined the same way (rejected + inactive, 32 English initials re-activated); `leads_needing_native_initial` reads 34. **Paste 0047 before the next re-run** ,with it, a bad row lands as `draft`, stays out of the send path, and shows in the Initial Approval Queue where a placeholder or a Latin-script "Greek" email is visible to a non-speaker. Two data notes from the same audit, the first of which CORRECTS a wrong statement made earlier the same day: (1) **`created_at` is not the insert time for the 737 sheet-imported leads.** Rows reading `created_at` = 2026-09-06 (52), 2026-09-08 (35) and 2026-10-06 (53) were all imported on 2026-08-04 / 08-09 (`imported_at`), all carry `source = google-sheets:Sheet2`, and all have a `created_at` of exactly midnight ,a date-only value the workbook importer copied from a sheet column, day/month ambiguous, 182 rows in total have `created_at` later than `imported_at`. The earlier note here read them as "n8n inserts in September"; they are not ,the newest `n8n:lead-gen` row is 2026-08-17 and there are zero on or after Sep 3, consistent with the operator's laptop (where n8n runs) being closed Sep 3–12. **Read `imported_at` for a sheet row's age, never `created_at`.** The `google-sheets:Sheet2` label is the importer's provenance stamp on rows loaded before the sync was retired (0033); it is not a live connection. Duplicates: `dedupe_key` has zero collisions, but 5 pairs share an email, 2 of them true duplicates (Gorilla Gym ×2, DP World Logistics ×2) ,`npm run leads:duplicates -- --merge` is the tool. (2) Those 53 future-dated rows are the same importer artefact ,harmless to sending, wrong for any "leads this month" figure. `MOBCARS INDONESIA [Showroom]` has a square-bracket token in its actual business name and will trip the placeholder check forever until the name is edited |
 | 2026-09-13 | **First native-language batch audited live: the design works, and the risk named when auto-approve was chosen materialised at 13%.** 259 native initials written by n8n across 18 languages; 253 inherited approval through the 0046 trigger; the hold released exactly those 253; the English lock held (a lead in Italy first contacted in English got an English follow-up); follow-ups rendered natively through the real generator in Greek, German and Spanish; zero stale failures. **What the trigger let through, because it checked the language CODE and not the content:** 30 approved initials carried an unfilled `[Business Name]` / `[Recipient]` / `[Business Owner]` placeholder (they would have failed at first send and blocked the lead), and 4 opened in English or in the wrong script for their code (those would have SHIPPED, since the hold compares codes). llama3.1:8b ignoring the language rule and the no-placeholder rule. **Three fixes.** (1) 0047 makes inheritance check content: no `[placeholder]`, right script for el/bg/ar/ja, no English opener in the first 250 chars. The first draft of that check also matched "Best regards" and flagged 46 perfectly native emails that merely ended with the English sign-off the prompt insists on ,a blemish, not a wrong-language email ,so the check is opening-only, deliberately. (2) The 34 bad rows were **quarantined, not deleted**: set `rejected` + inactive with a review note, and the lead's earlier approved English initial re-activated, so each is back in exactly its pre-batch state, held by the gate, and back in `leads_needing_native_initial` (111→145) for a re-run. (3) `bestAngle()` now cleans the native angle before quoting it: 41 of 259 began "Here is the note I made when I looked you up:" ,in ENGLISH, on Polish and Indonesian leads ,because the prompt used that exact phrase as an example and the model copied it (the prompt is corrected); 14 arrived wrapped in stray quotes; 16 carried a placeholder, which is disqualifying (falls back to the English research rather than mail "[Business Name]"). Also closed a manual-Send edge: the hold gate skipped when no version was active, which is precisely the state quarantine creates ,it now treats "no active version" as English. **Known and accepted:** ~46 approved native emails end with an English "Best regards, Team Automation". Editing version content is against this project's rules, the brand name is English anyway, and the corrected prompt fixes it going forward. Code only plus 0047 (not pasted) |
 | 2026-09-13 | **Outreach in the lead's own language (0046) — with no language model anywhere in this application.** Asked for a list of 35 countries; the operator's constraints shaped the design more than the list did: Ollama runs on their machine and will not be exposed to Vercel, and translation must be "the website's code, not Ollama". So the split follows where each piece of prose actually comes from. **Initials + research are written by n8n**, which has Ollama locally ,its prompt now writes natively (a `Language` Code node maps country→language; the prompt outputs `header`, `body` and a new one-line native `angle`), and inserts `language` + `angle` on the version row. **Follow-ups are written by the CRM's template generator**, whose dozen scaffolding sentences are now a hand-written static pack per language in `lib/services/ai/languages.ts` (20 languages, formal register, names never translated); `bestAngle()` quotes the version's native `angle` first, so the whole follow-up reads native. **Language is LOCKED on the first email**: `buildGenerationContext()` reads it from the active initial version, never the country ,406 live leads in non-English countries are already mid-sequence in English and stay that way; every pre-0046 row defaults to `en`, which is that lock for all of them at once. The country map is one table, `country_languages` (native tongue everywhere unambiguous; English for SG/ZA/IE/CA, the anglophone countries, and anything unlisted; Switzerland→German and Belgium→Dutch are the majority calls), read by SQL, the app, and n8n alike so it cannot drift. **The 369 not-yet-contacted leads with an approved English initial** are handed to n8n by a self-emptying view, `leads_needing_native_initial` (service-role grants, same reasoning as 0035), exposing every research column the prompt reads since the research nodes are disconnected for the batch. A native regeneration **inherits the earlier approval** (BEFORE INSERT trigger, scoped to a version whose language matches what the country calls for AND an approved initial existing ,an English regeneration still queues for review), so the review queue does not refill with 361 drafts the operator cannot read. Meanwhile the sender **HOLDS an initial whose language ≠ target** (`outreach.require_native_language`, default on; `lead_send_queue` gained `target_language` / `initial_language` for a one-comparison check in `findDueWork()`, and `sendLeadEmail()` applies it to the Send button). A hold, deliberately not a logged refusal: a failure row would trip the block-until-fixed gate and keep the lead blocked even after n8n delivered the fix, because only a send or a human clears those rows. **No new cron**: static templates have nothing to batch ,the "translate when idle" idea only applied to LLM translation. Quality, stated plainly: European packs I can vouch for; Arabic, Japanese, Turkish, Indonesian and Malay are correct formal register to the best of my ability and want a native-speaker read before real volume. Migration 0046 is written, NOT pasted ,see section 2 for the probe |
