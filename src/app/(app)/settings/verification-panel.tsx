@@ -247,7 +247,7 @@ export function VerificationPanel({
             <a
               href="/api/admin/emails/missing.csv"
               className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary-hover"
-              title="Business name, city, country, niche, social and a blank email column to fill in."
+              title="Business name, website, city, country, niche, social and a blank email column to fill in."
             >
               <Download className="size-4" aria-hidden="true" />
               Download ({formatNumber(noAddress)})

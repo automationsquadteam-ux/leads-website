@@ -13,9 +13,12 @@ import { getLeadsMissingEmail, toCsv } from '@/lib/services/email-verification';
  * runs, so the two halves of the round trip can never disagree about which
  * leads are in scope.
  *
- * Website and phone are deliberately NOT columns here ,asked for directly,
- * after they turned out not to be part of how this file actually gets
- * worked. `social` (the first usable link out of `social_links`) stays.
+ * `website` was dropped on 2026-08-18 and asked back on 2026-09-16 ,it is
+ * where the address is usually found. Phone stays out. `social` (the first
+ * usable link out of `social_links`) is there for the leads whose only web
+ * presence is a Facebook or Instagram page.
+ *
+ * The upload ignores `website` and `social`; it matches on the other four.
  */
 
 export const dynamic = 'force-dynamic';
@@ -41,9 +44,10 @@ export async function GET() {
   rows.sort((a, b) => a.business_name.localeCompare(b.business_name));
 
   const csv = toCsv(
-    ['business_name', 'city', 'country', 'niche', 'social', 'email'],
+    ['business_name', 'website', 'city', 'country', 'niche', 'social', 'email'],
     rows.map((r) => [
       r.business_name,
+      r.website,
       r.city,
       r.country,
       r.niche,

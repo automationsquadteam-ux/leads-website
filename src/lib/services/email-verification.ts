@@ -424,6 +424,7 @@ export async function importVerificationCsv(
 export interface MissingEmailRow {
   id: string;
   business_name: string;
+  website: string | null;
   city: string | null;
   country: string | null;
   niche: string | null;
@@ -463,7 +464,7 @@ export async function getLeadsMissingEmail(): Promise<MissingEmailRow[]> {
   for (let i = 0; i < ids.length; i += 300) {
     const { data } = await admin
       .from('leads')
-      .select('id, business_name, city, country, niche, social_links, status')
+      .select('id, business_name, website, city, country, niche, social_links, status')
       .in('id', ids.slice(i, i + 300));
 
     for (const lead of data ?? []) {
