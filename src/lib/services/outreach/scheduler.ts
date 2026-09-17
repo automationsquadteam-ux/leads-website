@@ -177,9 +177,16 @@ async function sendsToday(): Promise<number> {
  * scheduler entirely — `sendsToday()` counts every send regardless of
  * origin, and an operator who set a daily cap almost certainly wants to
  * know it was reached no matter which path reached it.
+ *
+ * Returns null when nothing was owed (already alerted, or no address
+ * configured), or a one-line reason when a genuine SEND failure means the
+ * operator did not get told and never will for today's cycles — this feeds
+ * into the run's own summary message, because the alert itself has nowhere
+ * else to surface a failure. The cron fires every few minutes; the caller
+ * decides whether that is worth retrying, this function only reports.
  */
-async function notifyDailyCapReachedOnce(config: IntegrationConfig, alreadySent: number): Promise<void> {
-  if (!config.outreach.dailyCapAlertEmail) return;
+async function notifyDailyCapReachedOnce(config: IntegrationConfig, alreadySent: number): Promise<string | null> {
+  if (!config.outreach.dailyCapAlertEmail) return null;
 
   const admin = createServiceClient();
   const todayDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: DISPLAY_TIME_ZONE }).format(new Date());
@@ -189,7 +196,7 @@ async function notifyDailyCapReachedOnce(config: IntegrationConfig, alreadySent:
     .select('value')
     .eq('key', 'outreach.daily_cap_alert_date')
     .maybeSingle();
-  if (marker?.value === todayDateStr) return; // already sent today
+  if (marker?.value === todayDateStr) return null; // already sent today
 
   const { start, end } = todayBoundsUtc();
   const { data: sendRows } = await admin
@@ -252,26 +259,45 @@ async function notifyDailyCapReachedOnce(config: IntegrationConfig, alreadySent:
       : '') +
     '\n\nAutomatic, from the scheduled sender. This does not mean sending has stopped for good, it resumes once tomorrow\'s cap resets.';
 
+  let failure: string | null = null;
   try {
     const provider = await getActiveProvider();
-    await provider.send({
+    const result = await provider.send({
       to: config.outreach.dailyCapAlertEmail,
       subject: `Daily send cap reached: ${alreadySent}/${config.sending.dailyLimit} sent ${todayDateStr}`,
       text,
     });
+    // `send()` does not throw on a delivery failure, it RETURNS `ok: false`
+    // (see SmtpProvider.send) — every other caller in this app checks that
+    // (sendLeadEmail, the test-email action). This one did not, so a relay
+    // rejecting or timing out on the alert looked identical to success: no
+    // exception, so the catch below never ran, and the marker got written
+    // regardless. That is the "some days it sends, some days it doesn't"
+    // with nothing in the logs to explain which — the failure was real, on
+    // Brevo's side or this app's, but nothing was ever looking at it.
+    if (!result.ok) failure = result.message;
   } catch (error) {
-    // A failed NOTIFICATION must never fail the outreach run itself, and
-    // must not block the marker write below — an unconfigured provider
-    // would otherwise retry (and fail) on every tick for the rest of the
-    // day, same as any other alert with no working transport.
-    const message = error instanceof EmailConfigError ? error.message : 'Could not send the alert email.';
-    console.error(`[runOutreachCycle] daily cap alert failed: ${message}`);
+    // Thrown only by getActiveProvider() (no provider configured at all) —
+    // a different failure from the one above, but the same handling.
+    failure = error instanceof EmailConfigError ? error.message : 'Could not send the alert email.';
+  }
+
+  if (failure) {
+    console.error(`[runOutreachCycle] daily cap alert failed: ${failure}`);
+    // Do NOT write the marker: an unconfigured provider or a down relay would
+    // otherwise fail identically on every tick for the rest of the day, so
+    // retrying is only useful when there is a real chance the next tick
+    // succeeds. Leaving the marker unset means the very next cron tick (a
+    // few minutes away) tries again, rather than the operator finding out
+    // tomorrow that yesterday's cap alert silently never arrived.
+    return failure;
   }
 
   await admin
     .from('settings')
     .update({ value: todayDateStr as never })
     .eq('key', 'outreach.daily_cap_alert_date');
+  return null;
 }
 
 /**
@@ -741,8 +767,9 @@ export async function runOutreachCycle(
     // Skipped on a dry run, same rule as the close sweep above: a dry run
     // reports what WOULD happen and must not write — and this both sends
     // real email and writes the alert-sent marker.
-    if (!dryRun) await notifyDailyCapReachedOnce(config, alreadySent);
-    return finish(`Daily limit reached (${alreadySent}/${config.sending.dailyLimit}). Nothing was sent.`);
+    const alertFailure = dryRun ? null : await notifyDailyCapReachedOnce(config, alreadySent);
+    const suffix = alertFailure ? ` Cap alert email failed: ${alertFailure}` : '';
+    return finish(`Daily limit reached (${alreadySent}/${config.sending.dailyLimit}). Nothing was sent.${suffix}`);
   }
 
   const ceiling = Math.min(dailyRemaining, Math.max(1, config.outreach.maxSendsPerRun));
