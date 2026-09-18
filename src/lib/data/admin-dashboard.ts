@@ -73,6 +73,12 @@ export interface DashboardWidgets {
   needsDraft: number;
   readyToSend: number;
   invalidEmail: number;
+  /**
+   * Addresses that came back undeliverable from a REAL send ,a subset of
+   * invalidEmail, which also holds verifier verdicts. Hard bounces only:
+   * applyBounce() leaves a soft bounce (mailbox full) unmarked on purpose.
+   */
+  bounced: number;
   error: string | null;
 }
 
@@ -109,6 +115,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     needsDraft,
     readyToSend,
     invalidEmail,
+    bounced,
   ] = await Promise.all([
     /*
      * Mail that ACTUALLY WENT OUT today ,successes only.
@@ -314,6 +321,12 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
       activePipelineCount(supabase)
         .eq('current_stage', 'dead_email'),
     ),
+    // Same column the ?view=bounced list filters on ,the source, not the
+    // stage, because dead_email also holds verifier verdicts.
+    countOf(() =>
+      activePipelineCount(supabase)
+        .eq('email_verification_source', 'bounce'),
+    ),
   ]);
 
   return {
@@ -331,6 +344,7 @@ export async function getDashboardWidgets(): Promise<DashboardWidgets> {
     needsDraft,
     readyToSend,
     invalidEmail,
+    bounced,
     error: null,
   };
 }

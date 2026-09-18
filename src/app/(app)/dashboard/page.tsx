@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
   AlertTriangle, CalendarClock, CheckSquare, Lock, Mail, MailQuestion,
-  MailWarning, MailX, RefreshCw, Reply, Send, ShieldQuestion, Sparkles,
+  MailWarning, MailX, RefreshCw, Reply, Send, ShieldQuestion, Sparkles, Undo2,
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/shell/app-shell';
@@ -203,6 +203,20 @@ export default async function DashboardPage() {
             icon={Send}
             tone={widgets.readyToSend > 0 ? 'success' : 'default'}
             href="/leads?view=ready_to_send"
+          />
+          {/*
+            Distinct from Dead Addresses above: that one is any verdict of
+            undeliverable, most of them from a verifier before a send. This
+            is the address failing on a REAL email ,the one that costs
+            sender reputation, so it gets its own number.
+          */}
+          <MetricCard
+            label="Bounced"
+            value={formatNumber(widgets.bounced)}
+            hint="Undeliverable on a real send"
+            icon={Undo2}
+            tone={widgets.bounced > 0 ? 'danger' : 'default'}
+            href="/leads?view=bounced"
           />
         </section>
 

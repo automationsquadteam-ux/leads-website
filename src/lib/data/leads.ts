@@ -76,6 +76,9 @@ export const LEAD_VIEWS = {
   awaiting_verification: 'Has an address, never sent to a verifier',
   inconclusive: 'Checked, but the verifier could not prove it either way',
   invalid_email: 'Address proved undeliverable needs a new source',
+  // A subset of invalid_email: proved dead by a REAL send coming back, not by
+  // a verifier. Soft bounces (mailbox full) never set this ,see applyBounce().
+  bounced: 'Bounced on a real send needs a new address',
   needs_research: 'Verified, no research written',
   needs_draft: 'Research done, no draft',
   approval_queue: 'Drafted, waiting for approval',
@@ -176,6 +179,11 @@ async function idsForView(
       break;
     case 'invalid_email':
       query = query.eq('current_stage', 'dead_email');
+      break;
+    // The source, not the stage: `dead_email` also holds verifier verdicts,
+    // and the dashboard's Bounced tile counts this same column.
+    case 'bounced':
+      query = query.eq('email_verification_source', 'bounce');
       break;
 
     /*
