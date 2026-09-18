@@ -2014,7 +2014,7 @@ check copied three times is a security check that ends up subtly different in on
 
 | Endpoint | Cron | Does |
 | --- | --- | --- |
-| `/api/cron/approve-drafts` | `0 */4 * * *` | The same `runDraftSweep()` as the Clean-and-approve button |
+| `/api/cron/approve-drafts` | `0 * * * *` | The same `runDraftSweep()` as the Clean-and-approve button |
 | `/api/cron/outreach` | `*/3 * * * *` | Sends what is due |
 
 **There was a third, `/api/cron/sheet-sync` at `59 23 * * *` Asia/Karachi.** It is deleted
@@ -2022,12 +2022,13 @@ along with the rest of the Sheets code (2026-08-10). **Delete its schedule in cr
 too** ,the endpoint now 404s, so an orphaned schedule is a job that fails every night
 forever and trains you to ignore the failure mail.
 
-**The sweep runs every 4 hours** (`0 */4 * * *`, changed 2026-08-10 from an explicit
-`0 0,7,14,21 * * *`). Four divides 24 evenly, so the step syntax is honest here ,00, 04, 08,
-12, 16, 20, six runs a day. **This is exactly what `0 */7 * * *` could NOT do**: cron restarts
-its count at midnight, so a 7 is 00, 07, 14, 21 and then a three-hour gap, which is why that
-schedule had to be written as an explicit hour list. Check the arithmetic before using `*/n`
-on hours ,only divisors of 24 (1, 2, 3, 4, 6, 8, 12) behave the way they read.
+**The sweep runs every hour, on the hour** (`0 * * * *`, set on cron-job.org by the operator
+around 2026-09-16 ,the run log shows it firing at :00 every hour from then on; the Settings
+page text and this table caught up on 2026-09-18). Before that it was `0 */4 * * *` (from
+2026-08-10), and before that an explicit `0 0,7,14,21 * * *`. The arithmetic note from the
+4-hour era still applies if anyone goes back to a step: **`0 */7 * * *` could NOT have been
+written that way** ,cron restarts its count at midnight, so a 7 is 00, 07, 14, 21 and then
+a three-hour gap. Only divisors of 24 (1, 2, 3, 4, 6, 8, 12) behave the way they read.
 
 **`vercel.json` carries one cron, and it is not what actually drives either job.** cron-job.org
 is ,it also speaks timezones, so a schedule can be set in Asia/Karachi instead of being
@@ -2095,6 +2096,7 @@ holes. Fixed by rebalancing rather than by padding:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-18 | **The draft sweep is hourly, and the text now says so.** The `approve-drafts` cron was changed to `0 * * * *` on cron-job.org by the operator around 2026-09-16 (run log confirms :00 every hour); the Settings page's schedule text and section 12's table said "every 4 hours" until now. Schedule text only ,the timer itself lives on cron-job.org |
 | 2026-09-18 | **A row click no longer opens the lead while something is selected.** Asked for directly: with leads ticked for a bulk action, a stray click on another row navigated away and dropped the selection. Now, once anything is ticked, clicking a row (or its name) toggles that row in and out of the selection instead, mail-client style; Clear restores the open-on-click. The checkbox is unchanged. The selection bar says so. Code only |
 | 2026-09-17 | **The "daily cap reached" alert email was silently skipped on any delivery failure.** "Some days it sends, some days it doesn't" ,and it was this app, not Brevo. `notifyDailyCapReachedOnce()` awaited `provider.send()` without reading the result, and `SmtpProvider.send()` never throws: it RETURNS `ok: false` (every other caller checks it; this one did not). So a relay rejection or timeout looked like success, the `try/catch` (which only sees a thrown `EmailConfigError`) never ran, and the `outreach.daily_cap_alert_date` marker was written regardless ,no retry until tomorrow, no error anywhere but a serverless `console.error` that was never reached. Now `result.ok` is checked, the marker is written only on a real send (a failure retries on the next tick, minutes away), and the failure is appended to that run's own message ,`Cap alert email failed: …` ,so it is visible on the Email Schedule. Whether a given past day's alert failed cannot be reconstructed: nothing recorded the attempt. Code only |
 | 2026-09-16 | **`website` is back in the "Leads with no address" download.** Dropped on 2026-08-18 at the operator's request, asked back today ,it is where the address gets found. Columns are now `business_name, website, city, country, niche, social, email`; 255 leads in the file, 202 of them with a site. The upload is unchanged: it still matches on business_name + city + country + niche and ignores `website` and `social`, so a file downloaded before today still applies. Code only |
