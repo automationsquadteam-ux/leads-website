@@ -6,11 +6,15 @@ import { Loader2, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Debounced search input.
+ * Search input that commits on Enter.
  *
- * Debouncing at 300ms keeps a full-table query off every keystroke while still
- * feeling immediate. `useTransition` drives the spinner so the user can see the
- * request is in flight rather than wondering whether their typing registered.
+ * It used to debounce at 300ms and search as you typed. Asked to stop (2026-09-18):
+ * every pause mid-word re-queried the whole table and re-rendered the list under
+ * the cursor, and a partial term matched rows the finished one would not. Now
+ * `onChange` fires on Enter, on Escape and on the clear button ,never on a
+ * keystroke. While the typed text differs from what is applied, an `Enter ↵`
+ * hint replaces the `/` one so it is visible that nothing has been searched yet.
+ * `useTransition` in the parent drives the spinner once a search is in flight.
  */
 export function SearchBar({
   value,
@@ -39,11 +43,7 @@ export function SearchBar({
     setDraft(value);
   }
 
-  React.useEffect(() => {
-    if (draft === value) return;
-    const timer = setTimeout(() => onChange(draft), 300);
-    return () => clearTimeout(timer);
-  }, [draft, value, onChange]);
+  const uncommitted = draft !== value;
 
   // "/" focuses search from anywhere, the way Linear and GitHub behave.
   React.useEffect(() => {
@@ -77,13 +77,15 @@ export function SearchBar({
             setDraft('');
             onChange('');
           }
-          // Enter commits immediately rather than waiting out the debounce.
-          if (e.key === 'Enter') onChange(draft);
+          // The one place typing becomes a search.
+          if (e.key === 'Enter' && uncommitted) onChange(draft);
         }}
         placeholder={placeholder}
         aria-label={placeholder}
         className={cn(
-          'h-9 w-full rounded-md border border-border bg-surface pl-8 pr-16 text-sm',
+          'h-9 w-full rounded-md border border-border bg-surface pl-8 text-sm',
+          // Room for the Enter hint beside the clear button while it shows.
+          uncommitted && draft ? 'pr-28' : 'pr-16',
           'placeholder:text-muted-foreground transition-colors',
           'hover:border-border-strong focus:border-primary focus:outline-none',
           '[&::-webkit-search-cancel-button]:appearance-none',
@@ -93,6 +95,14 @@ export function SearchBar({
       <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
         {pending ? (
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-hidden="true" />
+        ) : null}
+        {uncommitted && draft ? (
+          <kbd
+            title="Press Enter to search"
+            className="rounded border border-primary/40 bg-primary-subtle px-1 py-0.5 text-[10px] text-primary"
+          >
+            Enter ↵
+          </kbd>
         ) : null}
         {draft ? (
           <button
