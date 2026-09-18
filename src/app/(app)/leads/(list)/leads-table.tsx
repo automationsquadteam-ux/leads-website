@@ -185,7 +185,16 @@ export function LeadsTable({
           <span className="flex min-w-0 items-center gap-1.5">
             <Link
               href={`/leads/${lead.id}`}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                // With a selection going, a click on the name joins the row
+                // to it rather than leaving the page (see onRowClick below):
+                // suppress the navigation and let the click reach the row.
+                if (selected.size > 0) {
+                  e.preventDefault();
+                  return;
+                }
+                e.stopPropagation();
+              }}
               className="min-w-0 truncate font-medium text-foreground hover:text-primary hover:underline"
             >
               {lead.business_name}
@@ -591,6 +600,9 @@ export function LeadsTable({
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary-subtle px-3 py-2">
           <span className="tabular text-sm font-medium text-primary">
             {formatNumber(selected.size)} selected
+            <span className="ml-1 font-normal text-muted-foreground">
+              ,clicking a row adds or removes it; Clear to open leads again
+            </span>
             {pinnedIds.length > 0 ? (
               <span className="ml-1 font-normal text-muted-foreground">
                 ({pinnedIds.length}{' '} no longer match this filter ,pinned below, marked
@@ -695,7 +707,25 @@ export function LeadsTable({
           sort={sort}
           direction={direction}
           onSortChange={(column, dir) => update({ sort: column, dir })}
-          onRowClick={(lead) => router.push(`/leads/${lead.id}`)}
+          /*
+           * A row click opens the lead ,until something is selected. Then it
+           * toggles the row in and out of the selection instead, the way a
+           * mail client or file manager behaves once one item is ticked.
+           * Asked for directly: with three leads ticked for a bulk action, one
+           * stray click on a fourth navigated away and dropped the selection.
+           * The checkbox still works either way; this only changes what the
+           * rest of the row does.
+           */
+          onRowClick={(lead) => {
+            if (selected.size === 0) {
+              router.push(`/leads/${lead.id}`);
+              return;
+            }
+            const next = new Set(selected);
+            if (next.has(lead.id)) next.delete(lead.id);
+            else next.add(lead.id);
+            setSelected(next);
+          }}
           rowClassName={(lead) =>
             pinnedIds.includes(lead.id)
               ? 'bg-warning-subtle/40 hover:bg-warning-subtle/60'
