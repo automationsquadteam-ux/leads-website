@@ -265,6 +265,37 @@ export function fillKnownPlaceholders(value: string, context: DraftContext): str
   return text;
 }
 
+/**
+ * Append a sign-off when the draft has none at all.
+ *
+ * n8n's own prompt hardcodes "Best regards,\n<brand>" as the last line of
+ * every language it writes, translating only the greeting ,but the model
+ * skips it often enough to matter: 2 of 26 English initials and 5 of 15
+ * Turkish ones in the same afternoon (2026-09-20), and nothing before this
+ * caught it because a missing sign-off was never a blocking issue and there
+ * was nothing that added one back.
+ *
+ * Deliberately English, not a per-language translation: the project already
+ * ships with ~46 native drafts ending on an English "Best regards, Team
+ * Automation" and treats that as a blemish, not a wrong-language email (see
+ * GUIDE, "known and accepted") ,inventing a translation for the other 19
+ * languages here would be worse than that accepted blemish, not better,
+ * since none of them has had a native-speaker check the way the follow-up
+ * packs in `languages.ts` did.
+ *
+ * Detection is "does the brand name appear anywhere in the body". A false
+ * positive (the brand mentioned mid-paragraph, no real closing) costs
+ * nothing here ,the draft is merely left as the model wrote it, same as
+ * today. A false negative would append a second sign-off, which is the safer
+ * side of that trade.
+ */
+function ensureSignOff(content: string, context: DraftContext): string {
+  const brand = (context.senderName ?? '').trim();
+  if (brand === '' || content.trim() === '') return content;
+  if (content.toLowerCase().includes(brand.toLowerCase())) return content;
+  return `${content.trimEnd()}\n\nBest regards,\n${brand}`;
+}
+
 function pick(record: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const direct = record[key];
@@ -603,7 +634,7 @@ export function repairDraft(
   // can carry the same `"header": "..."` wrapping as the body.
   const rawSubject = normaliseSubjectLine(normalised.subject);
 
-  const content = fillKnownPlaceholders(normalised.content, context).trim();
+  const content = ensureSignOff(fillKnownPlaceholders(normalised.content, context).trim(), context);
   const subject = rawSubject === null ? null : fillKnownPlaceholders(rawSubject, context).trim() || null;
 
   const repaired = content !== (input.content ?? '').trim() || subject !== (input.subject ?? '').trim();

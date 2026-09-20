@@ -99,8 +99,22 @@ export function findUnresolvedPlaceholders(rendered: string, knownValues: string
 
   for (const match of rendered.matchAll(/\{\{\s*[^}\n]{1,60}\s*\}\}/g)) push(match[0]);
 
-  // Title Case of any length, or one bare lower-case word. Single line only.
-  for (const match of rendered.matchAll(/\[(?:[A-Z][^\]\n]{0,60}|[a-z_]{1,30})\]/g)) {
+  /*
+   * Title Case of any length, or one bare lower-case word. Single line only.
+   *
+   * `\p{Lu}` / `\p{Ll}` (Unicode letter-case properties, not `[A-Z]`/`[a-z]`),
+   * because the native-language outreach (0046) writes placeholders in the
+   * lead's own script: `[İsim]` (Turkish) and `[Αγαπητέ Πελάτη]` (Greek) both
+   * start with an uppercase letter outside ASCII, and `[A-Z]` treats a letter
+   * it cannot recognise as not a letter at all ,so the "Title Case" branch
+   * silently failed to match, the guard this comment block calls
+   * "unconditional, every send path goes through it" was not unconditional
+   * for any non-Latin script, and one such draft reached `approved` before
+   * this was caught. `[Prénom]` was never affected ,only the FIRST character
+   * decides which branch a bracket takes, and an accented ASCII letter after
+   * the first position was always inside `[^\]\n]` regardless.
+   */
+  for (const match of rendered.matchAll(/\[(?:\p{Lu}[^\]\n]{0,60}|[\p{Ll}_]{1,30})\]/gu)) {
     const inner = match[0].slice(1, -1).trim().toLowerCase();
     if (inner !== '' && haystacks.some((h) => h.includes(inner))) continue;
     push(match[0]);
