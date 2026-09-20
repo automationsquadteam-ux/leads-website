@@ -887,10 +887,37 @@ unattended over every draft.
 It is idempotent, verified: running it two and three times over the same body changes
 nothing, so re-pressing the button does not spawn versions.
 
-`inspectDraft()` returns what is still wrong: JSON wrapper, literal `\n`, code fences, stray
-braces, wrapping quotes, unfilled placeholders, no subject, suspiciously short. Round
-brackets are deliberately fine ,"(and yes, really)" is ordinary prose; braces and square
-brackets are not.
+**A sibling key after the body (2026-09-19).** 0046 added `angle` to the model's JSON, and
+n8n's parser takes everything after `"body": "` to the end of the output, so the body
+arrives as
+
+    Best regards,
+    Team Automation"
+      "angle": "Das Team hat eine Note über Ihre Agentur: ..."
+    }
+
+Every rule above was satisfied once the `}` was peeled: the quote count came out even, and
+`angle` was not in `inspectDraft()`'s "is this raw JSON" list ,so 84 of these were
+approved with the note pasted under the sign-off (none sent; all re-cleaned that day, 82
+re-approved, one correctly dropped to review because the body was a sentence truncated at
+`https:` and 200 characters of angle). The cleaner now strips a trailing
+`"angle" | "language" | "header" | ...: ...` block to the end, then lets the odd-count rule
+take the quote that closed the body; also a `. ',` body close, and a sign-off the model
+quoted as its own string (`"Best regards,\nTeam Automation"`). The `angle` column gets the
+same `"\n}` tail from the same cut (311 live rows), and `cleanNativeAngle()` now peels it
+before a follow-up quotes it. The real fix is upstream: **the n8n parser must extract each
+field, not split on `"body": "`** ,see the changelog entry for what it should produce.
+
+`inspectDraft()` returns what is still wrong: JSON wrapper (`angle` and `language` count,
+as of 2026-09-19), literal `\n`, code fences, stray braces, wrapping quotes, unfilled
+placeholders, no subject, suspiciously short. Round brackets are deliberately fine ,"(and
+yes, really)" is ordinary prose; braces and square brackets are not.
+
+**A cleaned copy carries the original's `language` and `angle`.** Until 2026-09-19 the sweep
+passed neither to `createEmailVersion()`, so a cleaned version defaulted to `en` with no
+angle: for a native draft that re-armed the language hold against its own lead, and for any
+draft it sent the follow-ups back to quoting the English research (28 live cleaned versions
+had lost their angle, 3 their language ,measured before the fix).
 
 **Repairing and approving are separate, on purpose.** `repairAndApproveDrafts()` cleans
 every pending draft ,saving each repair as a NEW VERSION, so the original stays in the
@@ -1373,6 +1400,28 @@ which is what stopped n8n's first two live runs failing on `leads_email_format` 
 deliberately** ,they are the only provenance for the 762 leads that did come in through the
 sheet, and `leads:duplicates` still groups by row number to find 0028-style pairs.
 
+**The Code node that turns the model's JSON into `header` / `body` / `angle` lives in this
+repo: [`n8n/parse-email.js`](n8n/parse-email.js).** Paste it over the existing node in both
+workflows. The version it replaces (2026-09-19) extracted each field with a regex whose
+terminator was `",` + next key or `"}` with nothing between ,and fell through to end-of-text
+otherwise. llama omits the comma between fields and puts a newline before the `}` often
+enough that `body` swallowed `"angle": …}` and `angle` swallowed `"\n}` (88 live bodies, 311
+angles). The replacement escapes raw newlines inside strings before `JSON.parse` (the usual
+reason the parse fails at all), inserts the missing commas, and as a last resort extracts
+each field by the POSITION of the next key ,never "to the end". Tested against the real
+broken outputs, reordered keys, quotes inside the body and a missing `Language` node. It
+also emits `language` for the insert node to map ,set `NODE_NAME` inside it to whichever
+node carries the code in that workflow.
+
+**The lead-gen workflow tags every version `language = 'en'`.** It has no country→language
+node, so the prompt's `{{ $json.language }}` / `{{ $json.languageName }}` render blank, the
+model picks a language from the research (German for an Austrian business), and the insert
+writes `en`. Since 2026-09-15: Austria 15, Switzerland 14, Netherlands 12, Denmark 7,
+Belgium 6, France 4, Malaysia 3, Sweden 2. Those leads stay in `leads_needing_native_initial`
+(264 on 2026-09-19) for the native re-run, which is the safe outcome, but the fix is to add
+the same Language node to lead-gen and map its output. **Also in that prompt:**
+`Country: {{$('Loop Over Items').item.json.city}}` ,the country line is fed the city.
+
 ### What happens to an n8n draft after it lands
 
 Nothing has to be told about it; four triggers and one cron do the whole thing:
@@ -1817,6 +1866,7 @@ Two additions took the pending queue from **0 clean out of 92 to 82**:
 [Owner's Name]" becomes "Hi Sarah" for someone called Ahmed. Those stay, and the draft stays
 blocked ,which is the entire reason that check is blocking.
 
+
 The one exception is a SALUTATION built round an unknown name: "Hi [Owner's Name]," carries no
 information beyond "Hi," so it collapses. Every other position keeps its placeholder, because
 elsewhere the sentence was built around the missing fact.
@@ -2096,6 +2146,7 @@ holes. Fixed by rebalancing rather than by padding:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-19 | **The angle was being pasted under the sign-off, and the cleaner was approving it.** Reported on "All about you – Public Relations" (Austria, `n8n:lead-gen`): the body ended `Team Automation"\n "angle": "Das Team hat eine Note…"\n}`. Cause is n8n's parser, which cuts the body as everything after `"body": "`; the CRM's fault was letting it through ,`stripJsonDebris()` peeled the `}`, the quote count was even, and `angle` was missing from `inspectDraft()`'s raw-JSON list, so the sweep approved 84 of them (0 sent). Measured live: 88 active initials with the fragment; 311 active `angle` columns ending `"\n}`; 0 follow-ups affected yet. **Four fixes.** (1) The cleaner strips a trailing sibling-key block (`"angle"`, `"language"`, `"header"`…) to the end, a `. ',` body close, and a quoted sign-off; `inspectDraft()` flags `angle`/`language` as raw JSON. (2) `cleanNativeAngle()` peels `}`/`"` debris before a follow-up quotes the angle. (3) `createEmailVersion()` takes `angle`, and the sweep passes the original's `language` and `angle` through a cleaning ,it passed neither, so every cleaned copy came back `en` with no angle (28 had lost an angle, 3 a language). (4) One-off re-clean of the 86 live fragment bodies (2 archived left alone): 86 new `:cleaned` versions, 82 approvals carried, 3 drafts left for the sweep, and **ProfesKontakt correctly dropped to review** ,its approved body was a sentence cut off at `https:`, the rest was angle. **For n8n:** the operator shared the Code node; its `getField` regex terminated only on `",`+key or `"}` with nothing between and otherwise ran to end-of-text, which is the whole leak. Replacement in [`n8n/parse-email.js`](n8n/parse-email.js) ,escapes raw newlines inside strings so `JSON.parse` works, inserts missing commas, extracts by next-key position as the last resort ,tested against the real broken outputs (old node leaked in 4 of 7 shapes, new in 0). Separately, the lead-gen workflow tags every version `language = 'en'` even when the body is German (15 Austria, 14 Switzerland, 12 Netherlands, 7 Denmark, 6 Belgium… since 09-15) because it has no Language node, which is why those leads sit in `leads_needing_native_initial` (264) for the native re-run; and its prompt feeds the city into the Country line. See section 8. Code + data |
 | 2026-09-18 | **Leads search commits on Enter, not per keystroke.** `SearchBar` debounced at 300ms and searched as you typed; asked to stop. `onChange` now fires only on Enter, Escape and the clear button, and an `Enter ↵` chip shows while the typed text differs from what is applied. Only the leads page uses the component. Code only |
 | 2026-09-18 | **Phone layout of the dashboard tiles: one full-width, then pairs.** Reported as 2-1-2-1-2-2-2 down the phone: the tiles sit in four sections of 3, 3, 4 and 3, each its own two-column grid below `lg`, so every odd-sized section ended in a lone tile. Below `lg` the wrapper is now the grid and each section is `display: contents`; "Today's Emails" spans both columns, and 1 + 6×2 = 13 exactly. At `lg` nothing changed. Verified in headless Chrome through the real login as a throwaway admin (deleted after): 390px measures one 358px tile then six rows of 173px pairs with `scrollWidth === innerWidth`; 1366px measures 3/3/4/3 with Bounced beside Ready to Send; zero console errors. **Adding a tile breaks the arithmetic** ,keep the total odd or drop the span. Code only |
 | 2026-09-18 | **Bounced tile on the dashboard.** New card in the third slot beside Ready to Send: leads whose address came back undeliverable from a REAL send (`email_verification_source = 'bounce'`, hard bounces only ,`applyBounce()` leaves soft ones unmarked). Distinct from Dead Addresses, which is any `dead_email` stage and today is all verifier verdicts; this is the one that costs sender reputation. Links to a new `?view=bounced` on the same column, per the tile-must-link-to-what-it-counted rule. Reads 0 live: zero bounces have ever been recorded. Code only |

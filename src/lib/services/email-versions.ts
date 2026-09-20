@@ -33,6 +33,13 @@ export interface CreateVersionInput {
   status?: EmailVersionStatus;
   /** ISO 639-1 (0046). Omitted means 'en', the column default, which is right for every manual save. */
   language?: string;
+  /**
+   * The one-line native note n8n writes beside a 0046 initial, which the
+   * follow-up generator quotes. A version DERIVED from another (the sweep's
+   * cleaned copy) must pass the original's through, or the follow-ups for
+   * that lead silently fall back to the English research.
+   */
+  angle?: string | null;
 }
 
 export interface VersionResult {
@@ -62,6 +69,7 @@ export async function createEmailVersion(input: CreateVersionInput): Promise<Ver
       active: input.activate ?? true,
       status: input.status ?? 'draft',
       ...(input.language ? { language: input.language } : {}),
+      ...(input.angle !== undefined ? { angle: input.angle } : {}),
     })
     .select('*')
     .single();

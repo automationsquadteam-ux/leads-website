@@ -91,7 +91,7 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
 
   const { data: pending } = await admin
     .from('email_versions')
-    .select('id, lead_id, subject, content, generated_by, version_number')
+    .select('id, lead_id, subject, content, generated_by, version_number, language, angle')
     .eq('type', 'initial')
     .eq('active', true)
     .eq('status', 'draft')
@@ -174,6 +174,16 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
           : `${draft.generated_by}:cleaned`,
         createdBy: userId,
         activate: true,
+        /*
+         * The same email, cleaned ,so the same language and the same angle.
+         * Until 2026-09-19 neither was passed, and a cleaned copy came back as
+         * 'en' with no angle: for a native draft that re-armed the language
+         * hold against its own lead, and for any draft it sent the follow-ups
+         * back to quoting the English research. 28 live cleaned versions had
+         * lost their angle that way, 3 their language.
+         */
+        language: draft.language,
+        angle: draft.angle,
       });
 
       if (created.ok && created.version) {

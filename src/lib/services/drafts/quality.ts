@@ -57,6 +57,25 @@ function stripCodeFence(value: string): string {
 const KEY_NAMES = 'header|subject|subject_line|title|email_header|body|content|email|email_body|message|text';
 
 /**
+ * Keys that can FOLLOW the body inside the same JSON object. When the upstream
+ * parser cuts the body out by taking everything after `"body": "`, whatever
+ * came next in the object comes along for the ride:
+ *
+ *     Best regards,
+ *     Team Automation"
+ *       "angle": "Das Team hat eine Note über Ihre Agentur: ..."
+ *     }
+ *
+ * `angle` is the one that actually happens (0046 added it to the prompt's
+ * output, after this cleaner was written), and it slipped past every check:
+ * the trailing `}` was peeled, the quote count came out even, and `angle` was
+ * not in the "is this raw JSON" list ,so 84 of these were approved with the
+ * note pasted under the sign-off. The others are here because the same cut
+ * would drag them in just the same if the model ever reordered its keys.
+ */
+const TRAILING_SIBLING_KEYS = 'angle|language|header|subject|subject_line|title|email_header';
+
+/**
  * Peel JSON wreckage off the ends of a draft.
  *
  * The sheet splits one JSON object across two columns, so the Body cell gets
@@ -90,6 +109,27 @@ function stripJsonDebris(value: string): string {
 
     text = text.replace(/^[{[]\s*/, '');
     text = text.replace(new RegExp(`^"?(?:${KEY_NAMES})"?\\s*:\\s*"?`, 'i'), '');
+
+    /*
+     * A sibling key after the body, through to the end. Anchored on the quoted
+     * key with its colon, which prose never contains; the quote that closed
+     * the body string is left for the odd-count rule below, so a body that
+     * legitimately ends on a quotation keeps it.
+     */
+    text = text.replace(new RegExp(`[\\s,]*"(?:${TRAILING_SIBLING_KEYS})"\\s*:[\\s\\S]*$`, 'i'), '');
+
+    // The other way the body string can close: `sunuyoruz. ',` ,a single
+    // quote after sentence punctuation and a space. Apostrophes make
+    // single-quote parity useless, so this is shape-based instead, and the
+    // space is what keeps `...he said 'yes.'` intact.
+    text = text.replace(/([.!?])\s+'\s*$/, '$1');
+
+    // A sign-off the model quoted as though it were its own JSON string:
+    // `"Best regards,\nTeam Automation"` on the last two lines. The shape is
+    // a short line ending in a comma, a newline, a short line ,a quotation
+    // in prose does not end on a comma-then-name pair.
+    text = text.replace(/"([^"\n]{2,60},)[ \t]*\n[ \t]*([^"\n]{2,60})"\s*$/, '$1\n$2');
+
     text = text.replace(/[\s,]*[}\]]\s*$/, '');
 
     const quotes = (text.match(/"/g) ?? []).length;
@@ -449,8 +489,10 @@ export function inspectDraft(input: {
   }
 
   // A JSON payload rather than an email. The single most common failure when a
-  // model is asked for structured output.
-  if (/^\s*[{[]/.test(content) || /"\s*(body|header|subject|content)\s*"\s*:/i.test(content)) {
+  // model is asked for structured output. `angle` and `language` are the 0046
+  // keys ,leaving them off this list is how 84 drafts with the angle pasted
+  // under the sign-off were approved as clean.
+  if (/^\s*[{[]/.test(content) || /"\s*(body|header|subject|content|angle|language)\s*"\s*:/i.test(content)) {
     issues.push({
       kind: 'structured',
       message: 'This is raw JSON, not an email. It needs unwrapping before it can be sent.',

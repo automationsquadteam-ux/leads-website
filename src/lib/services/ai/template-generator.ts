@@ -231,6 +231,20 @@ function cleanNativeAngle(raw: string | null | undefined): string | null {
   let text = raw?.trim() ?? '';
   if (!text) return null;
 
+  /*
+   * JSON wreckage first. The upstream parser takes everything after
+   * `"angle": "` to the end of the model's output, so the value arrives as
+   * `...generieren.'"\n}` ,the string's closing quote, a newline and the
+   * object's closing brace. 311 of the live angle columns end that way
+   * (measured 2026-09-19). The quote strip below only sees a quote at the very
+   * end, so the brace has to go first, and the loop is because the debris
+   * nests: `}`, then `"`, then a stray comma.
+   */
+  for (let previous = ''; previous !== text; ) {
+    previous = text;
+    text = text.replace(/[\s,]*[}\]]\s*$/, '').replace(/\s*"\s*$/, '').trim();
+  }
+
   // Leading `""` + newline, then any wrapping quotes, then framing, then
   // wrapping quotes again ,the framing sometimes sits inside the quotes.
   text = text.replace(/^["'“”«»]{2,}\s*/, '').trim();
