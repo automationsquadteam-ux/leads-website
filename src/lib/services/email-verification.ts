@@ -146,13 +146,37 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((cell) => cell.trim() !== ''));
 }
 
-export function toCsv(headers: string[], rows: Array<Array<string | number | null>>): string {
-  const escape = (value: string | number | null): string => {
-    const text = value === null || value === undefined ? '' : String(value);
-    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  };
+function escapeCsvField(value: string | number | null): string {
+  const text = value === null || value === undefined ? '' : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
 
-  return [headers, ...rows].map((r) => r.map(escape).join(',')).join('\r\n');
+export function toCsv(headers: string[], rows: Array<Array<string | number | null>>): string {
+  return [headers, ...rows].map((r) => r.map(escapeCsvField).join(',')).join('\r\n');
+}
+
+/**
+ * Same idea as `toCsv`, but for a file meant to be read by a person rather than
+ * uploaded to a verifier: one header row, then each group's rows in turn with
+ * a single blank line between groups. A group with nothing in it is skipped
+ * entirely rather than leaving a blank line with no rows on either side of it.
+ */
+function toGroupedCsv(
+  headers: string[],
+  groups: Array<Array<Array<string | number | null>>>,
+): string {
+  const lines = [headers.map(escapeCsvField).join(',')];
+
+  groups
+    .filter((group) => group.length > 0)
+    .forEach((group, index) => {
+      if (index > 0) lines.push('');
+      for (const row of group) {
+        lines.push(row.map(escapeCsvField).join(','));
+      }
+    });
+
+  return lines.join('\r\n');
 }
 
 /* -------------------------------------------------------------------------- */
@@ -164,6 +188,7 @@ export interface UnverifiedRow {
   business_name: string;
   city: string | null;
   country: string | null;
+  status: EmailVerificationStatus;
 }
 
 /**
@@ -175,9 +200,11 @@ export interface UnverifiedRow {
  * a catch-all domain returns catch-all every single time ,you pay again for
  * an answer that cannot change.
  *
- * `includeInconclusive` re-checks them deliberately, which is worth doing
+ * `includeInconclusive` switches to exactly the opposite set: `unknown` and
+ * `accept_all`, never-checked excluded. Re-checking them is worth doing
  * occasionally (a domain that was misconfigured may since have been fixed) but
- * should be a decision, not a default.
+ * should be a decision, not a default, and not mixed into the same file as the
+ * addresses that have never been sent at all.
  *
  * Leads with no address are excluded here, which is the whole point of the
  * export. Note that they also count as `unverified` in the tallies, so the
@@ -192,7 +219,7 @@ export async function getUnverifiedEmails(
   const pageSize = 1000;
 
   const statuses: EmailVerificationStatus[] = options.includeInconclusive
-    ? ['unverified', 'unknown', 'accept_all']
+    ? ['unknown', 'accept_all']
     : ['unverified'];
 
   for (let from = 0; ; from += pageSize) {
@@ -211,6 +238,8 @@ export async function getUnverifiedEmails(
     const batch = data ?? [];
     if (batch.length === 0) break;
 
+    const statusByLeadId = new Map(batch.map((r) => [r.lead_id, r.email_verification_status]));
+
     const { data: leads } = await admin
       .from('leads')
       .select('id, email, business_name, city, country, status')
@@ -225,6 +254,7 @@ export async function getUnverifiedEmails(
         business_name: lead.business_name,
         city: lead.city,
         country: lead.country,
+        status: statusByLeadId.get(lead.id) ?? 'unverified',
       });
     }
 
@@ -246,12 +276,23 @@ export async function buildUnverifiedCsv(
   options: { includeInconclusive?: boolean } = {},
 ): Promise<{ csv: string; count: number }> {
   const rows = await getUnverifiedEmails(options);
+  const headers = ['email', 'business_name', 'city', 'country'];
+  const toRow = (r: UnverifiedRow) => [r.email, r.business_name, r.city, r.country];
+
+  // The re-check file mixes two verdicts that mean different things
+  // (`unknown` = the verifier gave up, `accept_all` = the domain accepts
+  // everything), so it groups them with a blank line between rather than
+  // interleaving them by lead id. Never-checked is always a single status,
+  // so it never takes this branch.
+  const csv = options.includeInconclusive
+    ? toGroupedCsv(headers, [
+        rows.filter((r) => r.status === 'unknown').map(toRow),
+        rows.filter((r) => r.status === 'accept_all').map(toRow),
+      ])
+    : toCsv(headers, rows.map(toRow));
+
   return {
-    // `email` first and named exactly that: every verifier auto-detects it.
-    csv: toCsv(
-      ['email', 'business_name', 'city', 'country'],
-      rows.map((r) => [r.email, r.business_name, r.city, r.country]),
-    ),
+    csv,
     count: rows.length,
   };
 }

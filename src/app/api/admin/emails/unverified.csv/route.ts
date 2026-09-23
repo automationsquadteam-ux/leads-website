@@ -30,10 +30,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, message: 'Unauthorized.' }, { status: 401 });
   }
 
-  // `?recheck=1` also exports catch-all and unknown addresses. Off by default:
-  // a verifier bills per address, and a catch-all domain returns catch-all
-  // every time, so re-exporting them by default charges again for an answer
-  // that cannot change.
+  // `?recheck=1` swaps to catch-all and unknown addresses instead of
+  // never-checked ones, grouped (unknown, blank line, catch-all) rather than
+  // merged with the main export. Off by default: a verifier bills per
+  // address, and a catch-all domain returns catch-all every time, so
+  // re-exporting them by default charges again for an answer that cannot
+  // change.
   const recheck = new URL(request.url).searchParams.get('recheck') === '1';
   const { csv, count } = await buildUnverifiedCsv({ includeInconclusive: recheck });
 

@@ -162,7 +162,7 @@ export function VerificationPanel({
                   title="Also re-checks catch-all and unknown. Costs credits you have already spent once."
                 >
                   <Download className="size-4" aria-hidden="true" />
-                  Also re-check catch-all &amp; unknown ({formatNumber(exportable + inconclusive)})
+                  Also re-check catch-all &amp; unknown ({formatNumber(inconclusive)})
                 </a>
               ) : null}
             </div>
