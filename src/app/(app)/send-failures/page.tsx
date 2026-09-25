@@ -94,7 +94,9 @@ export default async function SendFailuresPage({
             One row per problem, not per attempt. A lead listed here <strong className="text-foreground">cannot
             be emailed</strong> ,by the scheduler or the Send button ,until you fix what caused it
             and press <strong className="text-foreground">Mark fixed</strong>, which clears its attempts and
-            releases it. That is what stops a bad address being retried every few minutes.
+            releases it. That is what stops a bad address being retried every few minutes. The one
+            exception is <strong className="text-foreground">Draft not approved</strong>: approving the
+            draft is the fix, so that entry clears itself and the lead goes back in the queue.
           </p>
         ) : null}
 

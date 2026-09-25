@@ -141,6 +141,24 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
     }
   }
 
+  // A translation is never auto-approved while the lead's English draft exists
+  // and was not approved (rejected, or still waiting): that call is a human's.
+  const englishUnapproved = new Set<string>();
+  const nativeLeadIds = drafts.filter((d) => d.language !== 'en').map((d) => d.lead_id);
+  for (let i = 0; i < nativeLeadIds.length; i += 300) {
+    const { data } = await admin
+      .from('email_versions')
+      .select('lead_id, status')
+      .eq('type', 'initial')
+      .eq('language', 'en')
+      .in('lead_id', nativeLeadIds.slice(i, i + 300));
+    const anyApproved = new Map<string, boolean>();
+    for (const v of data ?? []) {
+      anyApproved.set(v.lead_id, (anyApproved.get(v.lead_id) ?? false) || v.status === 'approved');
+    }
+    for (const [leadId, approvedOnce] of anyApproved) if (!approvedOnce) englishUnapproved.add(leadId);
+  }
+
   let repaired = 0;
   let approved = 0;
   const blockedBy = new Map<string, { count: number; example: string }>();
@@ -204,6 +222,13 @@ export async function runDraftSweep(options: DraftSweepOptions = {}): Promise<Dr
     // Same context repairDraft() above already used, so a bracketed tag that
     // is genuinely part of the lead's own name never blocks here either.
     const issues = inspectDraft({ subject, content, context: contextById.get(draft.lead_id) ?? {} });
+    if (draft.language !== 'en' && englishUnapproved.has(draft.lead_id)) {
+      issues.push({
+        kind: 'english_not_approved',
+        message: "This lead's English draft was rejected or never approved, so its translation needs a human's approval too.",
+        blocking: true,
+      });
+    }
     const blocking = issues.filter((issue) => issue.blocking);
 
     // The version id may have changed if a repair created a new one, so

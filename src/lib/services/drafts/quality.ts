@@ -459,7 +459,8 @@ export type DraftIssueKind =
   | 'wrapping_quotes'
   | 'code_fence'
   | 'no_subject'
-  | 'subject_too_long';
+  | 'subject_too_long'
+  | 'english_not_approved';
 
 export interface DraftIssue {
   kind: DraftIssueKind;

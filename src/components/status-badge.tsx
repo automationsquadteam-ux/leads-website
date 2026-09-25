@@ -61,6 +61,7 @@ const FAILURE_REASON: Record<string, { label: string; tone: BadgeTone }> = {
   provider_config: { label: 'Provider misconfigured', tone: 'danger' },
   unresolved_placeholder: { label: 'Unresolved placeholder', tone: 'danger' },
   send_rejected: { label: 'Rejected by provider', tone: 'danger' },
+  not_approved: { label: 'Draft not approved', tone: 'warning' },
 };
 
 export function failureReasonLabel(reason: string | null): string {

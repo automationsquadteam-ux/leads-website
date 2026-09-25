@@ -7,7 +7,7 @@ import { assertAdmin } from '@/lib/auth/session';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service-client';
 import { recordActivity } from '@/lib/services/activity';
-import { sendLeadEmail } from '@/lib/services/email/send-lead-email';
+import { clearApprovedDraftFailures, sendLeadEmail } from '@/lib/services/email/send-lead-email';
 import type { EmailType, LeadStatus } from '@/lib/supabase/database.types';
 
 export interface ActionResult {
@@ -315,8 +315,11 @@ export async function bulkApproveDrafts(ids: string[]): Promise<ActionResult> {
 
   if (error) return { ok: false, message: error.message };
 
+  await clearApprovedDraftFailures(approvable.map((v) => v.lead_id));
+
   revalidatePath('/leads');
   revalidatePath('/dashboard');
+  revalidatePath('/send-failures');
 
   const skipped = ids.length - approvable.length;
   return {

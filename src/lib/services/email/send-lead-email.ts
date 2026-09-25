@@ -41,7 +41,8 @@ export type SendFailureReason =
   | 'no_subject'
   | 'provider_config'
   | 'unresolved_placeholder'
-  | 'send_rejected';
+  | 'send_rejected'
+  | 'not_approved';
 
 /**
  * How long one refusal, for the same lead and the same reason, stays logged
@@ -68,7 +69,7 @@ const REFUSAL_THROTTLE_HOURS = 6;
  * (which always carries `provider.id`) ,that is how the two are told apart
  * later: null means the send never got that far.
  */
-async function logRefusal(
+export async function logRefusal(
   admin: ReturnType<typeof createServiceClient>,
   params: {
     leadId: string;
@@ -103,6 +104,53 @@ async function logRefusal(
     failure_reason: params.reason,
     error: params.message.slice(0, 2000),
   });
+}
+
+/**
+ * Delete `not_approved` failures whose lead now has an approved active initial.
+ *
+ * Approving the draft IS the fix for that failure, so unlike every other
+ * reason it does not wait for "Mark fixed". Checked against the version rather
+ * than hooked into each approve button, because approvals also arrive from the
+ * hourly sweep and from the 0046 inheritance trigger on an n8n insert, which no
+ * app code sees. The scheduler calls this at the top of every run to catch
+ * those; the approve actions call it with their own leads so the page updates
+ * at once. Only `not_approved` rows go: a lead with another open failure stays
+ * blocked for that one.
+ */
+export async function clearApprovedDraftFailures(leadIds?: string[]): Promise<number> {
+  const admin = createServiceClient();
+
+  let query = admin
+    .from('email_logs')
+    .select('lead_id')
+    .eq('status', 'failed')
+    .eq('failure_reason', 'not_approved');
+  if (leadIds) {
+    if (leadIds.length === 0) return 0;
+    query = query.in('lead_id', leadIds);
+  }
+  const { data: rows } = await query;
+  const candidates = [...new Set((rows ?? []).map((row) => row.lead_id))];
+  if (candidates.length === 0) return 0;
+
+  const { data: approved } = await admin
+    .from('email_versions')
+    .select('lead_id')
+    .in('lead_id', candidates)
+    .eq('type', 'initial')
+    .eq('active', true)
+    .eq('status', 'approved');
+  const fixed = [...new Set((approved ?? []).map((version) => version.lead_id))];
+  if (fixed.length === 0) return 0;
+
+  const { count } = await admin
+    .from('email_logs')
+    .delete({ count: 'exact' })
+    .in('lead_id', fixed)
+    .eq('status', 'failed')
+    .eq('failure_reason', 'not_approved');
+  return count ?? 0;
 }
 
 /**

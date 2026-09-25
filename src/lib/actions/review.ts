@@ -13,6 +13,7 @@ import {
   setActiveVersion,
 } from '@/lib/services/email-versions';
 import { closeWorkflow, gateFlagPatch, reopenWorkflow, updatePipeline } from '@/lib/services/outreach/pipeline';
+import { clearApprovedDraftFailures } from '@/lib/services/email/send-lead-email';
 import { EMAIL_TYPE_LABELS, VERIFICATION_META } from '@/lib/pipeline/labels';
 import {
   EMAIL_VERIFICATION_STATUSES,
@@ -366,6 +367,7 @@ export async function approveVersion(
 
   if (result.version.type === 'initial') {
     await updatePipeline(leadId, gateFlagPatch('approved', true));
+    if ((await clearApprovedDraftFailures([leadId])) > 0) revalidatePath('/send-failures');
   }
 
   await recordActivity({

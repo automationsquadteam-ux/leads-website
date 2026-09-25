@@ -7,7 +7,8 @@ import { getIntegrationConfig, type IntegrationConfig } from '../config';
 import { recordActivity } from '../activity';
 import { createEmailVersion } from '../email-versions';
 import { generateEmail } from '../ai';
-import { sendLeadEmail } from '../email/send-lead-email';
+import { clearApprovedDraftFailures, logRefusal, sendLeadEmail } from '../email/send-lead-email';
+import { isLanguageCode, languagePack } from '../ai/languages';
 import { getActiveProvider } from '../email';
 import { EmailConfigError } from '../email/types';
 
@@ -57,6 +58,18 @@ export interface OutreachRunSummary {
 interface DueRow {
   lead_id: string;
   type: EmailType;
+}
+
+/** An initial the sender reached whose active draft is not approved: logged to Send Failures. */
+interface NotApprovedInitial {
+  leadId: string;
+  versionId: string | null;
+  message: string;
+}
+
+interface DueWork {
+  work: DueRow[];
+  notApproved: NotApprovedInitial[];
 }
 
 /** Local wall-clock hour and ISO weekday in the configured timezone. */
@@ -360,9 +373,10 @@ async function closeExhaustedSequences(config: IntegrationConfig): Promise<strin
  * even attempted, so a backlog could get pushed out again, and again, by
  * every new day's crop of the "higher priority" step.
  */
-async function findDueWork(config: IntegrationConfig, limit: number): Promise<DueRow[]> {
+async function findDueWork(config: IntegrationConfig, limit: number): Promise<DueWork> {
   const admin = createServiceClient();
   const work: DueRow[] = [];
+  const blocked = await leadsWithOpenFailures();
 
   /*
    * `lead_send_queue`, not `lead_pipeline` and NOT `pipeline_board` (0035).
@@ -425,13 +439,17 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
      */
     const { start: startOfToday, end: endOfToday } = todayBoundsUtc();
 
+    // Each blocked lead can take at most one row per query, so this many rows
+    // always leaves `limit` unblocked ones when that many exist.
+    const fetchLimit = limit + blocked.size;
+
     const followup2Overdue = base()
       .not('followup1_sent', 'is', null)
       .is('followup2_sent', null)
       .not('followup2_due', 'is', null)
       .lt('followup2_due', startOfToday)
       .order('followup2_due', { ascending: true })
-      .limit(limit);
+      .limit(fetchLimit);
 
     const followup1Overdue = base()
       .not('first_email_sent', 'is', null)
@@ -439,7 +457,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
       .not('followup1_due', 'is', null)
       .lt('followup1_due', startOfToday)
       .order('followup1_due', { ascending: true })
-      .limit(limit);
+      .limit(fetchLimit);
 
     const followup2Today = base()
       .not('followup1_sent', 'is', null)
@@ -448,7 +466,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
       .gte('followup2_due', startOfToday)
       .lte('followup2_due', endOfToday)
       .order('followup2_due', { ascending: true })
-      .limit(limit);
+      .limit(fetchLimit);
 
     const followup1Today = base()
       .not('first_email_sent', 'is', null)
@@ -457,7 +475,7 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
       .gte('followup1_due', startOfToday)
       .lte('followup1_due', endOfToday)
       .order('followup1_due', { ascending: true })
-      .limit(limit);
+      .limit(fetchLimit);
 
     const [second, first, secondToday, firstToday] = await Promise.all([
       followup2Overdue,
@@ -473,13 +491,17 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
      * after it, and a `leads:duplicates --merge` loser shares the SURVIVOR's
      * exact address. That was an unattended second send to the same inbox.
      */
-    for (const row of second.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup2' });
-    for (const row of first.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup1' });
-    for (const row of secondToday.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup2' });
-    for (const row of firstToday.data ?? []) work.push({ lead_id: row.lead_id, type: 'followup1' });
+    const push = (rows: { lead_id: string }[] | null, type: EmailType) => {
+      for (const row of rows ?? []) if (!blocked.has(row.lead_id)) work.push({ lead_id: row.lead_id, type });
+    };
+    push(second.data, 'followup2');
+    push(first.data, 'followup1');
+    push(secondToday.data, 'followup2');
+    push(firstToday.data, 'followup1');
   }
 
-  if (config.outreach.autoSendInitial) {
+  const need = limit - work.length;
+  if (config.outreach.autoSendInitial && need > 0) {
     /*
      * Ordered by SEND PRIORITY first, approved_at second.
      *
@@ -497,109 +519,144 @@ async function findDueWork(config: IntegrationConfig, limit: number): Promise<Du
      * the service-role key. `pipeline_board` computes the same priority but is
      * gated `where public.is_admin()`, which a service-role connection never
      * satisfies ,see 0035. Using it here returned zero rows on every run.
-     */
-    const admin = createServiceClient();
-    let query = admin
-      .from('lead_send_queue')
-      .select('lead_id, send_priority, target_language, initial_language')
-      .is('replied', null)
-      .is('closed', null)
-      .eq('auto_followups', true)
-      .eq('approved', true)
-      .is('first_email_sent', null)
-      .order('send_priority', { ascending: true })
-      .order('approved_at', { ascending: true })
-      .limit(limit);
-
-    if (config.outreach.requireVerifiedEmail) query = query.eq('email_verified', true);
-
-    const { data } = await query;
-    const candidates = (data ?? [])
-      // 9 means not sendable at all. It cannot reach here while
-      // requireVerifiedEmail is on, but the sender must not depend on a setting
-      // to avoid mailing an address a verifier called dead.
-      .filter((row) => row.send_priority < 9)
-      /*
-       * THE NATIVE-LANGUAGE HOLD (0046). An initial whose active draft is
-       * not in the language the lead's country calls for is skipped ,not
-       * failed, so no email_logs row and no block-until-fixed ,until n8n
-       * writes the native version, at which point initial_language changes
-       * and the lead flows through on the next tick. Both columns come from
-       * lead_send_queue so this is one comparison, no extra query. Off in
-       * Settings sends whatever language the draft has.
-       */
-      .filter(
-        (row) =>
-          !config.outreach.requireNativeLanguage || row.initial_language === row.target_language,
-      )
-      .map((row) => row.lead_id);
-
-    /*
-     * An initial email also needs its ACTIVE VERSION approved, which is the
-     * condition checked immediately before sending. Filtering on
-     * lead_pipeline.approved alone put leads in the queue that the very next
-     * step then rejected, producing runs that read "6 due, 6 skipped" forever
-     * with no clue as to why.
      *
-     * The two flags can disagree because lead_pipeline.approved is derived from
-     * leads.status, which older bulk actions set on its own. Requiring both
-     * here makes the queue mean what it says.
+     * PAGED until `need` sendable leads are found. Filtering after a fixed-size
+     * fetch let one held lead at the head of the queue empty every run once a
+     * single send was left for the day.
      */
-    if (candidates.length > 0) {
-      const admin = createServiceClient();
-      const { data: versions } = await admin
-        .from('email_versions')
-        .select('lead_id')
-        .in('lead_id', candidates)
-        .eq('type', 'initial')
-        .eq('active', true)
-        .eq('status', 'approved');
+    const PAGE = 100;
+    const sendable: string[] = [];
+    const unapproved: Array<{ leadId: string; version: { id: string; status: string; language: string } | null }> = [];
 
-      const signedOff = new Set((versions ?? []).map((v) => v.lead_id));
-      for (const leadId of candidates) {
-        if (signedOff.has(leadId)) work.push({ lead_id: leadId, type: 'initial' });
+    for (let from = 0; sendable.length < need; from += PAGE) {
+      let query = admin
+        .from('lead_send_queue')
+        .select('lead_id, target_language, initial_language')
+        .is('replied', null)
+        .is('closed', null)
+        .eq('auto_followups', true)
+        .eq('approved', true)
+        .is('first_email_sent', null)
+        // 9 means not sendable at all, whatever requireVerifiedEmail says.
+        .lt('send_priority', 9)
+        .order('send_priority', { ascending: true })
+        .order('approved_at', { ascending: true })
+        // Tie-breaker so paging is stable: many leads share an approved_at minute.
+        .order('lead_id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (config.outreach.requireVerifiedEmail) query = query.eq('email_verified', true);
+
+      const { data, error } = await query;
+      if (error) break;
+      const rows = data ?? [];
+
+      const candidates = rows
+        .filter((row) => !blocked.has(row.lead_id))
+        /*
+         * THE NATIVE-LANGUAGE HOLD (0046). An initial whose active draft is
+         * not in the language the lead's country calls for is skipped ,not
+         * failed, so no email_logs row and no block-until-fixed ,until n8n
+         * writes the native version, at which point initial_language changes
+         * and the lead flows through on the next tick. Off in Settings sends
+         * whatever language the draft has.
+         */
+        .filter(
+          (row) =>
+            !config.outreach.requireNativeLanguage || row.initial_language === row.target_language,
+        )
+        .map((row) => row.lead_id);
+
+      if (candidates.length > 0) {
+        // lead_pipeline.approved stays on when a newer, unapproved draft replaces
+        // an approved one, so the ACTIVE version is what decides.
+        const { data: versions } = await admin
+          .from('email_versions')
+          .select('id, lead_id, status, language')
+          .in('lead_id', candidates)
+          .eq('type', 'initial')
+          .eq('active', true);
+        const activeByLead = new Map((versions ?? []).map((v) => [v.lead_id, v]));
+
+        for (const leadId of candidates) {
+          if (sendable.length >= need) break;
+          const version = activeByLead.get(leadId) ?? null;
+          if (version?.status === 'approved') sendable.push(leadId);
+          else unapproved.push({ leadId, version });
+        }
       }
+
+      if (rows.length < PAGE) break;
     }
+
+    for (const leadId of sendable) work.push({ lead_id: leadId, type: 'initial' });
+    return { work: work.slice(0, limit), notApproved: await describeUnapproved(unapproved) };
   }
 
-  /*
-   * Drop anything carrying an unresolved send failure.
-   *
-   * `sendLeadEmail()` refuses these outright and is the real gate ,this is
-   * the optimisation in front of it. Without it a blocked lead still occupies
-   * one of the run's `limit` slots, gets attempted, and is refused, so a
-   * handful of permanently-stuck leads at the front of the queue could starve
-   * every healthy one behind them (a slower version of the same starvation
-   * the overdue/today split above exists to prevent).
-   *
-   * Filtered here, once, at the end rather than inside each candidate query:
-   * `lead_send_queue` carries no failure information to filter on, so this
-   * would otherwise have to be repeated across all five branches above and
-   * kept in step by hand. Trimming after the fact can leave a run slightly
-   * under `limit`, which is deliberate and harmless ,the next cycle is three
-   * minutes away, and under-sending a cycle is a far better failure mode than
-   * re-attempting a lead that cannot succeed.
-   */
-  if (work.length > 0) {
-    const admin = createServiceClient();
-    const leadIds = [...new Set(work.map((row) => row.lead_id))];
-    const blocked = new Set<string>();
+  return { work: work.slice(0, limit), notApproved: [] };
+}
 
-    for (let i = 0; i < leadIds.length; i += 300) {
-      const { data: failures } = await admin
-        .from('email_logs')
-        .select('lead_id')
-        .eq('status', 'failed')
-        .in('lead_id', leadIds.slice(i, i + 300));
-      for (const row of failures ?? []) blocked.add(row.lead_id);
-    }
-
-    if (blocked.size > 0) {
-      return work.filter((row) => !blocked.has(row.lead_id)).slice(0, limit);
-    }
+/** Every lead with an open Send Failures row. */
+async function leadsWithOpenFailures(): Promise<Set<string>> {
+  const admin = createServiceClient();
+  const blocked = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data } = await admin
+      .from('email_logs')
+      .select('lead_id')
+      .eq('status', 'failed')
+      .order('id', { ascending: true })
+      .range(from, from + 999);
+    for (const row of data ?? []) blocked.add(row.lead_id);
+    if ((data ?? []).length < 1000) break;
   }
+  return blocked;
+}
 
-  return work.slice(0, limit);
+/** The Send Failures message for each unapproved initial: what is wrong and why it was not auto-approved. */
+async function describeUnapproved(
+  items: Array<{ leadId: string; version: { id: string; status: string; language: string } | null }>,
+): Promise<NotApprovedInitial[]> {
+  if (items.length === 0) return [];
+
+  const admin = createServiceClient();
+  const { data: history } = await admin
+    .from('email_versions')
+    .select('id, lead_id, status, language')
+    .in('lead_id', items.map((item) => item.leadId))
+    .eq('type', 'initial');
+
+  return items.map(({ leadId, version }) => {
+    if (!version) {
+      return {
+        leadId,
+        versionId: null,
+        message:
+          'This lead has no active initial draft, so the sender skipped it and moved on to the next lead. ' +
+          'Write or generate a draft and approve it; this entry clears itself once it is approved.',
+      };
+    }
+
+    const languageName = isLanguageCode(version.language) ? languagePack(version.language).name : version.language;
+    const others = (history ?? []).filter((v) => v.lead_id === leadId && v.id !== version.id);
+    const english = others.filter((v) => v.language === 'en');
+    let why = 'Nobody has approved it yet.';
+    if (version.language !== 'en' && others.some((v) => v.status === 'approved')) {
+      why =
+        'It did not inherit the earlier approval because it failed the automatic content check ' +
+        '(a leftover [placeholder], an English opening, or the wrong script).';
+    } else if (version.language !== 'en' && english.length > 0) {
+      why = 'Its English draft was never approved, so the translation needs your approval too.';
+    }
+
+    return {
+      leadId,
+      versionId: version.id,
+      message:
+        `The active initial draft (${languageName}) is ${version.status}, not approved, ` +
+        `so the sender skipped this lead and moved on to the next one. ${why} ` +
+        'Review it on the lead page and approve it; this entry then clears itself.',
+    };
+  });
 }
 
 /**
@@ -710,11 +767,16 @@ export async function runOutreachCycle(
    * nobody is told about is indistinguishable from a bug when 56 leads quietly
    * leave the dashboard.
    */
+  let movedToFailures = 0;
   const finish = (message: string): OutreachRunSummary => {
+    const moved =
+      movedToFailures > 0
+        ? ` ${movedToFailures} ${dryRun ? 'would be moved' : 'moved'} to Send Failures (draft not approved).`
+        : '';
     summary.message =
-      summary.closed > 0
+      (summary.closed > 0
         ? `${message} Closed ${summary.closed} exhausted sequence${summary.closed === 1 ? '' : 's'}.`
-        : message;
+        : message) + moved;
     summary.durationMs = Date.now() - started;
     return summary;
   };
@@ -751,6 +813,9 @@ export async function runOutreachCycle(
         detail: `No reply ${config.outreach.closeAfterFollowup2Days} days after follow-up 2. Reopen from the lead page if this was wrong.`,
       });
     }
+
+    // Catches approvals no app code sees (the hourly sweep, the n8n inheritance trigger).
+    await clearApprovedDraftFailures();
   }
 
   if (!config.outreach.autoFollowups && !config.outreach.autoSendInitial) {
@@ -773,8 +838,28 @@ export async function runOutreachCycle(
   }
 
   const ceiling = Math.min(dailyRemaining, Math.max(1, config.outreach.maxSendsPerRun));
-  const due = await findDueWork(config, ceiling);
+  const { work: due, notApproved } = await findDueWork(config, ceiling);
   summary.considered = due.length;
+
+  /*
+   * Unapproved initials the queue walked past go to Send Failures with the
+   * reason. The open failure keeps them out of later runs, and approving the
+   * draft clears it (clearApprovedDraftFailures), so the lead rejoins by itself.
+   */
+  const admin = createServiceClient();
+  movedToFailures = notApproved.length;
+  if (!dryRun) {
+    for (const item of notApproved) {
+      await logRefusal(admin, {
+        leadId: item.leadId,
+        userId: null,
+        emailType: 'initial',
+        reason: 'not_approved',
+        message: item.message,
+        emailVersionId: item.versionId,
+      });
+    }
+  }
 
   if (due.length === 0) return finish('Nothing is due.');
   if (dryRun) {
@@ -785,8 +870,6 @@ export async function runOutreachCycle(
         `${due.filter((d) => d.type === 'followup2').length} follow-up 2. Nothing was sent.`,
     );
   }
-
-  const admin = createServiceClient();
 
   for (const item of due) {
     if (Date.now() - started > maxRuntimeMs) {
